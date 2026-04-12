@@ -1,14 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-
-// ─── PERSISTENCIA ─────────────────────────────────────────────────────────────
-const STORE_KEY = "felix_finanzas_v3";
-function load() {
-  try { const r = localStorage.getItem(STORE_KEY); return r ? JSON.parse(r) : null; }
-  catch { return null; }
-}
-function save(data) {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch {}
-}
+import { auth, provider, db } from "./firebase";
+import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import {
+  collection, addDoc, updateDoc, deleteDoc,
+  doc, onSnapshot, query, orderBy, serverTimestamp,
+  getDoc, setDoc
+} from "firebase/firestore";
 
 // ─── CATEGORÍAS ───────────────────────────────────────────────────────────────
 const CATS = [
@@ -96,7 +93,47 @@ function Lbl({ children, style={} }) {
     textTransform:"uppercase",marginBottom:4,...style}}>{children}</div>;
 }
 
-// ─── MODAL CRUD (agregar + editar) ───────────────────────────────────────────
+// ─── LOGIN SCREEN ─────────────────────────────────────────────────────────────
+function LoginScreen({ onLogin, loading }) {
+  return (
+    <div style={{minHeight:"100vh",background:"#030712",display:"flex",
+      flexDirection:"column",alignItems:"center",justifyContent:"center",
+      padding:24,fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
+      <div style={{marginBottom:32,textAlign:"center"}}>
+        <div style={{fontSize:48,marginBottom:12}}>💰</div>
+        <div style={{fontSize:28,fontWeight:900,color:"#f8fafc",letterSpacing:-1}}>Mis Finanzas</div>
+        <div style={{fontSize:14,color:"#334155",marginTop:8,lineHeight:1.6}}>
+          Controla tus gastos.<br/>Crece tu ahorro.
+        </div>
+      </div>
+      <div style={{background:"#0f172a",borderRadius:20,padding:28,
+        border:"1px solid #1e293b",width:"100%",maxWidth:340,textAlign:"center"}}>
+        <div style={{fontSize:13,color:"#475569",marginBottom:20,lineHeight:1.6}}>
+          Inicia sesión con Google para acceder a tu cuenta. Tus datos son privados y solo tú los puedes ver.
+        </div>
+        <button onClick={onLogin} disabled={loading} style={{
+          width:"100%",padding:"14px 20px",borderRadius:12,border:"none",
+          background:loading?"#1e293b":"#fff",color:"#1a1a1a",fontWeight:700,
+          fontSize:15,cursor:loading?"not-allowed":"pointer",
+          display:"flex",alignItems:"center",justifyContent:"center",gap:10,
+        }}>
+          <svg width="20" height="20" viewBox="0 0 48 48">
+            <path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 29.8 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/>
+            <path fill="#34A853" d="M6.3 14.7l7 5.1C15.1 16.1 19.2 13 24 13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 16.3 2 9.7 7.4 6.3 14.7z"/>
+            <path fill="#FBBC05" d="M24 46c5.5 0 10.5-1.9 14.4-5l-6.7-5.5C29.7 37 27 38 24 38c-5.7 0-10.6-3.1-11.7-8.4l-7 5.4C8.6 41.7 15.7 46 24 46z"/>
+            <path fill="#EA4335" d="M44.5 20H24v8.5h11.8c-1 3-3.3 5.4-6.3 7L36.2 41c4.4-4.1 7.8-10.3 7.8-18 0-1.3-.2-2.7-.5-4z"/>
+          </svg>
+          {loading ? "Iniciando..." : "Continuar con Google"}
+        </button>
+        <div style={{fontSize:11,color:"#1e293b",marginTop:16,lineHeight:1.6}}>
+          Tus datos se guardan de forma segura en Firebase.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── MODAL CRUD (IGUAL A V1 — sin cambios) ───────────────────────────────────
 function TxModal({ initial, onClose, onSave, onDelete }) {
   const isEdit = !!initial;
 
@@ -116,7 +153,6 @@ function TxModal({ initial, onClose, onSave, onDelete }) {
     return () => clearTimeout(t);
   }, []);
 
-  // Scroll a categoría seleccionada al abrir en modo edición
   useEffect(() => {
     if (!catScrollRef.current) return;
     const btn = catScrollRef.current.querySelector(`[data-cat="${cat}"]`);
@@ -140,7 +176,7 @@ function TxModal({ initial, onClose, onSave, onDelete }) {
   function handleSave() {
     if (!rawAmount) return;
     onSave({
-      id:     initial?.id || Date.now(),
+      id:     initial?.id || null,
       desc:   desc.trim() || catObj.label,
       amount: rawAmount,
       cat,
@@ -173,29 +209,24 @@ function TxModal({ initial, onClose, onSave, onDelete }) {
         border:"1px solid #1e293b",
         animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",
       }}>
-        {/* Handle */}
         <div style={{display:"flex",justifyContent:"center",padding:"12px 0 6px"}}>
           <div style={{width:40,height:4,borderRadius:99,background:"#1e293b"}}/>
         </div>
 
         <div style={{padding:"0 20px 0"}}>
-          {/* Header */}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
             <div>
               <div style={{fontSize:16,fontWeight:800,color:"#f8fafc"}}>
                 {isEdit ? "Editar movimiento" : "Nuevo movimiento"}
               </div>
               {isEdit && (
-                <div style={{fontSize:11,color:"#334155",marginTop:2}}>
-                  Modifica lo que necesites
-                </div>
+                <div style={{fontSize:11,color:"#334155",marginTop:2}}>Modifica lo que necesites</div>
               )}
             </div>
             <button onClick={onClose} style={{background:"none",border:"none",
               color:"#475569",fontSize:26,cursor:"pointer",lineHeight:1,padding:4}}>×</button>
           </div>
 
-          {/* Monto */}
           <div style={{marginBottom:14}}>
             <Lbl>Monto (COP)</Lbl>
             <div style={{
@@ -227,7 +258,6 @@ function TxModal({ initial, onClose, onSave, onDelete }) {
             </div>
           </div>
 
-          {/* Descripción */}
           <div style={{marginBottom:14}}>
             <Lbl>¿Qué fue?</Lbl>
             <input
@@ -241,7 +271,6 @@ function TxModal({ initial, onClose, onSave, onDelete }) {
             />
           </div>
 
-          {/* Categorías */}
           <div style={{marginBottom:14}}>
             <Lbl>Categoría</Lbl>
             <div
@@ -255,7 +284,6 @@ function TxModal({ initial, onClose, onSave, onDelete }) {
                   onMouseDown={e=>e.preventDefault()}
                   onClick={()=>{
                     setCat(c.id);
-                    // scroll a la seleccionada
                     const el = catScrollRef.current?.querySelector(`[data-cat="${c.id}"]`);
                     el?.scrollIntoView({behavior:"smooth",block:"nearest",inline:"center"});
                   }}
@@ -277,7 +305,6 @@ function TxModal({ initial, onClose, onSave, onDelete }) {
             </div>
           </div>
 
-          {/* Fecha */}
           <div style={{marginBottom:16}}>
             <Lbl>Fecha</Lbl>
             <input
@@ -290,50 +317,33 @@ function TxModal({ initial, onClose, onSave, onDelete }) {
             />
           </div>
 
-          {/* Acciones */}
           <div style={{display:"flex",gap:8,marginBottom:24}}>
-
-            {/* Botón borrar (solo en edición) */}
             {isEdit && !confirmDelete && (
-              <button
-                onClick={()=>setConfirmDelete(true)}
-                style={{
-                  padding:"14px 16px",borderRadius:14,border:"1px solid #ef444433",
-                  background:"transparent",color:"#ef4444",cursor:"pointer",
-                  fontSize:20,flexShrink:0,transition:"all 0.2s",
-                }}>
-                🗑
-              </button>
+              <button onClick={()=>setConfirmDelete(true)} style={{
+                padding:"14px 16px",borderRadius:14,border:"1px solid #ef444433",
+                background:"transparent",color:"#ef4444",cursor:"pointer",
+                fontSize:20,flexShrink:0,transition:"all 0.2s",
+              }}>🗑</button>
             )}
-
-            {/* Confirmar borrado */}
             {isEdit && confirmDelete && (
-              <button
-                onClick={handleDelete}
-                style={{
-                  padding:"14px 16px",borderRadius:14,border:"none",
-                  background:"#ef4444",color:"#fff",cursor:"pointer",
-                  fontSize:12,fontWeight:800,flexShrink:0,
-                  animation:"shake 0.3s ease",
-                }}>
-                ¿Borrar?
-              </button>
+              <button onClick={handleDelete} style={{
+                padding:"14px 16px",borderRadius:14,border:"none",
+                background:"#ef4444",color:"#fff",cursor:"pointer",
+                fontSize:12,fontWeight:800,flexShrink:0,
+                animation:"shake 0.3s ease",
+              }}>¿Borrar?</button>
             )}
-
-            {/* Botón guardar */}
-            <button
-              onClick={handleSave}
-              style={{
-                flex:1,padding:14,borderRadius:14,border:"none",cursor:"pointer",
-                fontSize:15,fontWeight:800,transition:"all 0.2s",
-                background: !rawAmount
-                  ? "#1e293b"
-                  : isEdit && !changed
-                    ? "#1e3a5f"
-                    : `linear-gradient(135deg,${catObj.color},${catObj.color}bb)`,
-                color: !rawAmount ? "#334155"
-                  : isEdit && !changed ? "#38bdf8" : "#000",
-              }}>
+            <button onClick={handleSave} style={{
+              flex:1,padding:14,borderRadius:14,border:"none",cursor:"pointer",
+              fontSize:15,fontWeight:800,transition:"all 0.2s",
+              background: !rawAmount
+                ? "#1e293b"
+                : isEdit && !changed
+                  ? "#1e3a5f"
+                  : `linear-gradient(135deg,${catObj.color},${catObj.color}bb)`,
+              color: !rawAmount ? "#334155"
+                : isEdit && !changed ? "#38bdf8" : "#000",
+            }}>
               {!rawAmount
                 ? "Ingresa un monto"
                 : isEdit && !changed
@@ -349,7 +359,7 @@ function TxModal({ initial, onClose, onSave, onDelete }) {
   );
 }
 
-// ─── FILA DE TRANSACCIÓN ─────────────────────────────────────────────────────
+// ─── FILA DE TRANSACCIÓN (IGUAL A V1) ────────────────────────────────────────
 function TxRow({ t, onEdit }) {
   const cat    = ALL_CATS.find(c=>c.id===t.cat) || ALL_CATS[ALL_CATS.length-1];
   const isAhorr = !!SAVINGS.find(s=>s.id===t.cat);
@@ -370,31 +380,23 @@ function TxRow({ t, onEdit }) {
         transform: pressed?"scale(0.985)":"scale(1)",
         userSelect:"none",
       }}>
-
-      {/* Icono */}
       <div style={{width:40,height:40,borderRadius:12,background:`${cat.color}18`,
         display:"flex",alignItems:"center",justifyContent:"center",
         fontSize:18,flexShrink:0}}>{cat.icon}</div>
-
-      {/* Info */}
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontSize:13,fontWeight:600,color:"#e2e8f0",
           overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
           {t.desc}
         </div>
         <div style={{fontSize:11,color:"#334155",marginTop:1}}>
-          {t.date.slice(5).replace("-","/")} · {cat.label}
+          {t.date?.slice(5).replace("-","/")} · {cat.label}
         </div>
       </div>
-
-      {/* Monto + editar hint */}
       <div style={{textAlign:"right",flexShrink:0}}>
         <div style={{fontSize:14,fontWeight:800,color:isAhorr?"#22c55e":"#f1f5f9"}}>
           {isAhorr?"+":"-"}{COP(t.amount)}
         </div>
-        <div style={{fontSize:10,color:"#1e3a5f",marginTop:2}}>
-          toca para editar
-        </div>
+        <div style={{fontSize:10,color:"#1e3a5f",marginTop:2}}>toca para editar</div>
       </div>
     </div>
   );
@@ -402,43 +404,93 @@ function TxRow({ t, onEdit }) {
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [salario, setSalario] = useState(1400000);
-  const [tx,      setTx]      = useState([]);
-  const [month,   setMonth]   = useState(now.getMonth());
-  const [tab,     setTab]     = useState("home");
-  const [nuMeta,  setNuMeta]  = useState(5000000);
-  const [modal,   setModal]   = useState(null); // null | "new" | {tx object}
-  const loaded = useRef(false);
+  const [user,         setUser]         = useState(null);
+  const [authLoading,  setAuthLoading]  = useState(true);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [salario,      setSalario]      = useState(1400000);
+  const [tx,           setTx]           = useState([]);
+  const [month,        setMonth]        = useState(now.getMonth());
+  const [tab,          setTab]          = useState("home");
+  const [nuMeta,       setNuMeta]       = useState(5000000);
+  const [modal,        setModal]        = useState(null);
+  const [txLoading,    setTxLoading]    = useState(false);
 
-  // Persistencia
+  // ── Auth ──
   useEffect(() => {
-    const d = load();
-    if (d) {
-      if (d.salario) setSalario(d.salario);
-      if (d.tx)      setTx(d.tx);
-      if (d.nuMeta)  setNuMeta(d.nuMeta);
-    }
-    loaded.current = true;
-  }, []);
-  useEffect(() => {
-    if (loaded.current) save({ salario, tx, nuMeta });
-  }, [salario, tx, nuMeta]);
-
-  // CRUD
-  const handleSave = useCallback((t) => {
-    setTx(prev => {
-      const exists = prev.find(x => x.id === t.id);
-      return exists
-        ? prev.map(x => x.id === t.id ? t : x)   // editar
-        : [t, ...prev];                             // crear
+    return onAuthStateChanged(auth, u => {
+      setUser(u);
+      setAuthLoading(false);
     });
   }, []);
 
-  const handleDelete = useCallback((id) => {
-    setTx(prev => prev.filter(x => x.id !== id));
-  }, []);
+  // ── Cargar config del usuario (salario, nuMeta) ──
+  useEffect(() => {
+    if (!user) return;
+    getDoc(doc(db, "usuarios", user.uid)).then(snap => {
+      if (snap.exists()) {
+        const d = snap.data();
+        if (d.salario) setSalario(d.salario);
+        if (d.nuMeta)  setNuMeta(d.nuMeta);
+      }
+    });
+  }, [user]);
 
-  // Cálculos
+  // ── Guardar config cuando cambia ──
+  useEffect(() => {
+    if (!user) return;
+    setDoc(doc(db, "usuarios", user.uid), { salario, nuMeta }, { merge: true });
+  }, [salario, nuMeta, user]);
+
+  // ── Transacciones en tiempo real ──
+  useEffect(() => {
+    if (!user) { setTx([]); return; }
+    setTxLoading(true);
+    const q = query(
+      collection(db, "usuarios", user.uid, "transacciones"),
+      orderBy("createdAt", "desc")
+    );
+    return onSnapshot(q, snap => {
+      setTx(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setTxLoading(false);
+    });
+  }, [user]);
+
+  async function handleLogin() {
+    setLoginLoading(true);
+    try { await signInWithPopup(auth, provider); }
+    catch(e) { console.error(e); }
+    setLoginLoading(false);
+  }
+
+  async function handleLogout() {
+    await signOut(auth);
+    setTx([]);
+    setTab("home");
+  }
+
+  // ── CRUD ──
+  const handleSave = useCallback(async (t) => {
+    if (!user) return;
+    if (t.id) {
+      // Editar
+      await updateDoc(doc(db, "usuarios", user.uid, "transacciones", t.id), {
+        desc: t.desc, amount: t.amount, cat: t.cat, date: t.date,
+      });
+    } else {
+      // Crear
+      await addDoc(collection(db, "usuarios", user.uid, "transacciones"), {
+        desc: t.desc, amount: t.amount, cat: t.cat, date: t.date,
+        createdAt: serverTimestamp(),
+      });
+    }
+  }, [user]);
+
+  const handleDelete = useCallback(async (id) => {
+    if (!user) return;
+    await deleteDoc(doc(db, "usuarios", user.uid, "transacciones", id));
+  }, [user]);
+
+  // ── Cálculos ──
   const monthTx    = tx.filter(t => isMonth(t.date, month, now.getFullYear()));
   const gastosTx   = monthTx.filter(t => !SAVINGS.find(s=>s.id===t.cat));
   const ahorrTx    = monthTx.filter(t =>  SAVINGS.find(s=>s.id===t.cat));
@@ -452,6 +504,16 @@ export default function App() {
   const saldoColor = saldo>salario*0.4?"#22c55e":saldo>salario*0.15?"#f59e0b":"#ef4444";
   const animSaldo  = useCountUp(Math.max(saldo,0));
 
+  // ── Loading / Login ──
+  if (authLoading) return (
+    <div style={{minHeight:"100vh",background:"#030712",display:"flex",
+      alignItems:"center",justifyContent:"center",
+      color:"#334155",fontFamily:"'DM Sans',sans-serif",fontSize:14}}>
+      Cargando...
+    </div>
+  );
+  if (!user) return <LoginScreen onLogin={handleLogin} loading={loginLoading}/>;
+
   // ─── HOME ────────────────────────────────────────────────────────────────
   const HomeTab = () => {
     const byCat = CATS.map(c=>({
@@ -461,8 +523,6 @@ export default function App() {
 
     return (
       <div style={{padding:"16px 20px 0"}}>
-
-        {/* Saldo */}
         <div style={{background:"linear-gradient(160deg,#0a0f1e,#0d1829)",
           borderRadius:20,padding:20,marginBottom:14,border:"1px solid #1e293b"}}>
           <Lbl style={{marginBottom:2}}>Disponible · {MONTHS_S[month]}</Lbl>
@@ -482,7 +542,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* KPIs */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
           {[
             {l:"Gastos",      v:COP(totalGasto), c:"#ef4444"},
@@ -496,7 +555,6 @@ export default function App() {
           ))}
         </div>
 
-        {/* Cajita Nu */}
         <Card style={{marginBottom:14,background:"linear-gradient(135deg,#042f2e,#0f172a)",borderColor:"#22c55e22"}}>
           <div style={{display:"flex",alignItems:"center",gap:14}}>
             <Ring pct={nuTotal/nuMeta} size={54} stroke={5} color="#22c55e"
@@ -509,7 +567,6 @@ export default function App() {
           </div>
         </Card>
 
-        {/* Por categoría */}
         {byCat.length>0 && (
           <>
             <Lbl>Gastos por categoría</Lbl>
@@ -532,7 +589,11 @@ export default function App() {
           </>
         )}
 
-        {monthTx.length===0 && (
+        {txLoading && (
+          <div style={{textAlign:"center",padding:20,color:"#334155",fontSize:12}}>Cargando...</div>
+        )}
+
+        {!txLoading && monthTx.length===0 && (
           <div style={{textAlign:"center",padding:"40px 0",color:"#1e293b",fontSize:13,lineHeight:2}}>
             Sin movimientos aún.<br/>
             <span style={{fontSize:28}}>👆</span><br/>
@@ -548,8 +609,6 @@ export default function App() {
     const sorted = [...monthTx].sort((a,b)=>new Date(b.date)-new Date(a.date));
     return (
       <div style={{padding:"16px 20px 0"}}>
-
-        {/* Mes */}
         <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:12,scrollbarWidth:"none"}}>
           {MONTHS_S.map((m,i)=>(
             <button key={i} onClick={()=>setMonth(i)} style={{
@@ -562,7 +621,6 @@ export default function App() {
           ))}
         </div>
 
-        {/* Resumen */}
         <Card style={{marginBottom:14}}>
           <Lbl>Resumen · {MONTHS[month]}</Lbl>
           {[
@@ -579,7 +637,6 @@ export default function App() {
           ))}
         </Card>
 
-        {/* Hint edición */}
         {sorted.length>0 && (
           <div style={{fontSize:11,color:"#1e3a5f",textAlign:"center",marginBottom:10}}>
             ✏️ Toca cualquier movimiento para editarlo
@@ -605,6 +662,18 @@ export default function App() {
     const [tmpNu, setTmpNu] = useState(String(nuMeta));
     return (
       <div style={{padding:"16px 20px 0"}}>
+
+        {/* Perfil usuario */}
+        <Card style={{marginBottom:12,display:"flex",alignItems:"center",gap:12}}>
+          <img src={user.photoURL} alt="" style={{width:44,height:44,borderRadius:"50%"}}/>
+          <div style={{flex:1}}>
+            <div style={{fontSize:14,fontWeight:700,color:"#f8fafc"}}>{user.displayName}</div>
+            <div style={{fontSize:11,color:"#475569"}}>{user.email}</div>
+          </div>
+          <button onClick={handleLogout} style={{background:"none",border:"1px solid #ef444433",
+            borderRadius:8,padding:"6px 12px",color:"#ef4444",cursor:"pointer",
+            fontSize:11,fontWeight:700}}>Salir</button>
+        </Card>
 
         <Card style={{marginBottom:12}}>
           <Lbl>Sueldo mensual (COP)</Lbl>
@@ -656,25 +725,12 @@ export default function App() {
             📐 REGLA DE ORO
           </div>
           <div style={{fontSize:13,color:"#c7d2fe",lineHeight:1.8}}>
-            <b>Págate primero.</b> Al recibir el sueldo, transfiere ahorro <i>antes</i> de gastar. Lo que quede, es tuyo para gastar sin culpa.
+            <b>Págate primero.</b> Al recibir el sueldo, transfiere ahorro <i>antes</i> de gastar.
           </div>
         </Card>
 
-        <Card>
-          <Lbl>Zona de riesgo</Lbl>
-          <button onClick={()=>{
-            if(window.confirm("¿Borrar todos los movimientos? No se puede deshacer.")) {
-              setTx([]); save({salario, tx:[], nuMeta});
-            }
-          }} style={{width:"100%",padding:11,borderRadius:10,cursor:"pointer",
-            border:"1px solid #ef444433",background:"transparent",
-            color:"#ef4444",fontSize:13,fontWeight:700}}>
-            Borrar todos los movimientos
-          </button>
-        </Card>
-
         <div style={{textAlign:"center",fontSize:11,color:"#1e293b",padding:"16px 0",lineHeight:1.7}}>
-          Datos guardados automáticamente en este dispositivo.
+          Datos guardados en Firebase · accesibles desde cualquier dispositivo.
         </div>
       </div>
     );
@@ -691,7 +747,9 @@ export default function App() {
         display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
           <div style={{fontSize:9,color:"#1e293b",letterSpacing:2.5,fontWeight:700}}>MIS FINANZAS PRO</div>
-          <div style={{fontSize:19,fontWeight:900,letterSpacing:-0.5}}>Felix 👋</div>
+          <div style={{fontSize:19,fontWeight:900,letterSpacing:-0.5}}>
+            {user.displayName?.split(" ")[0]} 👋
+          </div>
         </div>
         <div style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:10,
           padding:"5px 12px",fontSize:11,color:"#334155",fontWeight:700}}>
@@ -699,7 +757,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Vistas */}
       {tab==="home" && <HomeTab/>}
       {tab==="mov"  && <MovTab/>}
       {tab==="cfg"  && <ConfigTab/>}
@@ -715,7 +772,6 @@ export default function App() {
         }}>＋</button>
       )}
 
-      {/* Modal CRUD */}
       {modal && (
         <TxModal
           initial={modal === "new" ? null : modal}
