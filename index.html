@@ -1,10 +1,32 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>mis-finanzas</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#030712" />
+    <title>Mis Finanzas</title>
+    <style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #030712;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    font-family: 'DM Sans', 'Segoe UI', sans-serif;
+  }
+  #root {
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: #030712;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
+  ::-webkit-scrollbar { display: none; }
+</style>
   </head>
   <body>
     <div id="root"></div>
