@@ -10,7 +10,7 @@ import {
 // ─── PALETA PRINCIPAL ─────────────────────────────────────────────────────────
 // Inspirada en Revolut + Robinhood: Indigo (confianza/metas) + Emerald (dinero) + Slate (fondo)
 const C = {
-  bg:      "#0a0f1e",       // Slate oscuro — no negro puro (menos fatiga)
+  bg:      "#080e1e",          // Azul marino profundo
   surface: "rgba(255,255,255,0.05)",
   border:  "rgba(255,255,255,0.08)",
   indigo:  "#6366f1",       // Metas / acciones principales
@@ -43,18 +43,21 @@ const MAIN_CATS = [
   { id:"otros_main", label:"Otros", icon:"📦", color:"#94a3b8",
     subs:[{id:"tecnologia",label:"Tecnología",icon:"💻"},{id:"educacion",label:"Educación",icon:"📚"},{id:"mascotas",label:"Mascotas",icon:"🐾"},{id:"otros",label:"Otros",icon:"🗂️"}]},
 ];
-const SAVINGS = [
-  {id:"emergencias",label:"Emergencias",icon:"🛡️",color:C.sky},
-  {id:"meta_aporte",label:"Aporte a Meta",icon:"⭐",color:C.indigo},
-];
-// Ingresos: categoría especial — suman al saldo en lugar de restar
+// Solo "ingreso" es categoría especial — suma al saldo
+// Las metas son el único concepto de ahorro (unificado)
 const INCOME_CAT = {id:"ingreso",label:"Ingreso",icon:"💵",color:"#10b981"};
 function isIngreso(cat){ return cat==="ingreso"; }
-function isGasto(cat){ return !SAVINGS.find(s=>s.id===cat) && !isIngreso(cat); }
+// Un aporte a meta es cualquier tx con goalId — no necesita categoría especial
+function isAporteMeta(t){ return !!t.goalId; }
+function isGasto(cat){ return !isIngreso(cat) && cat!=="meta_aporte"; }
+// Compatibilidad legacy: emergencias era categoría, ahora es meta especial
+function isSavingsLegacy(cat){ return cat==="emergencias"||cat==="meta_aporte"; }
 const ALL_SUBS = MAIN_CATS.flatMap(m=>m.subs.map(s=>({...s,mainId:m.id,color:m.color})));
 function getCatInfo(id) {
   if(id==="ingreso") return INCOME_CAT;
-  return ALL_SUBS.find(s=>s.id===id) || SAVINGS.find(s=>s.id===id) ||
+  if(id==="emergencias") return {id:"emergencias",label:"Fondo Emergencias",icon:"🛡️",color:C.sky};
+  if(id==="meta_aporte") return {id:"meta_aporte",label:"Aporte a Meta",icon:"⭐",color:C.indigo};
+  return ALL_SUBS.find(s=>s.id===id) ||
     ({gym:{label:"Gym",icon:"🏋️",color:"#f97316"},suplementos:{label:"Suplementos",icon:"💪",color:"#fb923c"},
       servicios:{label:"Servicios",icon:"📱",color:"#38bdf8"},comida:{label:"Comida",icon:"🍔",color:"#facc15"},
       salidas:{label:"Salidas",icon:"🎉",color:"#e879f9"},ropa:{label:"Ropa",icon:"👕",color:"#a78bfa"},
@@ -173,18 +176,28 @@ function Bar({pct,color,h=5}){
   </div>;
 }
 
-function Card({children,style={}}){
-  return <div style={{background:C.surface,borderRadius:16,padding:16,border:`1px solid ${C.border}`,...style}}>{children}</div>;
+function Card({children,style={},glow}){
+  return <div style={{
+    background:C.surface,
+    borderRadius:18,
+    padding:16,
+    border:`1px solid ${C.border}`,
+    boxShadow:glow?`0 0 0 1px ${glow}40, 0 8px 32px rgba(0,0,0,0.4)`:"0 2px 12px rgba(0,0,0,0.3)",
+    ...style
+  }}>{children}</div>;
 }
 function Lbl({children,style={}}){
-  return <div style={{fontSize:11,color:C.text.b,letterSpacing:1.2,fontWeight:700,textTransform:"uppercase",marginBottom:6,...style}}>{children}</div>;
+  return <div style={{
+    fontSize:10,color:C.text.m,letterSpacing:1.5,fontWeight:700,
+    textTransform:"uppercase",marginBottom:6,...style
+  }}>{children}</div>;
 }
 
 // ─── SELECTOR CATEGORÍAS ──────────────────────────────────────────────────────
 function CatSelector({value,onChange}){
   const curMain=MAIN_CATS.find(m=>m.subs.some(s=>s.id===value));
   const [sel,setSel]=useState(curMain?.id||null);
-  const isSav=!!SAVINGS.find(s=>s.id===value);
+  const isSav=false; // Metas ya no son categorías del selector
   function MBtn({m}){
     const active=curMain?.id===m.id&&!isSav,open=sel===m.id;
     return <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSel(p=>p===m.id?null:m.id)}
@@ -216,14 +229,7 @@ function CatSelector({value,onChange}){
         </div>
       </div>;
     })()}
-    <div style={{display:"flex",gap:6}}>
-      {SAVINGS.map(s=>{const a=value===s.id;return <button key={s.id} onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(s.id);setSel(null);}}
-        style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"13px 8px",borderRadius:12,border:"none",cursor:"pointer",
-          background:a?`${s.color}22`:C.surface,outline:a?`2px solid ${s.color}`:"2px solid transparent",transition:"all 0.12s"}}>
-        <span style={{fontSize:18}}>{s.icon}</span>
-        <span style={{fontSize:13,fontWeight:700,color:a?s.color:C.text.b}}>{s.label}</span>
-      </button>;})}
-    </div>
+    {/* Emergencias y Meta se seleccionan desde el toggle principal del modal */}
   </div>;
 }
 
@@ -368,7 +374,12 @@ function GoalChip({goal,aportado,aportadoEsteMes,onClick}){
     onMouseDown={e=>e.currentTarget.style.transform="scale(0.98)"}
     onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
     onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
-    style={{background:C.surface,borderRadius:14,overflow:"hidden",border:`1px solid ${C.border}`,cursor:"pointer",display:"flex",alignItems:"stretch",marginBottom:10,transition:"transform 0.12s"}}>
+    style={{
+      background:"rgba(255,255,255,0.05)",
+      borderRadius:16,overflow:"hidden",
+      border:`1px solid rgba(255,255,255,0.1)`,
+      boxShadow:"0 4px 16px rgba(0,0,0,0.3)",
+      cursor:"pointer",display:"flex",alignItems:"stretch",marginBottom:10,transition:"all 0.15s"}}>
     <div style={{width:64,flexShrink:0,background:grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>
       {goal.emoji||"⭐"}
     </div>
@@ -505,23 +516,42 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible}){
   useEffect(()=>{const t=setTimeout(()=>ref.current?.focus(),120);return()=>clearTimeout(t);},[]);
   const raw=parseFloat(amount.replace(/\./g,"").replace(",","."))||0;
   const ci=getCatInfo(cat);
-  const isSav=!!SAVINGS.find(s=>s.id===cat);
   const isMeta=cat==="meta_aporte";
   const esIngreso=isIngreso(cat);
   const changed=isEdit&&(raw!==initial.amount||desc.trim()!==initial.desc||cat!==initial.cat||date!==initial.date||goalId!==(initial.goalId||""));
-  const acc=esIngreso?C.emerald:isMeta?C.indigo:isSav?C.sky:ci.color||C.emerald;
+  const acc=esIngreso?C.emerald:isMeta?C.indigo:ci.color||C.emerald;
   function ha(e){const r=e.target.value.replace(/\D/g,"");setAmount(r?Number(r).toLocaleString("es-CO"):"");}
-  // Validar saldo antes de guardar (solo gastos nuevos, no ediciones)
   const esEdicion=!!initial?.id;
-  const montoDiff=esEdicion?(raw-initial.amount):raw; // diferencia en edición
-  const saldoTrasGasto=!esIngreso&&!SAVINGS.find(s=>s.id===cat)
-    ?(saldoDisponible-montoDiff)
-    :saldoDisponible;
+  const montoDiff=esEdicion?(raw-initial.amount):raw;
   const sinSaldo=!esIngreso&&!esEdicion&&saldoDisponible<raw&&saldoDisponible>=0;
-  const saldoNegativo=!esIngreso&&!esEdicion&&saldoDisponible<0;
+
+  // ── Validaciones de campos requeridos ──────────────────────────────────────
+  // 1. Monto obligatorio siempre
+  const faltaMonto = !raw;
+  // 2. Para gastos: debe tener subcategoría (no puede quedar en categoría principal)
+  //    Las subcategorías válidas son las de ALL_SUBS. Emergencias y meta_aporte son válidas.
+  const subCats = ALL_SUBS.map(s=>s.id);
+  const catValida = esIngreso || cat==="emergencias" || cat==="meta_aporte" || subCats.includes(cat);
+  const faltaSubcat = !catValida;
+  // 3. Para aporte a meta: debe haber seleccionado una meta
+  const faltaMeta = isMeta && !goalId && goals.length > 0;
+  // 4. Para aporte a meta sin metas creadas: advertencia especial
+  const sinMetas = isMeta && goals.length === 0;
+
+  // Errores activos
+  const hayError = faltaMonto || faltaSubcat || faltaMeta;
+
+  // Mensaje de error descriptivo
+  function getMensajeError() {
+    if (faltaMonto) return "Ingresa el monto primero";
+    if (faltaSubcat) return "Elige una subcategoría de la categoría";
+    if (faltaMeta) return "Selecciona a qué meta va este aporte";
+    if (sinMetas) return "Crea una meta primero en la pestaña ⭐ Metas";
+    return null;
+  }
 
   function save(){
-    if(!raw)return;
+    if(hayError || sinMetas) return;
     onSave({
       id:initial?.id||null,
       desc:desc.trim()||(isMeta&&goalId?goals.find(g=>g.id===goalId)?.name||"Aporte meta":esIngreso?"Ingreso del mes":ci.label),
@@ -570,26 +600,28 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible}){
             value={desc} onChange={e=>setDesc(e.target.value)} enterKeyHint="done"
             style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box"}}/>
         </div>
-        {/* Toggle Gasto / Ingreso */}
+        {/* Toggle Gasto / Meta / Ingreso */}
         <div style={{display:"flex",gap:6,marginBottom:14}}>
-          <button onMouseDown={e=>e.preventDefault()} onClick={()=>{if(esIngreso)setCat("restaurantes");}}
-            style={{flex:1,padding:"10px 0",borderRadius:12,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,
-              background:!esIngreso?`${C.red}22`:C.surface,
-              outline:!esIngreso?`2px solid ${C.red}`:"2px solid transparent",
-              color:!esIngreso?C.red:C.text.s,transition:"all 0.15s"}}>
-            🛍️ Gasto
-          </button>
-          <button onMouseDown={e=>e.preventDefault()} onClick={()=>setCat("ingreso")}
-            style={{flex:1,padding:"10px 0",borderRadius:12,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,
-              background:esIngreso?`${C.emerald}22`:C.surface,
-              outline:esIngreso?`2px solid ${C.emerald}`:"2px solid transparent",
-              color:esIngreso?C.emerald:C.text.s,transition:"all 0.15s"}}>
-            💵 Ingreso
-          </button>
+          {[
+            {id:"gasto",  label:"🛍️ Gasto",   color:C.red,    active:!esIngreso&&cat!=="meta_aporte", onClick:()=>setCat("restaurantes")},
+            {id:"meta",   label:"⭐ Meta",     color:C.indigo, active:cat==="meta_aporte",             onClick:()=>setCat("meta_aporte")},
+            {id:"ingreso",label:"💵 Ingreso",  color:C.emerald,active:esIngreso,                       onClick:()=>setCat("ingreso")},
+          ].map(t=>(
+            <button key={t.id} onMouseDown={e=>e.preventDefault()} onClick={t.onClick}
+              style={{flex:1,padding:"10px 0",borderRadius:12,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,
+                background:t.active?`${t.color}22`:C.surface,
+                outline:t.active?`2px solid ${t.color}`:"2px solid transparent",
+                color:t.active?t.color:C.text.s,transition:"all 0.15s"}}>
+              {t.label}
+            </button>
+          ))}
         </div>
-        {!esIngreso&&<div style={{marginBottom:14}}>
-          <Lbl>Categoría</Lbl>
-          <CatSelector value={cat} onChange={v=>{setCat(v);if(v!=="meta_aporte")setGoalId("");}}/>
+        {!esIngreso&&cat!=="meta_aporte"&&<div style={{marginBottom:14}}>
+          <Lbl>Categoría del gasto</Lbl>
+          <CatSelector value={cat} onChange={v=>{setCat(v);setGoalId("");}}/>
+          {faltaSubcat&&raw>0&&<div style={{marginTop:8,fontSize:12,color:C.amber,fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
+            <span>⚠️</span><span>Elige el tipo específico dentro de la categoría</span>
+          </div>}
         </div>}
         {esIngreso&&<div style={{marginBottom:14,padding:"12px 16px",background:`${C.emerald}10`,border:`1px solid ${C.emerald}30`,borderRadius:12}}>
           <div style={{fontSize:13,color:C.emerald,fontWeight:700,marginBottom:4}}>💵 Registrar ingreso</div>
@@ -606,7 +638,10 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible}){
             </button>)}
           </div>
         </div>}
-        {isMeta&&goals.length===0&&<div style={{marginBottom:14,padding:"14px 16px",background:C.surface,borderRadius:12,fontSize:13,color:C.text.b}}>Crea primero una meta en la pestaña "Metas" ⭐</div>}
+        {isMeta&&goals.length===0&&<div style={{marginBottom:14,padding:"14px 16px",background:`${C.amber}12`,border:`1px solid ${C.amber}35`,borderRadius:12}}>
+          <div style={{fontSize:13,fontWeight:700,color:C.amber,marginBottom:4}}>⭐ Sin metas creadas aún</div>
+          <div style={{fontSize:12,color:C.text.b,lineHeight:1.6}}>Primero ve a la pestaña <b style={{color:C.indigo}}>Metas</b> y crea tu primera meta de ahorro. Luego vuelve aquí para registrar tu aporte.</div>
+        </div>}
         <div style={{marginBottom:16}}>
           <Lbl>Fecha</Lbl>
           <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"13px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box"}}/>
@@ -630,14 +665,14 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible}){
         <div style={{display:"flex",gap:8,marginBottom:28}}>
           {isEdit&&!conf&&<button onClick={()=>setConf(true)} style={{padding:"16px 18px",borderRadius:14,border:`1px solid ${C.red}44`,background:"transparent",color:C.red,cursor:"pointer",fontSize:22,flexShrink:0}}>🗑</button>}
           {isEdit&&conf&&<button onClick={()=>{onDelete(initial.id);onClose();}} style={{padding:"16px 18px",borderRadius:14,border:"none",background:C.red,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:800,flexShrink:0,animation:"shake 0.3s ease"}}>¿Borrar?</button>}
-          <button onClick={sinSaldo?undefined:save}
+          <button onClick={(hayError||sinSaldo||sinMetas)?undefined:save}
             style={{flex:1,padding:16,borderRadius:14,border:"none",
-              cursor:(!raw||sinSaldo)?"not-allowed":"pointer",
+              cursor:(hayError||sinSaldo||sinMetas)?"not-allowed":"pointer",
               fontSize:16,fontWeight:800,transition:"all 0.2s",
-              background:!raw?C.surface:sinSaldo?`${C.red}20`:isEdit&&!changed?`${C.sky}18`:`linear-gradient(135deg,${acc},${acc}cc)`,
-              color:!raw?C.text.s:sinSaldo?C.red:isEdit&&!changed?C.sky:"#fff",
-              opacity:sinSaldo?0.7:1}}>
-            {!raw?"Ingresa el monto":sinSaldo?"Saldo insuficiente 🚫":isEdit&&!changed?"Sin cambios":isEdit?"✓ Guardar":esIngreso?`Registrar ingreso ${COP(raw)} →`:`Registrar ${COP(raw)} →`}
+              background:(hayError||sinMetas)?C.surface:sinSaldo?`${C.red}20`:isEdit&&!changed?`${C.sky}18`:`linear-gradient(135deg,${acc},${acc}cc)`,
+              color:(hayError||sinMetas)?C.text.s:sinSaldo?C.red:isEdit&&!changed?C.sky:"#fff",
+              opacity:(hayError||sinSaldo||sinMetas)?0.65:1}}>
+            {getMensajeError() ?? (sinSaldo?"Saldo insuficiente 🚫":isEdit&&!changed?"Sin cambios":isEdit?"✓ Guardar":esIngreso?`Registrar ingreso ${COP(raw)} →`:`Registrar ${COP(raw)} →`)}
           </button>
         </div>
       </div>
@@ -646,18 +681,41 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible}){
 }
 
 function TxRow({t,onEdit}){
-  const cat=getCatInfo(t.cat), isSav=!!SAVINGS.find(s=>s.id===t.cat);
+  const cat=getCatInfo(t.cat);
+  const esMeta=isAporteMeta(t)||isSavingsLegacy(t.cat);
+  const esPos=esMeta||isIngreso(t.cat);
   const [p,setP]=useState(false);
-  return <div onClick={onEdit} onMouseDown={()=>setP(true)} onMouseUp={()=>setP(false)} onMouseLeave={()=>setP(false)}
-    style={{display:"flex",alignItems:"center",gap:12,marginBottom:8,background:p?"rgba(255,255,255,0.07)":C.surface,borderRadius:14,padding:"14px 16px",border:`1px solid ${cat.color}28`,cursor:"pointer",transition:"background 0.15s,transform 0.1s",transform:p?"scale(0.985)":"scale(1)",userSelect:"none"}}>
-    <div style={{width:44,height:44,borderRadius:12,background:`${cat.color}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{cat.icon}</div>
+  return <div onClick={onEdit}
+    onMouseDown={()=>setP(true)} onMouseUp={()=>setP(false)} onMouseLeave={()=>setP(false)}
+    style={{
+      display:"flex",alignItems:"center",gap:12,marginBottom:8,
+      background:p?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.04)",
+      borderRadius:16,padding:"14px 16px",
+      border:`1px solid ${p?C.borderStrong:C.border}`,
+      cursor:"pointer",
+      transition:"all 0.15s",
+      transform:p?"scale(0.985)":"scale(1)",
+      boxShadow:"0 2px 8px rgba(0,0,0,0.2)",
+      userSelect:"none",
+    }}>
+    {/* Ícono con fondo de color */}
+    <div style={{
+      width:44,height:44,borderRadius:13,flexShrink:0,
+      background:`linear-gradient(135deg,${cat.color}30,${cat.color}15)`,
+      border:`1px solid ${cat.color}30`,
+      display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
+    }}>{cat.icon}</div>
     <div style={{flex:1,minWidth:0}}>
-      <div style={{fontSize:14,fontWeight:600,color:C.text.h,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc}</div>
-      <div style={{fontSize:12,color:C.text.b,marginTop:2}}>{t.date?.slice(5).replace("-","/")} · {isIngreso(t.cat)?"💵 Ingreso":cat.label}</div>
+      <div style={{fontSize:14,fontWeight:700,color:"#ffffff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc}</div>
+      <div style={{fontSize:11,color:C.text.m,marginTop:3}}>
+        {t.date?.slice(5).replace("-","/")} · {isIngreso(t.cat)?"💵 Ingreso":esMeta?"⭐ Meta":cat.label}
+      </div>
     </div>
     <div style={{textAlign:"right",flexShrink:0}}>
-      <div style={{fontSize:15,fontWeight:800,color:(isSav||isIngreso(t.cat))?C.emerald:C.text.h}}>{(isSav||isIngreso(t.cat))?"+":"-"}{COP(t.amount)}</div>
-      <div style={{fontSize:10,color:C.text.s,marginTop:2}}>toca para editar</div>
+      <div style={{fontSize:16,fontWeight:800,color:esPos?C.emeraldLight:C.red,letterSpacing:-0.5}}>
+        {esPos?"+":"-"}{COP(t.amount)}
+      </div>
+      <div style={{fontSize:9,color:C.text.s,marginTop:2}}>editar</div>
     </div>
   </div>;
 }
@@ -680,7 +738,13 @@ export default function App(){
 
   async function handleLogin(){setLL(true);try{await signInWithPopup(auth,provider);}catch(e){console.error(e);}setLL(false);}
   async function handleLogout(){await signOut(auth);setTx([]);setGoals([]);setTab("home");setSalario(null);setShowOnb(false);}
-  function handleOnbSave(v){setSalario(v);setShowOnb(false);setDoc(doc(db,"usuarios",user.uid),{salario:v},{merge:true});}
+  function handleOnbSave(v){
+    setSalario(v);
+    setShowOnb(false);
+    setDoc(doc(db,"usuarios",user.uid),{salario:v},{merge:true});
+    // Crear Fondo Emergencias por defecto (se ejecuta después de que goals cargue)
+    setTimeout(()=>crearMetaEmergencias(),800);
+  }
   const handleSave=useCallback(async t=>{
     if(!user)return;
     const p={desc:t.desc,amount:t.amount,cat:t.cat,date:t.date,...(t.goalId?{goalId:t.goalId}:{})};
@@ -689,7 +753,7 @@ export default function App(){
     } else {
       await addDoc(collection(db,"usuarios",user.uid,"transacciones"),{...p,createdAt:serverTimestamp()});
       // Disparar alerta si el gasto es significativo (solo gastos nuevos, no ingresos/ahorros)
-      if(!SAVINGS.find(s=>s.id===t.cat) && !isIngreso(t.cat) && (salario||0)>0){
+      if(isGasto(t.cat) && !isAporteMeta(t) && (salario||0)>0){
         const pctDelIngreso=t.amount/(salario||1);
         if(pctDelIngreso>=0.3){
           setAlertaGasto({monto:t.amount, pct:pctDelIngreso, desc:t.desc||"este gasto"});
@@ -699,30 +763,47 @@ export default function App(){
     }
   },[user,salario]);
   const handleDelete=useCallback(async id=>{if(!user)return;await deleteDoc(doc(db,"usuarios",user.uid,"transacciones",id));},[user]);
-  const handleGoalSave=useCallback(async g=>{if(!user)return;const pl={name:g.name,monto:g.monto,emoji:g.emoji||"⭐"};if(g.id)await updateDoc(doc(db,"usuarios",user.uid,"metas",g.id),pl);else await addDoc(collection(db,"usuarios",user.uid,"metas"),{...pl,createdAt:serverTimestamp()});},[user]);
+  const handleGoalSave=useCallback(async g=>{
+    if(!user)return;
+    const pl={name:g.name,monto:g.monto||0,emoji:g.emoji||"⭐",esEmergencias:g.esEmergencias||false};
+    if(g.id) await updateDoc(doc(db,"usuarios",user.uid,"metas",g.id),pl);
+    else await addDoc(collection(db,"usuarios",user.uid,"metas"),{...pl,createdAt:serverTimestamp()});
+  },[user]);
+
+  // Crear meta de Emergencias por defecto al hacer onboarding
+  const crearMetaEmergencias=useCallback(async()=>{
+    if(!user)return;
+    const existe=goals.some(g=>g.esEmergencias);
+    if(existe)return;
+    await addDoc(collection(db,"usuarios",user.uid,"metas"),{
+      name:"Fondo Emergencias",emoji:"🛡️",monto:0,esEmergencias:true,
+      createdAt:serverTimestamp(),
+    });
+  },[user,goals]);
   const handleGoalDelete=useCallback(async id=>{
     if(!user)return;
     // 1. Eliminar la meta
     await deleteDoc(doc(db,"usuarios",user.uid,"metas",id));
     // 2. Eliminar TODOS los movimientos de aporte vinculados a esa meta
     //    Así el saldo se recupera automáticamente
-    const aportesDeEstaMeta=tx.filter(t=>t.cat==="meta_aporte"&&t.goalId===id);
+    const aportesDeEstaMeta=tx.filter(t=>(isAporteMeta(t)||isSavingsLegacy(t.cat))&&t.goalId===id);
     await Promise.all(
       aportesDeEstaMeta.map(t=>deleteDoc(doc(db,"usuarios",user.uid,"transacciones",t.id)))
     );
   },[user,tx]);
 
   const monthTx=tx.filter(t=>isMonth(t.date,month,now.getFullYear()));
-  const gastosTx=monthTx.filter(t=>isGasto(t.cat));
-  const ahorrTx=monthTx.filter(t=>SAVINGS.find(s=>s.id===t.cat));
+  const gastosTx=monthTx.filter(t=>isGasto(t.cat)&&!isAporteMeta(t));
   const ingresosTx=monthTx.filter(t=>isIngreso(t.cat));
+  // Aportes a metas = cualquier tx con goalId (incluye legacy emergencias/meta_aporte)
+  const aporteMesAll=monthTx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat));
   const totalGasto=gastosTx.reduce((s,t)=>s+t.amount,0);
-  const totalAhorr=ahorrTx.reduce((s,t)=>s+t.amount,0);
-  // Ingresos del mes: si hay registrados los usa, si no usa el salario configurado
+  const totalAportes=aporteMesAll.reduce((s,t)=>s+t.amount,0); // total guardado en metas
+  const totalAhorr=totalAportes; // alias para compatibilidad
   const totalIngresoMes=ingresosTx.length>0
     ?ingresosTx.reduce((s,t)=>s+t.amount,0)
     :(salario||0);
-  const sal=salario||0; // salario de referencia para sugerencias
+  const sal=salario||0;
 
   // Saldo acumulativo por mes — usa ingresos reales si existen, si no el salario fijo
   function getSaldoAcumulado() {
@@ -758,7 +839,7 @@ export default function App(){
       const key = `${d.getFullYear()}-${d.getMonth()}`;
       if (!porMes[key]) porMes[key] = { ingresos: 0, gastos: 0, ahorros: 0, tieneIngreso: false };
       if (isIngreso(t.cat)) { porMes[key].ingresos += t.amount; porMes[key].tieneIngreso = true; }
-      else if (SAVINGS.find(s => s.id === t.cat)) porMes[key].ahorros += t.amount;
+      else if (isAporteMeta(t)||isSavingsLegacy(t.cat)) porMes[key].ahorros += t.amount;
       else porMes[key].gastos += t.amount;
     });
 
@@ -784,30 +865,34 @@ export default function App(){
   const saldo=totalIngresoMes+saldoAnterior-totalGasto-totalAhorr;
   const tasaAhorr=totalIngresoMes>0?totalAhorr/totalIngresoMes:0;
   const pctUsado=totalIngresoMes>0?totalGasto/totalIngresoMes:0;
-  const emgTotal=tx.filter(t=>t.cat==="emergencias").reduce((s,t)=>s+t.amount,0);
-  const metaTotal=tx.filter(t=>t.cat==="meta_aporte").reduce((s,t)=>s+t.amount,0);
+  // Total aportado a todas las metas (acumulado histórico)
+  const totalEnMetas=tx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat)).reduce((s,t)=>s+t.amount,0);
+  const metaTotal=totalEnMetas; // alias
   const saldoColor=saldo>sal*0.4?C.emerald:saldo>sal*0.15?C.amber:C.red;
   const animSaldo=useCountUp(Math.max(saldo,0));
   function getAportado(gid){
-    // Suma TODOS los aportes de todos los meses — progreso acumulativo
-    return tx.filter(t=>t.cat==="meta_aporte"&&t.goalId===gid).reduce((s,t)=>s+t.amount,0);
+    // Acumulado histórico — incluye legacy y nuevos aportes vinculados por goalId
+    return tx.filter(t=>(isAporteMeta(t)||isSavingsLegacy(t.cat))&&t.goalId===gid)
+             .reduce((s,t)=>s+t.amount,0);
   }
   function getAportadoMes(gid,m,y){
-    // Solo aportes del mes seleccionado — para mostrar "aportado este mes"
-    return tx.filter(t=>t.cat==="meta_aporte"&&t.goalId===gid&&isMonth(t.date,m,y))
+    return tx.filter(t=>(isAporteMeta(t)||isSavingsLegacy(t.cat))&&t.goalId===gid&&isMonth(t.date,m,y))
              .reduce((s,t)=>s+t.amount,0);
   }
 
   const CSS=`
-    html,body{background:${C.bg}!important;margin:0;padding:0;}
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800;900&display=swap');
+    html,body{background:#080e1e!important;margin:0;padding:0;}
     *{box-sizing:border-box;}
     @keyframes fadeIn{from{opacity:0}to{opacity:1}}
     @keyframes slideUp{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
     @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.75}}
+    @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
     input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.6);}
     input::placeholder{color:#2d3a4a;}
+    ::-webkit-scrollbar{display:none;}
   `;
 
   if(authLoading)return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",color:C.text.b,fontFamily:"'DM Sans',sans-serif",fontSize:15}}>Cargando...</div>;
@@ -819,32 +904,118 @@ export default function App(){
     const byMain=MAIN_CATS.map(m=>({...m,total:gastosTx.filter(t=>m.subs.some(s=>s.id===t.cat)).reduce((s,t)=>s+t.amount,0)})).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
     return <div style={{padding:"16px 20px 0"}}>
       <BudgetAlert pct={pctUsado} salario={sal} gastado={totalGasto}/>
-      {/* Saldo card */}
-      <div style={{background:"linear-gradient(160deg,rgba(14,23,43,1),rgba(18,30,55,1))",borderRadius:20,padding:22,marginBottom:14,border:`1px solid ${pctUsado>=0.8?C.amber+"44":C.border}`,transition:"border-color 0.4s"}}>
-        <Lbl style={{marginBottom:4,color:C.text.s}}>Disponible · {MONTHS_S[month]}</Lbl>
-        <div style={{fontSize:42,fontWeight:900,letterSpacing:-2,lineHeight:1,color:saldoColor,fontVariantNumeric:"tabular-nums",transition:"color 0.4s"}}>{COP(animSaldo)}</div>
-        <div style={{fontSize:12,color:C.text.s,marginTop:5,display:"flex",gap:8,flexWrap:"wrap"}}>
-          <span style={{color:C.emerald}}>+{COP(totalIngresoMes)}</span>
-          {saldoAnterior>0&&<span style={{color:C.emerald}}>+{COP(saldoAnterior)} ant.</span>}
-          {totalGasto>0&&<span style={{color:C.red}}>−{COP(totalGasto)}</span>}
-          {totalAhorr>0&&<span style={{color:C.indigo}}>−{COP(totalAhorr)} ahorro</span>}
-        </div>
-        <div style={{marginTop:16}}>
-          <Bar pct={pctUsado} color={pctUsado>=1?C.red:pctUsado>0.8?C.amber:C.emerald} h={6}/>
-          <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
-            <span style={{fontSize:11,color:C.text.s}}>Gastos del mes</span>
-            <span style={{fontSize:11,fontWeight:700,color:pctUsado>=0.8?C.amber:C.text.s}}>{Math.round(pctUsado*100)}% del sueldo de este mes</span>
+      {/* ── Card principal — gradiente dramático estilo Revolut ── */}
+      <div style={{
+        borderRadius:22,
+        padding:"22px 22px 20px",
+        marginBottom:14,
+        background: pctUsado>=1
+          ?"linear-gradient(135deg,#2d0a0a 0%,#1a0505 100%)"
+          :pctUsado>=0.8
+          ?"linear-gradient(135deg,#1a1000 0%,#0e0800 100%)"
+          :"linear-gradient(135deg,#1a1f4e 0%,#0d1235 50%,#080e1e 100%)",
+        border:`1px solid ${pctUsado>=1?C.red+"55":pctUsado>=0.8?C.amber+"44":"rgba(99,102,241,0.3)"}`,
+        boxShadow:`0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)`,
+        position:"relative",overflow:"hidden",
+        transition:"all 0.5s ease",
+      }}>
+        {/* Círculo decorativo de fondo — sensación de profundidad */}
+        <div style={{
+          position:"absolute",top:-60,right:-40,width:180,height:180,borderRadius:"50%",
+          background:"rgba(99,102,241,0.08)",pointerEvents:"none",
+        }}/>
+        <div style={{
+          position:"absolute",bottom:-30,left:-20,width:120,height:120,borderRadius:"50%",
+          background:"rgba(16,185,129,0.05)",pointerEvents:"none",
+        }}/>
+
+        <div style={{position:"relative"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <div style={{fontSize:10,color:"rgba(255,255,255,0.45)",letterSpacing:2,fontWeight:700,textTransform:"uppercase"}}>
+              Disponible · {MONTHS_S[month]}
+            </div>
+            {saldoAnterior>0&&(
+              <div style={{
+                background:"rgba(16,185,129,0.15)",border:"1px solid rgba(16,185,129,0.3)",
+                borderRadius:99,padding:"3px 10px",fontSize:10,color:C.emeraldLight,fontWeight:700,
+              }}>
+                +{COP(saldoAnterior)} anterior
+              </div>
+            )}
+          </div>
+
+          {/* Número principal — grande y dominante */}
+          <div style={{
+            fontSize:48,fontWeight:900,letterSpacing:-2.5,lineHeight:1,
+            color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.emeraldLight,
+            fontVariantNumeric:"tabular-nums",marginBottom:20,
+            textShadow:pctUsado<0.8?`0 0 40px rgba(52,211,153,0.3)`:"none",
+            transition:"color 0.4s, text-shadow 0.4s",
+          }}>
+            {COP(animSaldo)}
+          </div>
+
+          {/* Barra de progreso — más gruesa y con fondo visible */}
+          <div style={{background:"rgba(255,255,255,0.08)",borderRadius:99,height:8,overflow:"hidden",marginBottom:10}}>
+            <div style={{
+              height:8,borderRadius:99,
+              background:pctUsado>=1
+                ?`linear-gradient(90deg,${C.red},#ff6b6b)`
+                :pctUsado>=0.8
+                ?`linear-gradient(90deg,${C.amber},#fbbf24)`
+                :`linear-gradient(90deg,${C.indigo},${C.emerald})`,
+              width:`${Math.min(pctUsado*100,100)}%`,
+              transition:"width 0.8s ease",
+              boxShadow:pctUsado<0.8?`0 0 12px rgba(99,102,241,0.6)`:"none",
+            }}/>
+          </div>
+
+          <div style={{display:"flex",justifyContent:"space-between"}}>
+            <span style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>
+              {totalIngresoMes>0?`de ${COP(totalIngresoMes+saldoAnterior)}`:"Sin ingresos"}
+            </span>
+            <span style={{
+              fontSize:12,fontWeight:700,
+              color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:"rgba(255,255,255,0.5)",
+            }}>
+              {Math.round(pctUsado*100)}% gastado
+            </span>
           </div>
         </div>
       </div>
       {/* Stats */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
-        {[{l:"Gastos",v:COP(totalGasto),c:C.red},{l:"Ahorrado",v:COP(totalAhorr),c:C.emerald},{l:"Tasa ahorro",v:`${Math.round(tasaAhorr*100)}%`,c:C.indigo}].map(k=>(
-          <Card key={k.l} style={{padding:"14px 10px",textAlign:"center"}}>
-            <div style={{fontSize:10,color:C.text.s,letterSpacing:1,marginBottom:6}}>{k.l.toUpperCase()}</div>
-            <div style={{fontSize:15,fontWeight:800,color:k.c}}>{k.v}</div>
-          </Card>
-        ))}
+      {/* Stats — glassmorphism con contraste fuerte */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+        {/* Gastos */}
+        <div style={{
+          borderRadius:18,padding:"16px 16px",
+          background:"linear-gradient(135deg,rgba(239,68,68,0.12) 0%,rgba(239,68,68,0.05) 100%)",
+          border:`1px solid rgba(239,68,68,0.25)`,
+          boxShadow:"0 4px 20px rgba(0,0,0,0.3)",
+        }}>
+          <div style={{fontSize:10,color:"rgba(239,68,68,0.7)",letterSpacing:1.5,fontWeight:700,marginBottom:8}}>GASTOS</div>
+          <div style={{fontSize:22,fontWeight:900,color:C.red,letterSpacing:-1,marginBottom:8}}>{COP(totalGasto)}</div>
+          <div style={{background:"rgba(239,68,68,0.15)",borderRadius:99,height:4,overflow:"hidden"}}>
+            <div style={{height:4,borderRadius:99,background:C.red,width:`${Math.min(pctUsado*100,100)}%`,transition:"width 0.7s"}}/>
+          </div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:6}}>{Math.round(pctUsado*100)}% del ingreso</div>
+        </div>
+        {/* En metas */}
+        <div style={{
+          borderRadius:18,padding:"16px 16px",
+          background:"linear-gradient(135deg,rgba(99,102,241,0.15) 0%,rgba(99,102,241,0.05) 100%)",
+          border:`1px solid rgba(99,102,241,0.3)`,
+          boxShadow:"0 4px 20px rgba(0,0,0,0.3)",
+        }}>
+          <div style={{fontSize:10,color:"rgba(129,140,248,0.8)",letterSpacing:1.5,fontWeight:700,marginBottom:8}}>EN METAS</div>
+          <div style={{fontSize:22,fontWeight:900,color:C.indigoLight,letterSpacing:-1,marginBottom:8}}>{COP(totalAportes)}</div>
+          <div style={{background:"rgba(99,102,241,0.15)",borderRadius:99,height:4,overflow:"hidden"}}>
+            <div style={{height:4,borderRadius:99,background:C.indigo,width:`${Math.min(tasaAhorr*100,100)}%`,transition:"width 0.7s"}}/>
+          </div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:6}}>
+            {totalAportes>0?`${Math.round(tasaAhorr*100)}% guardado`:"Sin aportes aún"}
+          </div>
+        </div>
       </div>
       {/* Metas chips */}
       {goals.length>0&&<>
@@ -860,18 +1031,30 @@ export default function App(){
       {/* Gastos por cat */}
       {byMain.length>0&&<>
         <Lbl style={{marginTop:6}}>Gastos por categoría</Lbl>
-        {byMain.map(c=><Card key={c.id} style={{marginBottom:8,borderColor:`${c.color}20`}}>
+        {byMain.map(c=><div key={c.id} style={{
+          marginBottom:8,borderRadius:16,padding:"14px 16px",
+          background:`linear-gradient(135deg,${c.color}12 0%,rgba(255,255,255,0.03) 100%)`,
+          border:`1px solid ${c.color}25`,
+          boxShadow:"0 2px 8px rgba(0,0,0,0.2)",
+        }}>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <div style={{width:40,height:40,borderRadius:12,background:`${c.color}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{c.icon}</div>
+            <div style={{
+              width:44,height:44,borderRadius:14,flexShrink:0,
+              background:`linear-gradient(135deg,${c.color}35,${c.color}18)`,
+              border:`1px solid ${c.color}40`,
+              display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
+            }}>{c.icon}</div>
             <div style={{flex:1}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-                <span style={{fontSize:14,fontWeight:700,color:C.text.h}}>{c.label}</span>
-                <span style={{fontSize:14,fontWeight:800,color:c.color}}>{COP(c.total)}</span>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:7}}>
+                <span style={{fontSize:14,fontWeight:700,color:"#ffffff"}}>{c.label}</span>
+                <span style={{fontSize:15,fontWeight:900,color:c.color}}>{COP(c.total)}</span>
               </div>
-              <Bar pct={c.total/Math.max(totalGasto,1)} color={c.color}/>
+              <div style={{background:`${c.color}18`,borderRadius:99,height:5,overflow:"hidden"}}>
+                <div style={{height:5,borderRadius:99,background:c.color,width:`${Math.min(c.total/Math.max(totalGasto,1)*100,100)}%`,transition:"width 0.7s"}}/>
+              </div>
             </div>
           </div>
-        </Card>)}
+        </div>)}
       </>}
       {!txLoading&&monthTx.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:C.text.s,fontSize:14,lineHeight:2.2}}>
         Sin movimientos aún.<br/><span style={{fontSize:32}}>👆</span><br/>Toca <b style={{color:C.emerald}}>+</b> para registrar.
@@ -962,18 +1145,19 @@ export default function App(){
           Cada mes puedes registrar el ingreso real con <b style={{color:C.emerald}}>+ Ingreso</b> en el botón +.<br/>
           Con {COP(parseFloat(tmp)||sal)} te sugiero:<br/>
           <span style={{color:C.sky}}>→ {COP(Math.round((parseFloat(tmp)||sal)*0.05))} Emergencias (5%)</span><br/>
-          <span style={{color:C.indigo}}>→ {COP(Math.round((parseFloat(tmp)||sal)*0.10))} Metas (10%)</span><br/>
+          <span style={{color:C.indigo}}>→ {COP(Math.round((parseFloat(tmp)||sal)*0.10))} Aportes a metas (10%)</span><br/>
           <span style={{color:C.text.b}}>→ {COP(Math.round((parseFloat(tmp)||sal)*0.85))} Gastos libres</span>
         </div>
       </Card>
       <Card style={{marginBottom:12,background:"linear-gradient(135deg,rgba(2,44,34,0.5),rgba(15,23,42,0.8))",borderColor:`${C.emerald}22`}}>
-        <Lbl style={{color:"#34d399"}}>Ahorros acumulados</Lbl>
-        {[{l:"🛡️ Fondo emergencias",v:emgTotal,c:C.sky},{l:"⭐ Aportado a metas",v:metaTotal,c:C.indigo}].map(k=>(
-          <div key={k.l} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
-            <span style={{fontSize:14,color:C.text.h}}>{k.l}</span>
-            <span style={{fontSize:14,fontWeight:800,color:k.c}}>{COP(k.v)}</span>
-          </div>
-        ))}
+        <Lbl style={{color:"#34d399"}}>Total guardado en metas</Lbl>
+        <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+          <span style={{fontSize:14,color:C.text.h}}>⭐ En todas las metas</span>
+          <span style={{fontSize:14,fontWeight:800,color:C.indigo}}>{COP(metaTotal)}</span>
+        </div>
+        <div style={{fontSize:11,color:C.text.s,marginTop:8,lineHeight:1.6}}>
+          Cada meta tiene su propio progreso. Ve a la pestaña ⭐ Metas para ver el detalle.
+        </div>
       </Card>
       <Card style={{marginBottom:12,background:"linear-gradient(135deg,rgba(30,27,75,0.5),rgba(15,23,42,0.8))",borderColor:`${C.indigo}28`}}>
         <div style={{fontSize:12,color:C.indigo,fontWeight:700,marginBottom:8,letterSpacing:1}}>📐 REGLA DE ORO</div>
@@ -1058,21 +1242,42 @@ export default function App(){
     {tab==="home"&&<HomeTab/>}{tab==="metas"&&<MetasTab/>}{tab==="mov"&&<MovTab/>}{tab==="cfg"&&<ConfigTab/>}
     {/* FAB */}
     {!modal&&!goalModal&&<button onClick={()=>tab==="metas"?setGoalModal("new"):setModal("new")} style={{
-      position:"fixed",bottom:88,right:20,width:58,height:58,borderRadius:"50%",
-      background:tab==="metas"?`linear-gradient(135deg,${C.indigo},#4338ca)`:`linear-gradient(135deg,${C.emerald},#059669)`,
+      position:"fixed",bottom:92,right:20,
+      width:60,height:60,borderRadius:"50%",
+      background:tab==="metas"
+        ?`linear-gradient(135deg,#818cf8,#6366f1,#4338ca)`
+        :`linear-gradient(135deg,#34d399,#10b981,#059669)`,
       border:"none",fontSize:30,color:"#fff",cursor:"pointer",
-      boxShadow:tab==="metas"?`0 4px 24px ${C.indigo}55`:`0 4px 24px ${C.emerald}55`,
-      display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,lineHeight:1}}>＋</button>}
+      boxShadow:tab==="metas"
+        ?`0 8px 32px rgba(99,102,241,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)`
+        :`0 8px 32px rgba(16,185,129,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)`,
+      display:"flex",alignItems:"center",justifyContent:"center",
+      zIndex:100,lineHeight:1,
+      transition:"all 0.3s ease",
+    }}>＋</button>}
     {modal&&<TxModal initial={modal==="new"?null:modal} goals={goals} saldoDisponible={saldo} onClose={()=>setModal(null)} onSave={handleSave} onDelete={handleDelete}/>}
     {goalModal&&<GoalModal initial={goalModal==="new"?null:goalModal} onClose={()=>setGoalModal(null)} onSave={handleGoalSave} onDelete={handleGoalDelete}/>}
     {AlertaGastoModal}
     {/* Nav */}
-    <nav style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:`${C.bg}f5`,borderTop:`1px solid ${C.border}`,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",display:"flex",justifyContent:"space-around",padding:"12px 0 18px",zIndex:50}}>
-      {NAV.map(v=><button key={v.id} onClick={()=>setTab(v.id)} style={{background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,color:tab===v.id?v.activeColor:"rgba(255,255,255,0.22)",transition:"color 0.2s"}}>
+    <nav style={{
+      position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",
+      width:"100%",maxWidth:430,
+      background:"rgba(8,14,30,0.92)",
+      borderTop:"1px solid rgba(255,255,255,0.10)",
+      backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+      display:"flex",justifyContent:"space-around",padding:"12px 0 20px",zIndex:50,
+    }}>
+      {NAV.map(v=><button key={v.id} onClick={()=>setTab(v.id)} style={{
+        background:"none",border:"none",cursor:"pointer",
+        display:"flex",flexDirection:"column",alignItems:"center",gap:3,
+        color:tab===v.id?v.activeColor:"rgba(255,255,255,0.28)",
+        transition:"color 0.2s",
+        padding:"4px 12px",
+      }}>
         {v.id==="metas"
           ?<StarIcon active={tab==="metas"}/>
           :<span style={{fontSize:22,lineHeight:1}}>{v.icon}</span>}
-        <span style={{fontSize:9,fontWeight:700,letterSpacing:0.5}}>{v.label}</span>
+        <span style={{fontSize:9,fontWeight:tab===v.id?800:600,letterSpacing:0.5}}>{v.label}</span>
       </button>)}
     </nav>
   </div>;
