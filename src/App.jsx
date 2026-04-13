@@ -684,30 +684,35 @@ function TxRow({t,onEdit}){
   const cat=getCatInfo(t.cat);
   const esMeta=isAporteMeta(t)||isSavingsLegacy(t.cat);
   const esPos=esMeta||isIngreso(t.cat);
+  const bloqueado=esMesPasado(t.date); // meses anteriores al actual = solo lectura
   const [p,setP]=useState(false);
-  return <div onClick={onEdit}
-    onMouseDown={()=>setP(true)} onMouseUp={()=>setP(false)} onMouseLeave={()=>setP(false)}
+  return <div
+    onClick={bloqueado?undefined:onEdit}
+    onMouseDown={bloqueado?undefined:()=>setP(true)}
+    onMouseUp={bloqueado?undefined:()=>setP(false)}
+    onMouseLeave={()=>setP(false)}
     style={{
       display:"flex",alignItems:"center",gap:12,marginBottom:8,
-      background:p?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.04)",
+      background:p?"rgba(255,255,255,0.09)":bloqueado?"rgba(255,255,255,0.025)":"rgba(255,255,255,0.04)",
       borderRadius:16,padding:"14px 16px",
-      border:`1px solid ${p?C.borderStrong:C.border}`,
-      cursor:"pointer",
+      border:`1px solid ${bloqueado?"rgba(255,255,255,0.04)":p?C.borderStrong:C.border}`,
+      cursor:bloqueado?"default":"pointer",
       transition:"all 0.15s",
       transform:p?"scale(0.985)":"scale(1)",
       boxShadow:"0 2px 8px rgba(0,0,0,0.2)",
       userSelect:"none",
+      opacity:bloqueado?0.6:1,
     }}>
     {/* Ícono con fondo de color */}
     <div style={{
       width:44,height:44,borderRadius:13,flexShrink:0,
-      background:`linear-gradient(135deg,${cat.color}30,${cat.color}15)`,
-      border:`1px solid ${cat.color}30`,
+      background:`linear-gradient(135deg,${cat.color}${bloqueado?"18":"30"},${cat.color}${bloqueado?"08":"15"})`,
+      border:`1px solid ${cat.color}${bloqueado?"18":"30"}`,
       display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
     }}>{cat.icon}</div>
     <div style={{flex:1,minWidth:0}}>
-      <div style={{fontSize:14,fontWeight:700,color:"#ffffff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc}</div>
-      <div style={{fontSize:11,color:C.text.m,marginTop:3}}>
+      <div style={{fontSize:14,fontWeight:700,color:bloqueado?"#8899aa":"#ffffff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc}</div>
+      <div style={{fontSize:11,color:C.text.s,marginTop:3}}>
         {t.date?.slice(5).replace("-","/")} · {isIngreso(t.cat)?"💵 Ingreso":esMeta?"⭐ Meta":cat.label}
       </div>
     </div>
@@ -715,26 +720,89 @@ function TxRow({t,onEdit}){
       <div style={{fontSize:16,fontWeight:800,color:esPos?C.emeraldLight:C.red,letterSpacing:-0.5}}>
         {esPos?"+":"-"}{COP(t.amount)}
       </div>
-      <div style={{fontSize:9,color:C.text.s,marginTop:2}}>editar</div>
+      <div style={{fontSize:9,color:bloqueado?C.text.s+"88":C.text.s,marginTop:2}}>
+        {bloqueado?"🔒 bloqueado":"editar"}
+      </div>
     </div>
   </div>;
+}
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+// Verificar si un tx pertenece a un mes anterior al actual
+function esMesPasado(dateStr){
+  const d=new Date(dateStr), hoy=new Date();
+  return d.getFullYear()<hoy.getFullYear()||(d.getFullYear()===hoy.getFullYear()&&d.getMonth()<hoy.getMonth());
+}
+// Últimos N días del mes actual
+function diasRestantesMes(){
+  const hoy=new Date();
+  const ultimoDia=new Date(hoy.getFullYear(),hoy.getMonth()+1,0).getDate();
+  return ultimoDia-hoy.getDate();
 }
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
 export default function App(){
   const [user,setUser]=useState(null),[authLoading,setAL]=useState(true),[loginLoading,setLL]=useState(false);
   const [salario,setSalario]=useState(null),[showOnb,setShowOnb]=useState(false);
+  const [salarioHistory,setSalarioHistory]=useState({}); // {"YYYY-M": monto}
   const [tx,setTx]=useState([]),[goals,setGoals]=useState([]);
   const [month,setMonth]=useState(now.getMonth()),[tab,setTab]=useState("home");
+  const monthScrollRef=useRef(null);
   const [modal,setModal]=useState(null),[goalModal,setGoalModal]=useState(null);
   const [txLoading,setTxL]=useState(false);
   const [alertaGasto,setAlertaGasto]=useState(null); // {monto, pct, tipo}
 
+  function changeTab(newTab){
+    setTab(newTab); // El mes seleccionado se mantiene al cambiar de pestaña
+  }
+
   useEffect(()=>onAuthStateChanged(auth,u=>{setUser(u);setAL(false);}),[]);
-  useEffect(()=>{if(!user){setSalario(null);return;}getDoc(doc(db,"usuarios",user.uid)).then(snap=>{if(snap.exists()&&snap.data().salario){setSalario(snap.data().salario);setShowOnb(false);}else{setSalario(0);setShowOnb(true);}});},[user]);
+  useEffect(()=>{if(!user){setSalario(null);setSalarioHistory({});return;}
+    getDoc(doc(db,"usuarios",user.uid)).then(snap=>{
+      if(snap.exists()&&snap.data().salario){
+        setSalario(snap.data().salario);
+        setSalarioHistory(snap.data().salarioHistory||{});
+        setShowOnb(false);
+      }else{setSalario(0);setShowOnb(true);}
+    });},[user]);
+  // Guardar salario global (solo el valor actual — el historial se guarda en handleSalarioChange)
   useEffect(()=>{if(!user||salario===null||showOnb)return;setDoc(doc(db,"usuarios",user.uid),{salario},{merge:true});},[salario,user,showOnb]);
   useEffect(()=>{if(!user){setTx([]);return;}setTxL(true);return onSnapshot(query(collection(db,"usuarios",user.uid,"transacciones"),orderBy("createdAt","desc")),snap=>{setTx(snap.docs.map(d=>({id:d.id,...d.data()})));setTxL(false);});},[user]);
   useEffect(()=>{if(!user){setGoals([]);return;}return onSnapshot(query(collection(db,"usuarios",user.uid,"metas"),orderBy("createdAt","desc")),snap=>{setGoals(snap.docs.map(d=>({id:d.id,...d.data()})));});},[user]);
+
+  // Cambiar salario: aplica desde el mes SIGUIENTE, guarda historial por mes
+  async function handleSalarioChange(nuevoValor){
+    if(!user||!nuevoValor)return;
+    const y=now.getFullYear(), m=now.getMonth();
+    // El nuevo salario aplica desde el mes siguiente
+    const keyProximo=`${y}-${m+1<=11?m+1:0}`; // clave del mes siguiente
+    const newHistory={...salarioHistory,[keyProximo]:nuevoValor};
+    setSalario(nuevoValor);
+    setSalarioHistory(newHistory);
+    await setDoc(doc(db,"usuarios",user.uid),{salario:nuevoValor,salarioHistory:newHistory},{merge:true});
+  }
+  // Obtener el salario que correspondía a un mes/año específico
+  function getSalarioDelMes(y,m){
+    // Buscar la entrada de historial más reciente que sea <= al mes pedido
+    let best=salario||0;
+    Object.entries(salarioHistory).forEach(([key,val])=>{
+      const [ky,km]=key.split("-").map(Number);
+      // Si esta entrada es anterior o igual al mes pedido, y más reciente que la anterior best
+      if(ky<y||(ky===y&&km<=m)){
+        // Comparar con el best actual
+        const bestKey=Object.keys(salarioHistory).filter(k=>{
+          const [by,bm]=k.split("-").map(Number);
+          return by<y||(by===y&&bm<=m);
+        }).sort((a,b)=>{
+          const [ay,am]=a.split("-").map(Number),[by,bm]=b.split("-").map(Number);
+          return (ay*12+am)-(by*12+bm);
+        }).pop();
+        if(!bestKey||(ky*12+km)>=(bestKey.split("-").map(Number).reduce((a,b,i)=>i===0?a*12:a+b,0)))
+          best=val;
+      }
+    });
+    return best;
+  }
 
   async function handleLogin(){setLL(true);try{await signInWithPopup(auth,provider);}catch(e){console.error(e);}setLL(false);}
   async function handleLogout(){await signOut(auth);setTx([]);setGoals([]);setTab("home");setSalario(null);setShowOnb(false);}
@@ -801,9 +869,11 @@ export default function App(){
   const totalAportes=aporteMesAll.reduce((s,t)=>s+t.amount,0); // total guardado en metas
   const totalAhorr=totalAportes; // alias para compatibilidad
   const sal=salario||0;
-  // Ingreso del mes = salario base SIEMPRE + cualquier ingreso extra registrado (se suman)
+  // Salario que correspondía al mes seleccionado (respeta historial)
+  const salDelMes=getSalarioDelMes(now.getFullYear(),month);
+  // Ingreso del mes = salario del mes + extras registrados (se suman)
   const ingresosExtra=ingresosTx.reduce((s,t)=>s+t.amount,0);
-  const totalIngresoMes=sal+ingresosExtra;
+  const totalIngresoMes=salDelMes+ingresosExtra;
 
   // Saldo acumulativo por mes — salario base + ingresos extra registrados
   function getSaldoAcumulado() {
@@ -854,14 +924,15 @@ export default function App(){
       else porMes[key].gastos += t.amount;
     });
 
-    // 4. Recorrer mes a mes en cadena — salario base + extras registrados + sobrante anterior
+    // 4. Recorrer mes a mes en cadena — salario del mes correcto + extras + sobrante
     let saldoAcumulado = 0;
     let y = minYear, m = minMes;
     while (y < limiteYear || (y === limiteYear && m < limiteMes)) {
       const key = `${y}-${m}`;
       const datos = porMes[key] || { ingresos: 0, gastos: 0, ahorros: 0 };
-      // Ingreso del mes = salario base + extras registrados (siempre se suman)
-      const ingMes = sal + datos.ingresos;
+      // Usar el salario que correspondía a ESE mes (historial), no el actual
+      const salMes = getSalarioDelMes(y, m);
+      const ingMes = salMes + datos.ingresos;
       const disponibleMes = ingMes + saldoAcumulado - datos.gastos - datos.ahorros;
       saldoAcumulado = Math.max(disponibleMes, 0);
       m++;
@@ -909,9 +980,54 @@ export default function App(){
   if(salario===null)return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",color:C.text.b,fontFamily:"'DM Sans',sans-serif",fontSize:15}}>Cargando perfil...</div>;
   if(showOnb)return <OnboardingScreen user={user} onSave={handleOnbSave}/>;
 
+  // ── Selector de mes inteligente — solo meses relevantes ─────────────────
+  const MonthSelector=()=>{
+    const currentM=now.getMonth(), currentY=now.getFullYear();
+
+    // Construir lista de meses visibles:
+    // - Todos los meses/años con al menos 1 transacción
+    // - El mes actual siempre
+    // - El mes siguiente (proyección)
+    const conTx=new Set(tx.map(t=>{const d=new Date(t.date);return `${d.getFullYear()}-${d.getMonth()}`;}));
+    conTx.add(`${currentY}-${currentM}`);           // mes actual siempre
+    conTx.add(`${currentY}-${currentM+1<=11?currentM+1:0}`); // siguiente
+
+    // Convertir a lista ordenada de {year, month}
+    const lista=[...conTx].map(k=>{const[y,m]=k.split("-").map(Number);return{y,m};})
+      .sort((a,b)=>a.y!==b.y?a.y-b.y:a.m-b.m);
+
+    // Agrupar por año
+    const porAnio={};
+    lista.forEach(({y,m})=>{if(!porAnio[y])porAnio[y]=[];porAnio[y].push(m);});
+    const years=Object.keys(porAnio).map(Number).sort((a,b)=>a-b);
+
+    useEffect(()=>{
+      if(!monthScrollRef.current)return;
+      const active=monthScrollRef.current.querySelector("[data-active='true']");
+      if(active) active.scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"});
+    },[]);
+
+    return <div ref={monthScrollRef} style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:12,scrollbarWidth:"none",WebkitOverflowScrolling:"touch",alignItems:"center"}}>
+      {years.map(y=><div key={y} style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
+        {years.length>1&&<span style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1,padding:"0 4px",flexShrink:0}}>{y}</span>}
+        {porAnio[y].map(i=>{
+          const isNext=y===currentY&&i===currentM+1;
+          const isActive=month===i&&now.getFullYear()===y; // simplificado: año actual
+          return <button key={i} data-active={isActive?"true":"false"}
+            onClick={()=>{setMonth(i);}}
+            style={{flexShrink:0,padding:"7px 15px",borderRadius:99,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,
+              background:isActive?C.emerald:isNext?"rgba(99,102,241,0.25)":C.surface,
+              color:isActive?"#000":isNext?C.indigo:C.text.b,
+            }}>{MONTHS_S[i]}</button>;
+        })}
+      </div>)}
+    </div>;
+  };
+
   const HomeTab=()=>{
     const byMain=MAIN_CATS.map(m=>({...m,total:gastosTx.filter(t=>m.subs.some(s=>s.id===t.cat)).reduce((s,t)=>s+t.amount,0)})).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
     return <div style={{padding:"16px 20px 0"}}>
+      <MonthSelector/>
       <BudgetAlert pct={pctUsado} salario={sal} gastado={totalGasto}/>
       {/* ── Card principal — gradiente dramático estilo Revolut ── */}
       <div style={{
@@ -1030,12 +1146,12 @@ export default function App(){
       {goals.length>0&&<>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
           <Lbl style={{marginBottom:0}}>Mis metas</Lbl>
-          <button onClick={()=>setTab("metas")} style={{background:"none",border:"none",color:C.indigo,fontSize:13,fontWeight:700,cursor:"pointer"}}>Ver todas →</button>
+          <button onClick={()=>changeTab("metas")} style={{background:"none",border:"none",color:C.indigo,fontSize:13,fontWeight:700,cursor:"pointer"}}>Ver todas →</button>
         </div>
         {goals.slice(0,3).map(g=><GoalChip key={g.id} goal={g}
             aportado={getAportado(g.id)}
             aportadoEsteMes={getAportadoMes(g.id,month,now.getFullYear())}
-            onClick={()=>setTab("metas")}/>)}
+            onClick={()=>changeTab("metas")}/>)}
       </>}
       {/* Gastos por cat */}
       {byMain.length>0&&<>
@@ -1103,10 +1219,14 @@ export default function App(){
 
   const MovTab=()=>{
     const sorted=[...monthTx].sort((a,b)=>new Date(b.date)-new Date(a.date));
+    // Scroll al mes activo al montar o al cambiar de mes
+    useEffect(()=>{
+      if(!monthScrollRef.current)return;
+      const btns=monthScrollRef.current.querySelectorAll("button");
+      if(btns[month]) btns[month].scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"});
+    },[]);
     return <div style={{padding:"16px 20px 0"}}>
-      <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:12,scrollbarWidth:"none"}}>
-        {MONTHS_S.map((m,i)=><button key={i} onClick={()=>setMonth(i)} style={{flexShrink:0,padding:"7px 15px",borderRadius:99,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,background:month===i?C.emerald:C.surface,color:month===i?"#000":C.text.b}}>{m}</button>)}
-      </div>
+      <MonthSelector/>
       <Card style={{marginBottom:14}}>
         <Lbl>Resumen de movimientos · {MONTHS[month]}</Lbl>
         {[
@@ -1122,7 +1242,31 @@ export default function App(){
           </div>
         ))}
       </Card>
-      {sorted.length>0&&<div style={{fontSize:12,color:C.text.s,textAlign:"center",marginBottom:12}}>✏️ Toca cualquier movimiento para editarlo</div>}
+      {/* Alerta fin de mes — últimos 3 días */}
+      {diasRestantesMes()<=3&&diasRestantesMes()>=0&&(
+        <div style={{
+          background:"linear-gradient(135deg,rgba(245,158,11,0.12),rgba(245,158,11,0.06))",
+          border:`1px solid ${C.amber}44`,borderRadius:14,
+          padding:"14px 16px",marginBottom:14,
+          display:"flex",gap:12,alignItems:"flex-start",
+        }}>
+          <span style={{fontSize:24,flexShrink:0}}>📅</span>
+          <div>
+            <div style={{fontSize:13,fontWeight:800,color:C.amber,marginBottom:4}}>
+              {diasRestantesMes()===0?"¡Hoy es el último día del mes!":`Quedan ${diasRestantesMes()} día${diasRestantesMes()===1?"":"s"} del mes`}
+            </div>
+            <div style={{fontSize:12,color:C.text.b,lineHeight:1.6}}>
+              Revisa que tus gastos e ingresos de {MONTHS[now.getMonth()]} estén bien registrados. Al iniciar el nuevo mes no podrás editar estos datos.
+            </div>
+          </div>
+        </div>
+      )}
+      {sorted.length>0&&monthTx.some(t=>esMesPasado(t.date))&&(
+        <div style={{fontSize:11,color:C.text.s,textAlign:"center",marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+          <span>🔒</span><span>Los movimientos de meses anteriores son de solo lectura</span>
+        </div>
+      )}
+      {sorted.length>0&&!monthTx.some(t=>esMesPasado(t.date))&&<div style={{fontSize:12,color:C.text.s,textAlign:"center",marginBottom:12}}>✏️ Toca cualquier movimiento para editarlo</div>}
       {sorted.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:C.text.s,fontSize:14,lineHeight:2}}>
         Sin movimientos en {MONTHS[month]}.<br/>
         <span style={{fontSize:11,color:C.text.s}}>Los registros de otros meses están disponibles<br/>seleccionando el mes arriba.</span>
@@ -1147,11 +1291,11 @@ export default function App(){
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <input type="number" value={tmp} onChange={e=>setTmp(e.target.value)}
             style={{flex:1,background:"rgba(255,255,255,0.06)",border:`1px solid ${C.border}`,borderRadius:10,padding:"11px 14px",color:C.text.h,fontSize:16,outline:"none"}}/>
-          <button onClick={()=>setSalario(parseFloat(tmp)||sal)} style={{background:`linear-gradient(135deg,${C.emerald},#059669)`,border:"none",borderRadius:10,padding:"0 20px",color:"#000",fontWeight:800,cursor:"pointer",fontSize:18}}>✓</button>
+          <button onClick={()=>handleSalarioChange(parseFloat(tmp)||sal)} style={{background:`linear-gradient(135deg,${C.emerald},#059669)`,border:"none",borderRadius:10,padding:"0 20px",color:"#000",fontWeight:800,cursor:"pointer",fontSize:18}}>✓</button>
         </div>
         <div style={{fontSize:12,color:C.text.b,background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"12px 14px",lineHeight:2}}>
-          Este valor se usa cuando no registras ingresos en un mes.<br/>
-          Cada mes puedes registrar el ingreso real con <b style={{color:C.emerald}}>+ Ingreso</b> en el botón +.<br/>
+          El cambio aplica desde el mes siguiente — los meses anteriores conservan su valor original.<br/>
+          Puedes registrar ingresos extra con <b style={{color:C.emerald}}>+ Ingreso</b> en el botón +.<br/>
           Con {COP(parseFloat(tmp)||sal)} te sugiero:<br/>
           <span style={{color:C.sky}}>→ {COP(Math.round((parseFloat(tmp)||sal)*0.05))} Emergencias (5%)</span><br/>
           <span style={{color:C.indigo}}>→ {COP(Math.round((parseFloat(tmp)||sal)*0.10))} Aportes a metas (10%)</span><br/>
@@ -1276,7 +1420,7 @@ export default function App(){
       backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
       display:"flex",justifyContent:"space-around",padding:"12px 0 20px",zIndex:50,
     }}>
-      {NAV.map(v=><button key={v.id} onClick={()=>setTab(v.id)} style={{
+      {NAV.map(v=><button key={v.id} onClick={()=>changeTab(v.id)} style={{
         background:"none",border:"none",cursor:"pointer",
         display:"flex",flexDirection:"column",alignItems:"center",gap:3,
         color:tab===v.id?v.activeColor:"rgba(255,255,255,0.28)",
