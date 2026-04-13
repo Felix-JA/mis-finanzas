@@ -800,30 +800,41 @@ export default function App(){
   const totalGasto=gastosTx.reduce((s,t)=>s+t.amount,0);
   const totalAportes=aporteMesAll.reduce((s,t)=>s+t.amount,0); // total guardado en metas
   const totalAhorr=totalAportes; // alias para compatibilidad
-  const totalIngresoMes=ingresosTx.length>0
-    ?ingresosTx.reduce((s,t)=>s+t.amount,0)
-    :(salario||0);
   const sal=salario||0;
+  // Ingreso del mes = salario base SIEMPRE + cualquier ingreso extra registrado (se suman)
+  const ingresosExtra=ingresosTx.reduce((s,t)=>s+t.amount,0);
+  const totalIngresoMes=sal+ingresosExtra;
 
-  // Saldo acumulativo por mes — usa ingresos reales si existen, si no el salario fijo
+  // Saldo acumulativo por mes — salario base + ingresos extra registrados
   function getSaldoAcumulado() {
-    // Calcular el saldo acumulado MES A MES en cadena.
-    // Ejemplo: Abr sobra $222k → Mayo disponible $1.622k → si no gasta nada en Mayo,
-    //          Junio tiene $1.622k + $1.4M = $3.022k (no solo $222k de Abr)
     const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // mes REAL de hoy
 
-    // 1. Determinar el rango de meses a recorrer (desde el primer mes con tx hasta el mes anterior al seleccionado)
+    // Solo acumular hasta el mes actual real como máximo.
+    // Si el mes seleccionado es el inmediatamente siguiente al actual, mostramos
+    // el sobrante del mes actual como proyección. Más allá de eso: $0.
+    const esMesFuturoInmediato = month === currentMonth + 1 && now.getFullYear() === currentYear;
+    const esMesFuturoLejano = month > currentMonth + 1;
+    if (esMesFuturoLejano) return 0;
+
+    // El límite hasta donde acumulamos:
+    // - mes actual o pasado → acumula hasta ese mes (excluyéndolo)
+    // - mes siguiente inmediato → acumula hasta currentMonth (inclusive, o sea hasta fin de mes actual)
+    const limiteMes = esMesFuturoInmediato ? currentMonth + 1 : month;
+    const limiteYear = currentYear;
+
+    // 1. Solo tx de meses anteriores al límite
     const txPasadas = tx.filter(t => {
       const d = new Date(t.date);
-      if (d.getFullYear() < currentYear) return true;
-      if (d.getFullYear() === currentYear && d.getMonth() < month) return true;
+      if (d.getFullYear() < limiteYear) return true;
+      if (d.getFullYear() === limiteYear && d.getMonth() < limiteMes) return true;
       return false;
     });
 
     if (txPasadas.length === 0) return 0;
 
     // 2. Encontrar el mes más antiguo con transacciones
-    let minYear = currentYear, minMes = month;
+    let minYear = currentYear, minMes = limiteMes;
     txPasadas.forEach(t => {
       const d = new Date(t.date);
       if (d.getFullYear() < minYear || (d.getFullYear() === minYear && d.getMonth() < minMes)) {
@@ -837,24 +848,22 @@ export default function App(){
     txPasadas.forEach(t => {
       const d = new Date(t.date);
       const key = `${d.getFullYear()}-${d.getMonth()}`;
-      if (!porMes[key]) porMes[key] = { ingresos: 0, gastos: 0, ahorros: 0, tieneIngreso: false };
-      if (isIngreso(t.cat)) { porMes[key].ingresos += t.amount; porMes[key].tieneIngreso = true; }
+      if (!porMes[key]) porMes[key] = { ingresos: 0, gastos: 0, ahorros: 0 };
+      if (isIngreso(t.cat)) porMes[key].ingresos += t.amount;
       else if (isAporteMeta(t)||isSavingsLegacy(t.cat)) porMes[key].ahorros += t.amount;
       else porMes[key].gastos += t.amount;
     });
 
-    // 4. Recorrer mes a mes en cadena — el sobrante se acumula
+    // 4. Recorrer mes a mes en cadena — salario base + extras registrados + sobrante anterior
     let saldoAcumulado = 0;
     let y = minYear, m = minMes;
-    while (y < currentYear || (y === currentYear && m < month)) {
+    while (y < limiteYear || (y === limiteYear && m < limiteMes)) {
       const key = `${y}-${m}`;
-      const datos = porMes[key] || { ingresos: 0, gastos: 0, ahorros: 0, tieneIngreso: false };
-      const ingMes = datos.tieneIngreso ? datos.ingresos : sal;
-      // Disponible de ese mes = ingreso + lo que venía acumulado − gastos − ahorros
+      const datos = porMes[key] || { ingresos: 0, gastos: 0, ahorros: 0 };
+      // Ingreso del mes = salario base + extras registrados (siempre se suman)
+      const ingMes = sal + datos.ingresos;
       const disponibleMes = ingMes + saldoAcumulado - datos.gastos - datos.ahorros;
-      // Solo arrastrar si es positivo — no arrastrar deudas
       saldoAcumulado = Math.max(disponibleMes, 0);
-      // Avanzar al siguiente mes
       m++;
       if (m > 11) { m = 0; y++; }
     }
