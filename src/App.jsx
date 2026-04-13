@@ -1217,6 +1217,203 @@ export default function App(){
     </div>;
   };
 
+  // ── Gráfica de gastos/ingresos últimos meses ─────────────────────────────
+  const GraficaMeses=()=>{
+    const currentM=now.getMonth(), currentY=now.getFullYear();
+
+    // Construir lista de hasta 6 meses con datos (pasados + actual)
+    // Incluir todos los meses con tx, más el actual aunque esté vacío
+    const mesesConDatos=new Set(
+      tx.filter(t=>{
+        const d=new Date(t.date);
+        return d.getFullYear()<currentY||(d.getFullYear()===currentY&&d.getMonth()<=currentM);
+      }).map(t=>{const d=new Date(t.date);return `${d.getFullYear()}-${d.getMonth()}`;})
+    );
+    mesesConDatos.add(`${currentY}-${currentM}`);
+
+    const lista=[...mesesConDatos]
+      .map(k=>{const[y,m]=k.split("-").map(Number);return{y,m};})
+      .sort((a,b)=>a.y!==b.y?a.y-b.y:a.m-b.m)
+      .slice(-6); // últimos 6
+
+    // Calcular totales por mes
+    const datos=lista.map(({y,m})=>{
+      const mTx=tx.filter(t=>{const[ty,tm]=t.date.split("-").map(Number);return ty===y&&(tm-1)===m;});
+      const gastos=mTx.filter(t=>isGasto(t.cat)&&!isAporteMeta(t)).reduce((s,t)=>s+t.amount,0);
+      const ingresos=mTx.filter(t=>isIngreso(t.cat)).reduce((s,t)=>s+t.amount,0)+(getSalarioDelMes(y,m)||sal);
+      const ahorros=mTx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat)).reduce((s,t)=>s+t.amount,0);
+      const esActual=y===currentY&&m===currentM;
+      const esSel=y===currentY&&m===month; // mes seleccionado en el filtro
+      return{y,m,gastos,ingresos,ahorros,esActual,esSel};
+    });
+
+    // ── Con 1 solo mes: gráfica de gastos por día ────────────────────────────
+    if(lista.length===1){
+      const {y:ly,m:lm,gastos:totalG}=datos[0];
+      const ultimoDia=new Date(ly,lm+1,0).getDate();
+      const hoy=ly===currentY&&lm===currentM?now.getDate():ultimoDia;
+
+      // Semana actual por defecto (0-indexed, semana que contiene hoy)
+      const [semanaIdx,setSemanaIdx]=useState(()=>Math.floor((hoy-1)/7));
+      const totalSemanas=Math.ceil(ultimoDia/7);
+      const diaInicio=semanaIdx*7+1;
+      const diaFin=Math.min(diaInicio+6,ultimoDia);
+
+      const diasData=Array.from({length:diaFin-diaInicio+1},(_,i)=>{
+        const dia=diaInicio+i;
+        const gasto=tx.filter(t=>{
+          const [ty,tm,td]=t.date.split("-").map(Number);
+          return ty===ly&&(tm-1)===lm&&td===dia&&isGasto(t.cat)&&!isAporteMeta(t);
+        }).reduce((s,t)=>s+t.amount,0);
+        return{dia,gasto};
+      });
+
+      const maxD=Math.max(...diasData.map(d=>d.gasto),1);
+      const W=320, H=150;
+      const nDias=diasData.length;
+      const bW=Math.floor((W-16)/nDias)-8;
+      const gapUnit=(W-bW*nDias)/(nDias+1);
+      const abrevD=v=>v>=1000000?`${(v/1000000).toFixed(1)}M`:v>=1000?`${Math.round(v/1000)}k`:`$${v}`;
+      const DIAS_S=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+
+      return <div style={{marginBottom:14}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <Lbl style={{marginBottom:0}}>Gastos por día · {MONTHS[lm]}</Lbl>
+          <span style={{fontSize:11,color:totalG>0?C.red:C.text.s,fontWeight:700}}>{totalG>0?COP(totalG):"Sin gastos aún"}</span>
+        </div>
+        <div style={{background:"rgba(255,255,255,0.03)",borderRadius:16,padding:"14px 12px 14px",border:`1px solid ${C.border}`}}>
+          {/* Navegación semanas */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <button onClick={()=>setSemanaIdx(s=>Math.max(s-1,0))}
+              style={{background:semanaIdx>0?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.03)",border:"none",borderRadius:8,
+                padding:"6px 12px",color:semanaIdx>0?C.text.h:C.text.s,cursor:semanaIdx>0?"pointer":"default",fontSize:14,fontWeight:700}}>
+              ←
+            </button>
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:12,fontWeight:800,color:C.text.h}}>
+                {diaInicio === diaFin ? `Día ${diaInicio}` : `Días ${diaInicio} – ${diaFin}`}
+              </div>
+              <div style={{fontSize:10,color:C.text.s,marginTop:2}}>
+                Semana {semanaIdx+1} de {totalSemanas}
+              </div>
+            </div>
+            <button onClick={()=>setSemanaIdx(s=>Math.min(s+1,totalSemanas-1))}
+              style={{background:semanaIdx<totalSemanas-1?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.03)",border:"none",borderRadius:8,
+                padding:"6px 12px",color:semanaIdx<totalSemanas-1?C.text.h:C.text.s,cursor:semanaIdx<totalSemanas-1?"pointer":"default",fontSize:14,fontWeight:700}}>
+              →
+            </button>
+          </div>
+
+          {/* Gráfica SVG */}
+          <svg width="100%" viewBox={`0 0 ${W} ${H+40}`} style={{overflow:"visible"}}>
+            {diasData.map(({dia,gasto},i)=>{
+              const x=gapUnit+(bW+gapUnit)*i;
+              const h=Math.max(gasto/maxD*H,gasto>0?10:0);
+              const esHoy=dia===hoy;
+              const fechaDia=new Date(ly,lm,dia);
+              const nombreDia=DIAS_S[fechaDia.getDay()];
+              const col=esHoy?(gasto>0?"#ff4444":C.emerald):gasto>0?"#ef4444bb":"rgba(255,255,255,0.05)";
+
+              return <g key={dia}>
+                {/* Fondo hoy */}
+                {esHoy&&<rect x={x-4} y={0} width={bW+8} height={H+4} rx={8} fill="rgba(52,211,153,0.06)"/>}
+                {/* Barra */}
+                <rect x={x} y={H-Math.max(h,2)} width={bW} height={Math.max(h,2)} rx={4} fill={col}/>
+                {/* Valor GRANDE encima — horizontal, legible */}
+                {gasto>0&&<text
+                  x={x+bW/2} y={H-h-10}
+                  textAnchor="middle"
+                  fontSize={11} fontWeight="800"
+                  fill={esHoy?"#ff4444":"#ef4444"}
+                  fontFamily="DM Sans,sans-serif"
+                  transform={`rotate(-55,${x+bW/2},${H-h-10})`}
+                >{abrevD(gasto)}</text>}
+                {/* Nombre del día */}
+                <text x={x+bW/2} y={H+14} textAnchor="middle" fontSize={9}
+                  fill={esHoy?C.emerald:"rgba(255,255,255,0.35)"}
+                  fontWeight={esHoy?"800":"600"} fontFamily="DM Sans,sans-serif">{nombreDia}</text>
+                {/* Número del día */}
+                <text x={x+bW/2} y={H+26} textAnchor="middle" fontSize={8}
+                  fill={esHoy?C.emerald:"rgba(255,255,255,0.22)"}
+                  fontWeight={esHoy?"800":"400"} fontFamily="DM Sans,sans-serif">{dia}</text>
+                {/* Punto hoy */}
+                {esHoy&&<circle cx={x+bW/2} cy={H+35} r={3} fill={C.emerald}/>}
+              </g>;
+            })}
+            <line x1={0} y1={H} x2={W} y2={H} stroke="rgba(255,255,255,0.08)" strokeWidth={1}/>
+          </svg>
+
+          {/* Leyenda */}
+          <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:5}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,fontSize:11,color:C.text.s}}>
+              <div style={{width:16,height:4,borderRadius:2,background:"#ef4444",flexShrink:0}}/>
+              <span>Barra roja = total gastado ese día</span>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:8,fontSize:11,color:C.text.s}}>
+              <circle style={{width:8,height:8,borderRadius:"50%",background:C.emerald,flexShrink:0,display:"inline-block"}}/>
+              <span style={{color:C.emerald,fontWeight:700}}>Verde = hoy ({DIAS_S[new Date(ly,lm,hoy).getDay()]} {hoy})</span>
+            </div>
+          </div>
+        </div>
+      </div>;
+    }
+
+    // ── Con 2+ meses: gráfica de barras por mes ───────────────────────────────
+    const maxVal=Math.max(...datos.map(d=>Math.max(d.gastos,d.ingresos)),1);
+    const W=340,H=110;
+    const barW=Math.max(Math.floor((W-8)/lista.length)-6,20);
+    const gap=Math.floor((W-barW*lista.length)/(lista.length+1));
+    const abrev=v=>v>=1000000?`${(v/1000000).toFixed(1)}M`:v>=1000?`${Math.round(v/1000)}k`:`${v}`;
+
+    return <div style={{marginBottom:14}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <Lbl style={{marginBottom:0}}>Resumen por mes</Lbl>
+        <div style={{display:"flex",gap:12,fontSize:10,color:C.text.s}}>
+          <span><span style={{color:C.red}}>▬</span> Gastos</span>
+          <span><span style={{color:C.emerald}}>▬</span> Ingresos</span>
+        </div>
+      </div>
+      <div style={{background:"rgba(255,255,255,0.03)",borderRadius:16,padding:"16px 10px 8px",border:`1px solid ${C.border}`}}>
+        <svg width="100%" viewBox={`0 0 ${W} ${H+36}`} style={{overflow:"visible"}}>
+          {datos.map(({y,m,gastos,ingresos,esSel,esActual},i)=>{
+            const x=gap+(barW+gap)*i;
+            const hG=Math.max(gastos/maxVal*H,gastos>0?4:0);
+            const hI=Math.max(ingresos/maxVal*H,ingresos>0?4:0);
+            const bW=Math.floor(barW*0.44);
+            const colG=esSel?"#ff6b6b":C.red+"cc";
+            const colI=esSel?"#34d399":C.emerald+"99";
+            const label=MONTHS_S[m];
+            return <g key={`${y}-${m}`} onClick={()=>setMonth(m)} style={{cursor:"pointer"}}>
+              {/* Fondo activo */}
+              {esSel&&<rect x={x-4} y={0} width={barW+8} height={H+4} rx={8} fill="rgba(255,255,255,0.05)"/>}
+              {/* Barra ingresos (fondo, más clara) */}
+              <rect x={x} y={H-hI} width={bW} height={hI} rx={3} fill={colI}/>
+              {/* Barra gastos (frente, más oscura) */}
+              <rect x={x+bW+2} y={H-hG} width={bW} height={hG} rx={3} fill={colG}/>
+              {/* Línea base */}
+              <line x1={x} y1={H} x2={x+barW} y2={H} stroke="rgba(255,255,255,0.08)" strokeWidth={1}/>
+              {/* Label mes */}
+              <text x={x+barW/2} y={H+14} textAnchor="middle" fontSize={9} fontWeight={esSel?"800":"600"}
+                fill={esSel?C.emerald:esActual?"rgba(255,255,255,0.6)":"rgba(255,255,255,0.3)"}
+                fontFamily="DM Sans,sans-serif">{label}</text>
+              {/* Año si cambia */}
+              {(i===0||(i>0&&datos[i-1].y!==y))&&<text x={x+barW/2} y={H+26} textAnchor="middle" fontSize={8}
+                fill="rgba(255,255,255,0.2)" fontFamily="DM Sans,sans-serif">{y}</text>}
+              {/* Valor del mes seleccionado */}
+              {esSel&&gastos>0&&<text x={x+bW+2+bW/2} y={H-hG-5} textAnchor="middle" fontSize={8} fontWeight="800"
+                fill={C.red} fontFamily="DM Sans,sans-serif">{COP(gastos).replace("$ ","$").replace(/\.000$/,"k")}</text>}
+            </g>;
+          })}
+          {/* Línea base total */}
+          <line x1={0} y1={H} x2={W} y2={H} stroke="rgba(255,255,255,0.06)" strokeWidth={1}/>
+        </svg>
+        <div style={{fontSize:11,color:C.text.s,textAlign:"center",marginTop:2}}>
+          Toca una barra para ver ese mes
+        </div>
+      </div>
+    </div>;
+  };
+
   const MovTab=()=>{
     const sorted=[...monthTx].sort((a,b)=>new Date(b.date)-new Date(a.date));
     // Scroll al mes activo al montar o al cambiar de mes
@@ -1227,6 +1424,7 @@ export default function App(){
     },[]);
     return <div style={{padding:"16px 20px 0"}}>
       <MonthSelector/>
+      <GraficaMeses/>
       <Card style={{marginBottom:14}}>
         <Lbl>Resumen de movimientos · {MONTHS[month]}</Lbl>
         {[
