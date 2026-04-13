@@ -77,7 +77,7 @@ const MONTHS_S = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","N
 const now = new Date();
 const COP = n => new Intl.NumberFormat("es-CO",{style:"currency",currency:"COP",maximumFractionDigits:0}).format(n);
 const todayStr = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
-const isMonth = (s,m,y) => { const d=new Date(s); return d.getMonth()===m&&d.getFullYear()===y; };
+const isMonth = (s,m,y) => { const[sy,sm]=s.split('-').map(Number); return (sm-1)===m&&sy===y; };
 
 // ─── FRASES MOTIVADORAS CON NOMBRE ───────────────────────────────────────────
 // Aleatorias pero coherentes con el % de progreso — menciona el nombre de la meta
@@ -513,7 +513,14 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible}){
   const [goalId,setGoalId]=useState(initial?.goalId||"");
   const [conf,setConf]=useState(false);
   const ref=useRef(null);
+  const scrollRef=useRef(null); // ref para preservar scroll del modal
   useEffect(()=>{const t=setTimeout(()=>ref.current?.focus(),120);return()=>clearTimeout(t);},[]);
+  // Preservar posición de scroll al cambiar categoría
+  function setCatSinScroll(v){
+    const pos=scrollRef.current?.scrollTop||0;
+    setCat(v);
+    requestAnimationFrame(()=>{if(scrollRef.current)scrollRef.current.scrollTop=pos;});
+  }
   const raw=parseFloat(amount.replace(/\./g,"").replace(",","."))||0;
   const ci=getCatInfo(cat);
   const isMeta=cat==="meta_aporte";
@@ -561,7 +568,7 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible}){
   }
   return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:300,animation:"fadeIn 0.18s ease"}}>
-    <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1117",borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto"}}>
+    <div ref={scrollRef} style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1117",borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto"}}>
       <div style={{display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
       <div style={{padding:"0 20px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
@@ -603,9 +610,9 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible}){
         {/* Toggle Gasto / Meta / Ingreso */}
         <div style={{display:"flex",gap:6,marginBottom:14}}>
           {[
-            {id:"gasto",  label:"🛍️ Gasto",   color:C.red,    active:!esIngreso&&cat!=="meta_aporte", onClick:()=>setCat("restaurantes")},
-            {id:"meta",   label:"⭐ Meta",     color:C.indigo, active:cat==="meta_aporte",             onClick:()=>setCat("meta_aporte")},
-            {id:"ingreso",label:"💵 Ingreso",  color:C.emerald,active:esIngreso,                       onClick:()=>setCat("ingreso")},
+            {id:"gasto",  label:"🛍️ Gasto",   color:C.red,    active:!esIngreso&&cat!=="meta_aporte", onClick:()=>setCatSinScroll("restaurantes")},
+            {id:"meta",   label:"⭐ Meta",     color:C.indigo, active:cat==="meta_aporte",             onClick:()=>setCatSinScroll("meta_aporte")},
+            {id:"ingreso",label:"💵 Ingreso",  color:C.emerald,active:esIngreso,                       onClick:()=>setCatSinScroll("ingreso")},
           ].map(t=>(
             <button key={t.id} onMouseDown={e=>e.preventDefault()} onClick={t.onClick}
               style={{flex:1,padding:"10px 0",borderRadius:12,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,
@@ -618,7 +625,7 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible}){
         </div>
         {!esIngreso&&cat!=="meta_aporte"&&<div style={{marginBottom:14}}>
           <Lbl>Categoría del gasto</Lbl>
-          <CatSelector value={cat} onChange={v=>{setCat(v);setGoalId("");}}/>
+          <CatSelector value={cat} onChange={v=>{setCatSinScroll(v);setGoalId("");}}/>
           {faltaSubcat&&raw>0&&<div style={{marginTop:8,fontSize:12,color:C.amber,fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
             <span>⚠️</span><span>Elige el tipo específico dentro de la categoría</span>
           </div>}
@@ -750,7 +757,11 @@ export default function App(){
   const monthScrollRef=useRef(null);
   const [modal,setModal]=useState(null),[goalModal,setGoalModal]=useState(null);
   const [txLoading,setTxL]=useState(false);
-  const [alertaGasto,setAlertaGasto]=useState(null); // {monto, pct, tipo}
+  const [alertaGasto,setAlertaGasto]=useState(null);
+  const [pagos,setPagos]=useState([]);
+  const [menuOpen,setMenuOpen]=useState(false);
+  const [pagoModal,setPagoModal]=useState(null); // null | "new" | pago
+  const [pagoModalDia,setPagoModalDia]=useState(null); // día preseleccionado
 
   function changeTab(newTab){
     setTab(newTab); // El mes seleccionado se mantiene al cambiar de pestaña
@@ -769,6 +780,7 @@ export default function App(){
   useEffect(()=>{if(!user||salario===null||showOnb)return;setDoc(doc(db,"usuarios",user.uid),{salario},{merge:true});},[salario,user,showOnb]);
   useEffect(()=>{if(!user){setTx([]);return;}setTxL(true);return onSnapshot(query(collection(db,"usuarios",user.uid,"transacciones"),orderBy("createdAt","desc")),snap=>{setTx(snap.docs.map(d=>({id:d.id,...d.data()})));setTxL(false);});},[user]);
   useEffect(()=>{if(!user){setGoals([]);return;}return onSnapshot(query(collection(db,"usuarios",user.uid,"metas"),orderBy("createdAt","desc")),snap=>{setGoals(snap.docs.map(d=>({id:d.id,...d.data()})));});},[user]);
+  useEffect(()=>{if(!user){setPagos([]);return;}return onSnapshot(query(collection(db,"usuarios",user.uid,"pagos_programados"),orderBy("createdAt","desc")),snap=>{setPagos(snap.docs.map(d=>({id:d.id,...d.data()})));});},[user]);
 
   // Cambiar salario: aplica desde el mes SIGUIENTE, guarda historial por mes
   async function handleSalarioChange(nuevoValor){
@@ -859,6 +871,55 @@ export default function App(){
       aportesDeEstaMeta.map(t=>deleteDoc(doc(db,"usuarios",user.uid,"transacciones",t.id)))
     );
   },[user,tx]);
+
+  // CRUD pagos programados
+  const handlePagoSave=useCallback(async p=>{
+    if(!user)return;
+    const pl={
+      nombre:p.nombre,monto:p.monto,cat:p.cat,dia:p.dia,
+      frecuencia:p.frecuencia||"mensual",activo:true,
+      // Para pagos únicos guardamos el mes y año en que aplica
+      ...(p.frecuencia==="unico"
+        ?{mesUnico:p.mesUnico??now.getMonth(), anioUnico:p.anioUnico??now.getFullYear()}
+        :{}),
+    };
+    if(p.id) await updateDoc(doc(db,"usuarios",user.uid,"pagos_programados",p.id),pl);
+    else await addDoc(collection(db,"usuarios",user.uid,"pagos_programados"),{...pl,createdAt:serverTimestamp()});
+  },[user]);
+  const handlePagoDelete=useCallback(async id=>{
+    if(!user)return;
+    await deleteDoc(doc(db,"usuarios",user.uid,"pagos_programados",id));
+  },[user]);
+  const handlePagoConfirmar=useCallback(async p=>{
+    if(!user)return;
+    const fecha=todayStr();
+    await addDoc(collection(db,"usuarios",user.uid,"transacciones"),{
+      desc:p.nombre,amount:p.monto,cat:p.cat,date:fecha,
+      createdAt:serverTimestamp(),pagoId:p.id,
+    });
+  },[user]);
+  const handlePagoNoPague=useCallback(async p=>{
+    // No pagué — eliminar el pago programado
+    if(!user)return;
+    await deleteDoc(doc(db,"usuarios",user.uid,"pagos_programados",p.id));
+  },[user]);
+  const handlePagoPostponer=useCallback(async p=>{
+    // Recordar mañana — mover el día al día siguiente
+    if(!user)return;
+    const maniana=new Date(); maniana.setDate(maniana.getDate()+1);
+    const nuevoDia=maniana.getDate();
+    await updateDoc(doc(db,"usuarios",user.uid,"pagos_programados",p.id),{dia:nuevoDia});
+  },[user]);
+
+  // Pagos pendientes HOY (día del mes coincide con dia programado)
+  const hoyDia=now.getDate();
+  const pagosPendientesHoy=pagos.filter(p=>{
+    if(!p.activo)return false;
+    if(p.dia!==hoyDia)return false;
+    // Verificar que no haya sido confirmado hoy ya
+    const yaConfirmado=tx.some(t=>t.pagoId===p.id&&isMonth(t.date,now.getMonth(),now.getFullYear()));
+    return !yaConfirmado;
+  });
 
   const monthTx=tx.filter(t=>isMonth(t.date,month,now.getFullYear()));
   const gastosTx=monthTx.filter(t=>isGasto(t.cat)&&!isAporteMeta(t));
@@ -1414,6 +1475,87 @@ export default function App(){
     </div>;
   };
 
+  // ── Modal Pago Programado ────────────────────────────────────────────────
+  function PagoModal({initial,onClose,onSave,onDelete,diaInicial,mesInicial,anioInicial}){
+    const isEdit=!!initial;
+    const [nombre,setNombre]=useState(initial?.nombre||"");
+    const [monto,setMonto]=useState(initial?Number(initial.monto).toLocaleString("es-CO"):"");
+    const [cat,setCat]=useState(initial?.cat||"arriendo");
+    const [dia,setDia]=useState(initial?.dia||diaInicial||1);
+    const [frecuencia,setFrecuencia]=useState(initial?.frecuencia||"mensual");
+    const [conf,setConf]=useState(false);
+    const ref=useRef(null);
+    useEffect(()=>{const t=setTimeout(()=>ref.current?.focus(),120);return()=>clearTimeout(t);},[]);
+    const raw=parseFloat(monto.replace(/\./g,"").replace(",","."))||0;
+    function hm(e){const r=e.target.value.replace(/\D/g,"");setMonto(r?Number(r).toLocaleString("es-CO"):"");}
+    function save(){
+      if(!nombre.trim()||!raw)return;
+      onSave({
+        id:initial?.id||null,nombre:nombre.trim(),monto:raw,cat,dia,frecuencia,
+        mesUnico:initial?.mesUnico??(mesInicial??now.getMonth()),
+        anioUnico:initial?.anioUnico??(anioInicial??now.getFullYear()),
+      });
+      onClose();
+    }
+    const ci=getCatInfo(cat);
+    return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:300,animation:"fadeIn 0.18s ease"}}>
+      <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1117",borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto",scrollBehavior:"auto"}}>
+        <div style={{display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
+        <div style={{padding:"0 20px 28px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+            <div style={{fontSize:17,fontWeight:800,color:C.text.h}}>{isEdit?"Editar pago":"Nuevo pago programado"}</div>
+            <button onClick={onClose} style={{background:"none",border:"none",color:C.text.b,fontSize:28,cursor:"pointer"}}>×</button>
+          </div>
+          <Lbl>Nombre del pago</Lbl>
+          <input ref={ref} placeholder="ej: Arriendo, Gym, Netflix, Seguro..." value={nombre} onChange={e=>setNombre(e.target.value)}
+            style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"13px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:14}}/>
+          <Lbl>Monto (COP)</Lbl>
+          <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:14,overflow:"hidden",border:`2px solid ${raw>0?C.sky:C.border}`,marginBottom:14}}>
+            <span style={{padding:"0 14px",fontSize:20,lineHeight:"56px"}}>{ci.icon}</span>
+            <span style={{color:C.text.s,fontSize:16,lineHeight:"56px"}}>$</span>
+            <input inputMode="numeric" placeholder="0" value={monto} onChange={hm}
+              style={{flex:1,background:"none",border:"none",outline:"none",fontSize:24,fontWeight:800,color:C.text.h,padding:"0 10px",height:56}}/>
+          </div>
+          <Lbl>Categoría</Lbl>
+          <div style={{marginBottom:14}}><CatSelector value={cat} onChange={setCat}/></div>
+          <Lbl>Día del mes en que se paga</Lbl>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
+            {Array.from({length:28},(_,i)=>i+1).map(d=>(
+              <button key={d} onClick={()=>setDia(d)}
+                style={{width:40,height:40,borderRadius:10,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,
+                  background:dia===d?C.sky:"rgba(255,255,255,0.06)",
+                  color:dia===d?"#000":C.text.b,transition:"all 0.1s"}}>
+                {d}
+              </button>
+            ))}
+          </div>
+          <Lbl>Frecuencia</Lbl>
+          <div style={{display:"flex",gap:8,marginBottom:20}}>
+            {[{id:"mensual",label:"📅 Mensual"},{id:"unico",label:"1️⃣ Una vez"}].map(f=>(
+              <button key={f.id} onClick={()=>setFrecuencia(f.id)}
+                style={{flex:1,padding:"10px 0",borderRadius:12,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,
+                  background:frecuencia===f.id?`${C.sky}22`:C.surface,
+                  outline:frecuencia===f.id?`2px solid ${C.sky}`:"2px solid transparent",
+                  color:frecuencia===f.id?C.sky:C.text.s}}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            {isEdit&&!conf&&<button onClick={()=>setConf(true)} style={{padding:"16px 18px",borderRadius:14,border:`1px solid ${C.red}44`,background:"transparent",color:C.red,cursor:"pointer",fontSize:22,flexShrink:0}}>🗑</button>}
+            {isEdit&&conf&&<button onClick={()=>{onDelete(initial.id);onClose();}} style={{padding:"16px 18px",borderRadius:14,border:"none",background:C.red,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:800,flexShrink:0}}>¿Borrar?</button>}
+            <button onClick={save} style={{flex:1,padding:16,borderRadius:14,border:"none",cursor:(!nombre.trim()||!raw)?"not-allowed":"pointer",fontSize:15,fontWeight:800,
+              background:(!nombre.trim()||!raw)?C.surface:`linear-gradient(135deg,${C.sky},#0284c7)`,
+              color:(!nombre.trim()||!raw)?C.text.s:"#fff"}}>
+              {(!nombre.trim()||!raw)?"Completa los campos":isEdit?"✓ Guardar":"+ Agregar pago"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>;
+  }
+
   const MovTab=()=>{
     const sorted=[...monthTx].sort((a,b)=>new Date(b.date)-new Date(a.date));
     // Scroll al mes activo al montar o al cambiar de mes
@@ -1470,6 +1612,262 @@ export default function App(){
         <span style={{fontSize:11,color:C.text.s}}>Los registros de otros meses están disponibles<br/>seleccionando el mes arriba.</span>
       </div>}
       {sorted.map(t=><TxRow key={t.id} t={t} onEdit={()=>setModal(t)}/>)}
+    </div>;
+  };
+
+  // ── Pestaña Calendario + Pagos Programados ───────────────────────────────
+  const CalendarioTab=()=>{
+    const currentM=now.getMonth(), currentY=now.getFullYear();
+    const [calMes,setCalMes]=useState(currentM);
+    const [calAnio,setCalAnio]=useState(currentY);
+    const [diaSelec,setDiaSelec]=useState(now.getDate());
+    const [confirmPago,setConfirmPago]=useState(null); // pago a confirmar
+
+    const ultimoDia=new Date(calAnio,calMes+1,0).getDate();
+    const primerDia=new Date(calAnio,calMes,1).getDay(); // 0=Dom
+    const esHoy=(d)=>d===now.getDate()&&calMes===currentM&&calAnio===currentY;
+    const esPasado=(d)=>new Date(calAnio,calMes,d)<new Date(currentY,currentM,now.getDate());
+
+    // Gastos reales por día
+    function gastoDia(d){
+      return tx.filter(t=>{
+        const[ty,tm,td]=t.date.split("-").map(Number);
+        return ty===calAnio&&(tm-1)===calMes&&td===d&&isGasto(t.cat)&&!isAporteMeta(t);
+      }).reduce((s,t)=>s+t.amount,0);
+    }
+    // Pagos programados que caen en este mes
+    const pagosDeMes=pagos.filter(p=>{
+      if(!p.activo)return false;
+      if(p.frecuencia==="mensual")return true;
+      if(p.frecuencia==="unico"){
+        // Solo mostrar en el mes/año específico en que fue programado
+        const mesP=p.mesUnico??now.getMonth();
+        const anioP=p.anioUnico??now.getFullYear();
+        return mesP===calMes&&anioP===calAnio;
+      }
+      return false;
+    });
+    function pagosDia(d){return pagosDeMes.filter(p=>p.dia===d);}
+    function yaConfirmado(p){
+      // Verificar si hay una tx con pagoId de este pago en el mes/año del calendario
+      return tx.some(t=>{
+        if(t.pagoId!==p.id)return false;
+        const[ty,tm]=t.date.split("-").map(Number);
+        return (tm-1)===calMes&&ty===calAnio;
+      });
+    }
+
+    // Movimientos del día seleccionado
+    const txDia=tx.filter(t=>{
+      const[ty,tm,td]=t.date.split("-").map(Number);
+      return ty===calAnio&&(tm-1)===calMes&&td===diaSelec;
+    }).sort((a,b)=>new Date(b.date)-new Date(a.date));
+
+    const maxGasto=Math.max(...Array.from({length:ultimoDia},(_,i)=>gastoDia(i+1)),1);
+    const DIAS_S2=["D","L","M","X","J","V","S"];
+
+    return <div style={{padding:"16px 20px 0"}}>
+      {/* Navegación mes/año */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <button onClick={()=>{let m=calMes-1,y=calAnio;if(m<0){m=11;y--;}setCalMes(m);setCalAnio(y);setDiaSelec(1);}}
+          style={{background:"rgba(255,255,255,0.08)",border:"none",borderRadius:10,padding:"8px 14px",color:C.text.h,cursor:"pointer",fontSize:16,fontWeight:700}}>←</button>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:17,fontWeight:900,color:C.text.h}}>{MONTHS[calMes]}</div>
+          <div style={{fontSize:11,color:C.text.s}}>{calAnio}</div>
+        </div>
+        <button onClick={()=>{let m=calMes+1,y=calAnio;if(m>11){m=0;y++;}setCalMes(m);setCalAnio(y);setDiaSelec(1);}}
+          style={{background:"rgba(255,255,255,0.08)",border:"none",borderRadius:10,padding:"8px 14px",color:C.text.h,cursor:"pointer",fontSize:16,fontWeight:700}}>→</button>
+      </div>
+
+      {/* Cuadrícula calendario */}
+      <div style={{background:"rgba(255,255,255,0.03)",borderRadius:18,padding:"14px 12px",border:`1px solid ${C.border}`,marginBottom:14}}>
+        {/* Headers días semana */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:8}}>
+          {DIAS_S2.map(d=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:C.text.s,padding:"4px 0"}}>{d}</div>)}
+        </div>
+        {/* Días */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
+          {/* Espacios vacíos antes del día 1 */}
+          {Array.from({length:primerDia}).map((_,i)=><div key={`e${i}`}/>)}
+          {Array.from({length:ultimoDia},(_,i)=>{
+            const d=i+1;
+            const gasto=gastoDia(d);
+            const pagosDiaArr=pagosDia(d);
+            const selec=d===diaSelec;
+            const hoyDia=esHoy(d);
+            const pasado=esPasado(d);
+            const tieneGasto=gasto>0;
+            const tienePago=pagosDiaArr.length>0;
+            const intensidad=tieneGasto?Math.max(gasto/maxGasto,0.2):0;
+            return <button key={d} onClick={()=>setDiaSelec(d)}
+              style={{
+                aspectRatio:"1",borderRadius:10,border:"none",cursor:"pointer",
+                display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,
+                background:selec
+                  ?C.emerald
+                  :hoyDia
+                  ?"rgba(16,185,129,0.2)"
+                  :tieneGasto
+                  ?`rgba(239,68,68,${intensidad*0.35})`
+                  :tienePago&&!pasado
+                  ?"rgba(56,189,248,0.12)"
+                  :"transparent",
+                outline:hoyDia&&!selec?`2px solid ${C.emerald}44`:"none",
+                transition:"all 0.15s",
+              }}>
+              <span style={{fontSize:12,fontWeight:selec||hoyDia?"800":"500",
+                color:selec?"#000":hoyDia?C.emerald:pasado?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.75)"}}>{d}</span>
+              {/* Indicadores */}
+              <div style={{display:"flex",gap:2,height:4,alignItems:"center"}}>
+                {tieneGasto&&<div style={{width:4,height:4,borderRadius:"50%",background:selec?"rgba(0,0,0,0.5)":C.red}}/>}
+                {tienePago&&<div style={{width:4,height:4,borderRadius:"50%",background:selec?"rgba(0,0,0,0.5)":C.sky}}/>}
+              </div>
+            </button>;
+          })}
+        </div>
+        {/* Leyenda */}
+        <div style={{display:"flex",gap:14,marginTop:12,paddingTop:10,borderTop:`1px solid ${C.border}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:C.text.s}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:C.red}}/> Gasto registrado
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:C.text.s}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:C.sky}}/> Pago programado
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:C.text.s}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:C.emerald}}/> Hoy
+          </div>
+        </div>
+      </div>
+
+      {/* Detalle día seleccionado */}
+      <div style={{marginBottom:14}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <Lbl style={{marginBottom:0}}>
+            {DIAS_S2[new Date(calAnio,calMes,diaSelec).getDay()]} {diaSelec} de {MONTHS[calMes]}
+            {esHoy(diaSelec)&&<span style={{marginLeft:8,background:`${C.emerald}22`,color:C.emerald,fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:99,letterSpacing:1}}> HOY</span>}
+          </Lbl>
+          {!esPasado(diaSelec)&&<button onClick={()=>{setPagoModalDia(diaSelec);setPagoModal("new");}}
+            style={{background:`${C.sky}18`,border:`1px solid ${C.sky}44`,borderRadius:8,padding:"5px 12px",color:C.sky,cursor:"pointer",fontSize:11,fontWeight:700}}>
+            + Pago programado
+          </button>}
+        </div>
+
+        {/* Pagos programados del día */}
+        {pagosDia(diaSelec).map(p=>{
+          const confirmado=yaConfirmado(p);
+          const ci=getCatInfo(p.cat);
+          return <div key={p.id} style={{
+            display:"flex",alignItems:"center",gap:12,marginBottom:8,
+            background:confirmado?"rgba(16,185,129,0.08)":"rgba(56,189,248,0.06)",
+            borderRadius:14,padding:"12px 14px",
+            border:`1px solid ${confirmado?C.emerald+"33":C.sky+"33"}`,
+          }}>
+            <div style={{width:40,height:40,borderRadius:12,background:`${ci.color}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{ci.icon}</div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:700,color:C.text.h}}>{p.nombre}</div>
+              <div style={{fontSize:11,color:C.text.s}}>{ci.label} · día {p.dia} · {p.frecuencia==="mensual"?"Mensual":"Una vez"}</div>
+            </div>
+            <div style={{textAlign:"right",flexShrink:0}}>
+              <div style={{fontSize:14,fontWeight:800,color:confirmado?C.emerald:C.sky}}>{COP(p.monto)}</div>
+              {!confirmado&&(esHoy(diaSelec)||esPasado(diaSelec))&&
+                <button onClick={()=>setConfirmPago(p)}
+                  style={{marginTop:4,background:`${C.amber}22`,border:`1px solid ${C.amber}44`,borderRadius:6,padding:"3px 8px",color:C.amber,cursor:"pointer",fontSize:10,fontWeight:700}}>
+                  ¿Lo pagaste?
+                </button>}
+              {!confirmado&&!esHoy(diaSelec)&&!esPasado(diaSelec)&&
+                <div style={{fontSize:10,color:C.sky,fontWeight:700,marginTop:2}}>Programado</div>}
+              {confirmado&&<div style={{fontSize:10,color:C.emerald,fontWeight:700,marginTop:2}}>✓ Pagado</div>}
+            </div>
+            <button onClick={()=>setPagoModal(p)} style={{background:"none",border:"none",color:C.text.s,cursor:"pointer",fontSize:18,padding:"0 4px"}}>⋮</button>
+          </div>;
+        })}
+
+        {/* Movimientos reales del día */}
+        {txDia.length>0&&<>
+          {txDia.map(t=><TxRow key={t.id} t={t} onEdit={()=>esPasado(diaSelec)?null:setModal(t)}/>)}
+        </>}
+        {txDia.length===0&&pagosDia(diaSelec).length===0&&(
+          <div style={{textAlign:"center",padding:"24px 0",color:C.text.s,fontSize:13,lineHeight:2}}>
+            {esPasado(diaSelec)?"Sin movimientos este día.":
+             esHoy(diaSelec)?"Sin movimientos hoy aún. ¡Toca + para registrar!":
+             "Día futuro — puedes programar un pago arriba."}
+          </div>
+        )}
+      </div>
+
+      {/* Lista pagos programados del mes */}
+      {pagosDeMes.length>0&&<>
+        <Lbl>Pagos programados este mes</Lbl>
+        {pagosDeMes.map(p=>{
+          const ci=getCatInfo(p.cat);
+          const confirmado=yaConfirmado(p);
+          const venceHoy=p.dia===now.getDate()&&calMes===currentM&&calAnio===currentY;
+          return <div key={p.id} onClick={()=>setPagoModal(p)}
+            style={{display:"flex",alignItems:"center",gap:12,marginBottom:8,
+              background:venceHoy&&!confirmado?`${C.amber}10`:"rgba(255,255,255,0.03)",
+              borderRadius:14,padding:"12px 14px",cursor:"pointer",
+              border:`1px solid ${venceHoy&&!confirmado?C.amber+"44":confirmado?C.emerald+"22":C.border}`}}>
+            <div style={{width:40,height:40,borderRadius:12,background:`${ci.color}20`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{ci.icon}</div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:700,color:C.text.h}}>{p.nombre}</div>
+              <div style={{fontSize:11,color:C.text.s}}>Día {p.dia} · {p.frecuencia==="mensual"?"Mensual":"Una vez"}</div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:14,fontWeight:800,color:confirmado?C.emerald:venceHoy?C.amber:C.sky}}>{COP(p.monto)}</div>
+              <div style={{fontSize:10,marginTop:2,color:confirmado?C.emerald:venceHoy?C.amber:C.text.s,fontWeight:700}}>
+                {confirmado?"✓ Pagado":venceHoy?"⚠️ Hoy":"Pendiente"}
+              </div>
+            </div>
+          </div>;
+        })}
+      </>}
+      <button onClick={()=>setPagoModal("new")}
+        style={{width:"100%",padding:14,borderRadius:14,border:`1px dashed ${C.border}`,background:"transparent",color:C.text.b,cursor:"pointer",fontSize:14,fontWeight:700,marginBottom:8}}>
+        + Nuevo pago programado
+      </button>
+      {/* Modal ¿Pagaste? */}
+      {confirmPago&&(
+        <div onClick={()=>setConfirmPago(null)}
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1117",borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,padding:"24px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)"}}>
+            <div style={{textAlign:"center",marginBottom:20}}>
+              <div style={{fontSize:36,marginBottom:10}}>{getCatInfo(confirmPago.cat).icon}</div>
+              <div style={{fontSize:17,fontWeight:900,color:C.text.h,marginBottom:6}}>{confirmPago.nombre}</div>
+              <div style={{fontSize:26,fontWeight:900,color:C.sky,letterSpacing:-1}}>{COP(confirmPago.monto)}</div>
+              <div style={{fontSize:12,color:C.text.s,marginTop:6}}>Día {confirmPago.dia} · {confirmPago.frecuencia==="mensual"?"Mensual":"Una vez"}</div>
+            </div>
+            <div style={{fontSize:14,fontWeight:800,color:C.text.b,textAlign:"center",marginBottom:16}}>¿Ya realizaste este pago?</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {/* Sí, lo pagué */}
+              <button onClick={async()=>{await handlePagoConfirmar(confirmPago);setConfirmPago(null);}}
+                style={{width:"100%",padding:"16px",borderRadius:14,border:"none",cursor:"pointer",
+                  background:`linear-gradient(135deg,${C.emerald},#059669)`,
+                  color:"#000",fontSize:15,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+                <span>✅</span> Sí, ya lo pagué — registrar
+              </button>
+              {/* Recordar mañana */}
+              <button onClick={async()=>{await handlePagoPostponer(confirmPago);setConfirmPago(null);}}
+                style={{width:"100%",padding:"16px",borderRadius:14,border:`1px solid ${C.amber}44`,cursor:"pointer",
+                  background:`${C.amber}12`,
+                  color:C.amber,fontSize:15,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+                <span>⏰</span> Recordármelo mañana
+              </button>
+              {/* No lo pagué */}
+              <button onClick={async()=>{await handlePagoNoPague(confirmPago);setConfirmPago(null);}}
+                style={{width:"100%",padding:"16px",borderRadius:14,border:`1px solid ${C.red}33`,cursor:"pointer",
+                  background:`${C.red}10`,
+                  color:C.red,fontSize:15,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+                <span>❌</span> No lo pagué — eliminar recordatorio
+              </button>
+              <button onClick={()=>setConfirmPago(null)}
+                style={{background:"none",border:"none",color:C.text.s,cursor:"pointer",fontSize:13,padding:"8px",fontWeight:600}}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>;
   };
 
@@ -1530,10 +1928,10 @@ export default function App(){
   }
 
   const NAV=[
-    {id:"home",  icon:"⬡", label:"Inicio",   activeColor:C.emerald},
-    {id:"metas", icon:null, label:"Metas",    activeColor:"#f59e0b"},
-    {id:"mov",   icon:"≡", label:"Movim.",   activeColor:C.emerald},
-    {id:"cfg",   icon:"◎", label:"Config",   activeColor:C.emerald},
+    {id:"home", icon:"⬡", label:"Inicio",  activeColor:C.emerald},
+    {id:"mov",  icon:"≡", label:"Movim.",  activeColor:C.emerald},
+    {id:"metas",icon:null, label:"Metas",   activeColor:"#f59e0b"},
+    {id:"cal",  icon:"📅", label:"Agenda",  activeColor:C.sky},
   ];
 
   // ─── MODAL de alerta de gasto elevado ──────────────────────────────────────
@@ -1588,19 +1986,67 @@ export default function App(){
         <div style={{fontSize:10,color:C.text.s,letterSpacing:2.5,fontWeight:700,marginBottom:2}}>MIS FINANZAS PRO</div>
         <div style={{fontSize:21,fontWeight:900,letterSpacing:-0.5,color:C.text.h}}>{user.displayName?.split(" ")[0]} 👋</div>
       </div>
-      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"6px 14px",fontSize:12,color:C.text.b,fontWeight:700}}>{MONTHS_S[now.getMonth()]} {now.getFullYear()}</div>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"6px 14px",fontSize:12,color:C.text.b,fontWeight:700}}>{MONTHS_S[now.getMonth()]} {now.getFullYear()}</div>
+        {/* Hamburguesa */}
+        <button onClick={()=>setMenuOpen(o=>!o)} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"8px 10px",cursor:"pointer",display:"flex",flexDirection:"column",gap:4,alignItems:"center",justifyContent:"center"}}>
+          {[0,1,2].map(i=><div key={i} style={{width:18,height:2,borderRadius:99,background:menuOpen?"rgba(255,255,255,0.8)":"rgba(255,255,255,0.5)",transition:"all 0.2s",transform:menuOpen?(i===0?"rotate(45deg) translate(4px,4px)":i===2?"rotate(-45deg) translate(4px,-4px)":"scaleX(0)"):"none"}}/>)}
+        </button>
+      </div>
     </div>
-    {tab==="home"&&<HomeTab/>}{tab==="metas"&&<MetasTab/>}{tab==="mov"&&<MovTab/>}{tab==="cfg"&&<ConfigTab/>}
+    {/* Menú hamburguesa */}
+    {menuOpen&&<div onClick={()=>setMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:19,background:"rgba(0,0,0,0.5)"}}/>}
+    {menuOpen&&<div style={{position:"fixed",top:72,right:20,zIndex:21,background:"#0d1117",borderRadius:16,border:`1px solid ${C.border}`,padding:"8px 0",minWidth:200,boxShadow:"0 16px 48px rgba(0,0,0,0.6)",animation:"slideDown 0.18s ease"}}>
+      {/* Info usuario */}
+      <div style={{padding:"12px 16px 10px",borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <img src={user.photoURL} alt="" style={{width:36,height:36,borderRadius:"50%"}}/>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,color:C.text.h}}>{user.displayName?.split(" ")[0]}</div>
+            <div style={{fontSize:11,color:C.text.s}}>{user.email}</div>
+          </div>
+        </div>
+      </div>
+      {/* Opciones */}
+      {[
+        {icon:"⚙️", label:"Configuración", onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
+        {icon:"🔔", label:"Notif. push (próx.)", onClick:()=>setMenuOpen(false), disabled:true},
+        {icon:"📤", label:"Exportar (próx.)", onClick:()=>setMenuOpen(false), disabled:true},
+      ].map(o=>(
+        <button key={o.label} onClick={o.onClick} disabled={o.disabled}
+          style={{width:"100%",padding:"12px 16px",background:"none",border:"none",cursor:o.disabled?"default":"pointer",
+            display:"flex",alignItems:"center",gap:12,fontSize:14,fontWeight:600,
+            color:o.disabled?C.text.s:C.text.h,textAlign:"left",opacity:o.disabled?0.5:1}}>
+          <span style={{fontSize:18}}>{o.icon}</span>{o.label}
+          {o.disabled&&<span style={{marginLeft:"auto",fontSize:9,background:"rgba(255,255,255,0.08)",borderRadius:99,padding:"2px 8px",color:C.text.s,letterSpacing:1}}>PRONTO</span>}
+        </button>
+      ))}
+      <div style={{borderTop:`1px solid ${C.border}`,marginTop:4}}/>
+      <button onClick={()=>{handleLogout();setMenuOpen(false);}}
+        style={{width:"100%",padding:"12px 16px",background:"none",border:"none",cursor:"pointer",
+          display:"flex",alignItems:"center",gap:12,fontSize:14,fontWeight:600,color:C.red,textAlign:"left"}}>
+        <span style={{fontSize:18}}>🚪</span> Cerrar sesión
+      </button>
+    </div>}
+    {tab==="home"&&<HomeTab/>}{tab==="metas"&&<MetasTab/>}{tab==="cal"&&<CalendarioTab/>}{tab==="mov"&&<MovTab/>}{tab==="cfg"&&<ConfigTab/>}
     {/* FAB */}
-    {!modal&&!goalModal&&<button onClick={()=>tab==="metas"?setGoalModal("new"):setModal("new")} style={{
+    {!modal&&!goalModal&&!pagoModal&&<button onClick={()=>{
+      if(tab==="metas") setGoalModal("new");
+      else if(tab==="cal"){setPagoModalDia(null);setPagoModal("new");}
+      else setModal("new");
+    }} style={{
       position:"fixed",bottom:92,right:20,
       width:60,height:60,borderRadius:"50%",
       background:tab==="metas"
         ?`linear-gradient(135deg,#818cf8,#6366f1,#4338ca)`
+        :tab==="cal"
+        ?`linear-gradient(135deg,#38bdf8,#0284c7)`
         :`linear-gradient(135deg,#34d399,#10b981,#059669)`,
       border:"none",fontSize:30,color:"#fff",cursor:"pointer",
       boxShadow:tab==="metas"
         ?`0 8px 32px rgba(99,102,241,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)`
+        :tab==="cal"
+        ?`0 8px 32px rgba(56,189,248,0.5), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)`
         :`0 8px 32px rgba(16,185,129,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)`,
       display:"flex",alignItems:"center",justifyContent:"center",
       zIndex:100,lineHeight:1,
@@ -1608,6 +2054,35 @@ export default function App(){
     }}>＋</button>}
     {modal&&<TxModal initial={modal==="new"?null:modal} goals={goals} saldoDisponible={saldo} onClose={()=>setModal(null)} onSave={handleSave} onDelete={handleDelete}/>}
     {goalModal&&<GoalModal initial={goalModal==="new"?null:goalModal} onClose={()=>setGoalModal(null)} onSave={handleGoalSave} onDelete={handleGoalDelete}/>}
+    {pagoModal&&<PagoModal
+      initial={pagoModal==="new"?null:pagoModal}
+      diaInicial={pagoModalDia||now.getDate()}
+      mesInicial={tab==="cal"?undefined:now.getMonth()}
+      anioInicial={tab==="cal"?undefined:now.getFullYear()}
+      onClose={()=>{setPagoModal(null);setPagoModalDia(null);}}
+      onSave={handlePagoSave}
+      onDelete={handlePagoDelete}/>}
+    {/* Banner in-app pagos pendientes hoy */}
+    {pagosPendientesHoy.length>0&&!modal&&!goalModal&&!pagoModal&&(
+      <div style={{position:"fixed",top:74,left:"50%",transform:"translateX(-50%)",width:"calc(100% - 32px)",maxWidth:398,zIndex:18,animation:"slideDown 0.3s ease"}}>
+        <div style={{background:"linear-gradient(135deg,#1a0f00,#2d1a00)",borderRadius:14,padding:"12px 16px",border:`1px solid ${C.amber}55`,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <span style={{fontSize:24,flexShrink:0}}>🔔</span>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:800,color:C.amber,marginBottom:2}}>
+                {pagosPendientesHoy.length===1
+                  ?`Pago pendiente hoy: ${pagosPendientesHoy[0].nombre}`
+                  :`${pagosPendientesHoy.length} pagos pendientes hoy`}
+              </div>
+              <div style={{fontSize:11,color:C.text.b}}>
+                {COP(pagosPendientesHoy.reduce((s,p)=>s+p.monto,0))} total · Toca para confirmar
+              </div>
+            </div>
+            <button onClick={()=>changeTab("cal")} style={{background:`${C.amber}22`,border:`1px solid ${C.amber}44`,borderRadius:8,padding:"6px 12px",color:C.amber,cursor:"pointer",fontSize:11,fontWeight:700,flexShrink:0}}>Ver</button>
+          </div>
+        </div>
+      </div>
+    )}
     {AlertaGastoModal}
     {/* Nav */}
     <nav style={{
