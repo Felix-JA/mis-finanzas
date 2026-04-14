@@ -273,6 +273,9 @@ function GoalModal({initial,onClose,onSave,onDelete}){
   const [emoji,setEmoji]=useState(initial?.emoji||"⭐");
   const [showPicker,setShowPicker]=useState(false);
   const [confirmDelMeta,setConfirmDelMeta]=useState(false);
+  const [imagen,setImagen]=useState(initial?.imagen||null); // base64 comprimida
+  const [loadingImg,setLoadingImg]=useState(false);
+  const imgInputRef=useRef(null);
   const ref=useRef(null);
   useEffect(()=>{const t=setTimeout(()=>ref.current?.focus(),120);return()=>clearTimeout(t);},[]);
   const val=parseFloat(monto.replace(/\./g,"").replace(",","."))||0;
@@ -280,7 +283,46 @@ function GoalModal({initial,onClose,onSave,onDelete}){
   const col=goalColor(pct);
   const grad=goalGradient(pct);
   function handleM(e){const r=e.target.value.replace(/\D/g,"");setMonto(r?Number(r).toLocaleString("es-CO"):"");}
-  function save(){if(!name.trim()||!val)return;onSave({id:initial?.id||null,name:name.trim(),monto:val,emoji});onClose();}
+
+  // Comprimir imagen con canvas a ~100KB máx
+  function comprimirImagen(file){
+    return new Promise(resolve=>{
+      const reader=new FileReader();
+      reader.onload=e=>{
+        const img=new Image();
+        img.onload=()=>{
+          const canvas=document.createElement("canvas");
+          const MAX=800; // px máximo
+          let w=img.width, h=img.height;
+          if(w>h){if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}}
+          else{if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}}
+          canvas.width=w; canvas.height=h;
+          canvas.getContext("2d").drawImage(img,0,0,w,h);
+          // Comprimir hasta ~100KB
+          let q=0.8, result=canvas.toDataURL("image/jpeg",q);
+          while(result.length>130000&&q>0.3){q-=0.1;result=canvas.toDataURL("image/jpeg",q);}
+          resolve(result);
+        };
+        img.src=e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleImgChange(e){
+    const file=e.target.files?.[0];
+    if(!file)return;
+    setLoadingImg(true);
+    const b64=await comprimirImagen(file);
+    setImagen(b64);
+    setLoadingImg(false);
+  }
+
+  function save(){
+    if(!name.trim()||!val)return;
+    onSave({id:initial?.id||null,name:name.trim(),monto:val,emoji,...(imagen?{imagen}:{})});
+    onClose();
+  }
   return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
     <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1117",borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto"}}>
@@ -290,20 +332,43 @@ function GoalModal({initial,onClose,onSave,onDelete}){
           <div style={{fontSize:18,fontWeight:800,color:C.text.h}}>{isEdit?"Editar meta":"Nueva meta"}</div>
           <button onClick={onClose} style={{background:"none",border:"none",color:C.text.b,fontSize:28,cursor:"pointer",lineHeight:1,padding:4}}>×</button>
         </div>
-        {/* Preview */}
-        <div style={{background:grad,borderRadius:16,padding:"20px 18px",marginBottom:18,border:`1px solid ${C.border}`,position:"relative",overflow:"hidden"}}>
-          <div style={{fontSize:52,marginBottom:10,filter:"drop-shadow(0 4px 16px rgba(0,0,0,0.5))"}}>{emoji}</div>
-          <div style={{fontSize:17,fontWeight:800,color:C.text.h,marginBottom:isEdit?6:4}}>{name||"Nombre de tu meta"}</div>
-          {isEdit&&<>
-            <div style={{fontSize:13,color:col,fontWeight:600,marginBottom:8}}>{getFrase(pct,name||"tu meta")}</div>
-            <Bar pct={pct} color={col} h={6}/>
-            <div style={{fontSize:12,color:C.text.b,marginTop:6,display:"flex",justifyContent:"space-between"}}>
-              <span>{Math.round(pct*100)}% · {COP(initial._aportado||0)} acumulados</span>
-              <span>Faltan {COP(Math.max((initial.monto||0)-(initial._aportado||0),0))}</span>
-            </div>
-          </>}
-          {!isEdit&&<div style={{fontSize:13,color:C.text.b}}>{getFrase(0,name||"tu meta")}</div>}
+        {/* Preview con imagen */}
+        <div style={{borderRadius:16,marginBottom:18,border:`1px solid ${C.border}`,position:"relative",overflow:"hidden",minHeight:140}}>
+          {/* Fondo: imagen o gradiente */}
+          {imagen
+            ?<img src={imagen} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>
+            :<div style={{position:"absolute",inset:0,background:grad}}/>}
+          {/* Overlay oscuro si hay imagen */}
+          {imagen&&<div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(0,0,0,0.15) 0%,rgba(0,0,0,0.65) 100%)"}}/>}
+          {/* Contenido */}
+          <div style={{position:"relative",padding:"20px 18px"}}>
+            <div style={{fontSize:52,marginBottom:10,filter:"drop-shadow(0 4px 16px rgba(0,0,0,0.5))"}}>{emoji}</div>
+            <div style={{fontSize:17,fontWeight:800,color:"#fff",marginBottom:isEdit?6:4,textShadow:"0 2px 8px rgba(0,0,0,0.5)"}}>{name||"Nombre de tu meta"}</div>
+            {isEdit&&<>
+              <div style={{fontSize:13,color:col,fontWeight:600,marginBottom:8}}>{getFrase(pct,name||"tu meta")}</div>
+              <Bar pct={pct} color={col} h={6}/>
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.8)",marginTop:6,display:"flex",justifyContent:"space-between"}}>
+                <span>{Math.round(pct*100)}% · {COP(initial._aportado||0)} acumulados</span>
+                <span>Faltan {COP(Math.max((initial.monto||0)-(initial._aportado||0),0))}</span>
+              </div>
+            </>}
+            {!isEdit&&<div style={{fontSize:13,color:"rgba(255,255,255,0.75)"}}>{getFrase(0,name||"tu meta")}</div>}
+          </div>
+          {/* Botón cambiar foto — esquina superior derecha */}
+          <button onClick={()=>imgInputRef.current?.click()}
+            style={{position:"absolute",top:10,right:10,background:"rgba(0,0,0,0.5)",border:"1px solid rgba(255,255,255,0.3)",
+              borderRadius:8,padding:"5px 10px",color:"#fff",cursor:"pointer",fontSize:11,fontWeight:700,
+              backdropFilter:"blur(4px)",display:"flex",alignItems:"center",gap:5}}>
+            {loadingImg?"⏳ Procesando...":imagen?"📷 Cambiar foto":"📷 Agregar foto"}
+          </button>
+          {imagen&&<button onClick={()=>setImagen(null)}
+            style={{position:"absolute",top:10,right:imagen?"130px":"100px",background:"rgba(239,68,68,0.6)",border:"none",
+              borderRadius:8,padding:"5px 8px",color:"#fff",cursor:"pointer",fontSize:11,fontWeight:700}}>
+            ✕ Quitar
+          </button>}
         </div>
+        {/* Input oculto para foto */}
+        <input ref={imgInputRef} type="file" accept="image/*" onChange={handleImgChange} style={{display:"none"}}/>
         {/* Emoji picker */}
         <Lbl>Ícono</Lbl>
         <button onClick={()=>setShowPicker(!showPicker)} style={{width:"100%",padding:"12px 16px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,cursor:"pointer",display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
@@ -422,11 +487,27 @@ function GoalCard({goal,aportado,aportadoEsteMes,txAll,onEdit}){
     onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
     onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
     style={{borderRadius:18,overflow:"hidden",border:`1px solid ${done?"rgba(16,185,129,0.35)":C.border}`,marginBottom:14,cursor:"pointer",transition:"transform 0.15s"}}>
-    <div style={{background:grad,padding:"22px 18px 16px",position:"relative"}}>
-      {done&&<div style={{position:"absolute",top:12,right:12,background:C.emerald,borderRadius:99,padding:"4px 12px",fontSize:11,fontWeight:800,color:"#000"}}>✓ META LOGRADA</div>}
-      <div style={{fontSize:50,marginBottom:10,filter:"drop-shadow(0 4px 20px rgba(0,0,0,0.6))"}}>{goal.emoji||"⭐"}</div>
-      <div style={{fontSize:18,fontWeight:800,color:C.text.h,marginBottom:5}}>{goal.name}</div>
-      <div style={{fontSize:13,color:col,fontWeight:600}}>{frase}</div>
+    <div style={{position:"relative",minHeight:130,overflow:"hidden"}}>
+      {/* Fondo: imagen o gradiente */}
+      {goal.imagen
+        ?<img src={goal.imagen} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>
+        :<div style={{position:"absolute",inset:0,background:grad}}/>}
+      {goal.imagen&&<div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(0,0,0,0.1) 0%,rgba(0,0,0,0.7) 100%)"}}/>}
+      {/* Contenido sobre la imagen */}
+      <div style={{position:"relative",padding:"22px 18px 16px",minHeight:goal.imagen?120:0}}>
+        {done&&<div style={{position:"absolute",top:12,right:12,background:C.emerald,borderRadius:99,padding:"4px 12px",fontSize:11,fontWeight:800,color:"#000"}}>✓ META LOGRADA</div>}
+        {/* Emoji solo si no hay foto */}
+        {!goal.imagen&&<div style={{fontSize:50,marginBottom:10,filter:"drop-shadow(0 4px 20px rgba(0,0,0,0.6))"}}>{goal.emoji||"⭐"}</div>}
+        {/* Con foto: nombre y frase en la parte inferior de la imagen */}
+        <div style={{
+          position:goal.imagen?"absolute":"relative",
+          bottom:goal.imagen?0:undefined,left:goal.imagen?0:undefined,right:goal.imagen?0:undefined,
+          padding:goal.imagen?"16px 18px":"0",
+        }}>
+          <div style={{fontSize:18,fontWeight:800,color:"#fff",marginBottom:4,textShadow:goal.imagen?"0 2px 10px rgba(0,0,0,0.9)":"none"}}>{goal.name}</div>
+          <div style={{fontSize:13,color:goal.imagen?"rgba(255,255,255,0.95)":col,fontWeight:600,textShadow:goal.imagen?"0 1px 6px rgba(0,0,0,0.9)":"none"}}>{frase}</div>
+        </div>
+      </div>
     </div>
     <div style={{background:"rgba(255,255,255,0.03)",padding:"14px 18px 16px",borderTop:`1px solid ${C.border}`}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -492,8 +573,21 @@ function GoalChip({goal,aportado,aportadoEsteMes,txAll,onClick}){
       border:`1px solid rgba(255,255,255,0.1)`,
       boxShadow:"0 4px 16px rgba(0,0,0,0.3)",
       cursor:"pointer",display:"flex",alignItems:"stretch",marginBottom:10,transition:"all 0.15s"}}>
-    <div style={{width:64,flexShrink:0,background:grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>
-      {goal.emoji||"⭐"}
+    <div style={{width:72,flexShrink:0,position:"relative",overflow:"hidden",alignSelf:"stretch"}}>
+      {goal.imagen
+        ?<img src={goal.imagen} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>
+        :<div style={{position:"absolute",inset:0,background:grad}}/>}
+      {goal.imagen&&<div style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.45)"}}/>}
+      {/* Emoji con halo oscuro circular */}
+      <div style={{
+        position:"absolute",bottom:8,left:0,right:0,textAlign:"center",
+        fontSize:goal.imagen?26:26,
+        filter:goal.imagen
+          ?"drop-shadow(0 0 6px rgba(0,0,0,1)) drop-shadow(0 0 12px rgba(0,0,0,1)) drop-shadow(0 0 18px rgba(0,0,0,0.9))"
+          :"none",
+      }}>
+        {goal.emoji||"⭐"}
+      </div>
     </div>
     <div style={{flex:1,padding:"12px 14px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:5}}>
@@ -967,7 +1061,11 @@ export default function App(){
   const handleDelete=useCallback(async id=>{if(!user)return;await deleteDoc(doc(db,"usuarios",user.uid,"transacciones",id));},[user]);
   const handleGoalSave=useCallback(async g=>{
     if(!user)return;
-    const pl={name:g.name,monto:g.monto||0,emoji:g.emoji||"⭐",esEmergencias:g.esEmergencias||false};
+    const pl={
+      name:g.name,monto:g.monto||0,emoji:g.emoji||"⭐",
+      esEmergencias:g.esEmergencias||false,
+      ...(g.imagen?{imagen:g.imagen}:{imagen:null}),
+    };
     if(g.id) await updateDoc(doc(db,"usuarios",user.uid,"metas",g.id),pl);
     else await addDoc(collection(db,"usuarios",user.uid,"metas"),{...pl,createdAt:serverTimestamp()});
   },[user]);
