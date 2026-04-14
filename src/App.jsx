@@ -311,9 +311,12 @@ function GoalModal({initial,onClose,onSave,onDelete}){
           <span style={{fontSize:14,color:C.text.b,fontWeight:600}}>Cambiar ícono</span>
           <span style={{marginLeft:"auto",color:C.text.s,fontSize:16}}>{showPicker?"▲":"▼"}</span>
         </button>
-        {showPicker&&<div style={{display:"grid",gridTemplateColumns:"repeat(8,1fr)",gap:4,marginBottom:12,background:C.surface,borderRadius:14,padding:10,border:`1px solid ${C.border}`}}>
+        {showPicker&&<div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:12,
+          background:C.surface,borderRadius:14,padding:"10px 8px",border:`1px solid ${C.border}`,
+          overflow:"hidden",width:"100%",boxSizing:"border-box"}}>
           {GOAL_EMOJIS.map(e=><button key={e} onClick={()=>{setEmoji(e);setShowPicker(false);}}
-            style={{fontSize:24,padding:8,borderRadius:10,border:"none",cursor:"pointer",
+            style={{fontSize:22,padding:"7px 0",borderRadius:10,border:"none",cursor:"pointer",
+              width:"100%",boxSizing:"border-box",
               background:emoji===e?`${C.indigo}30`:"transparent",
               outline:emoji===e?`2px solid ${C.indigo}`:"2px solid transparent",transition:"all 0.1s"}}>
             {e}
@@ -354,13 +357,66 @@ function GoalModal({initial,onClose,onSave,onDelete}){
   </div>;
 }
 
+// ─── PROYECCIÓN DE META ──────────────────────────────────────────────────────
+// Calcula en cuántos meses se llega a la meta y la fecha estimada
+function getProyeccion(goal, aportado, txAll) {
+  if(aportado>=goal.monto) return null; // ya lograda
+  const faltan=goal.monto-aportado;
+  if(faltan<=0) return null;
+
+  // Obtener todos los aportes de esta meta agrupados por mes
+  const aportes=txAll.filter(t=>(isAporteMeta(t)||isSavingsLegacy(t.cat))&&t.goalId===goal.id);
+  if(aportes.length===0) return {meses:null,fecha:null,promedio:0,msg:"Sin aportes aún"};
+
+  // Agrupar por mes para calcular promedio real
+  const porMes={};
+  aportes.forEach(t=>{
+    const[ty,tm]=t.date.split("-").map(Number);
+    const key=`${ty}-${tm}`;
+    porMes[key]=(porMes[key]||0)+t.amount;
+  });
+  const mesesConAporte=Object.values(porMes);
+  const promedio=mesesConAporte.reduce((s,v)=>s+v,0)/mesesConAporte.length;
+
+  if(promedio<=0) return {meses:null,fecha:null,promedio:0,msg:"Sin aportes aún"};
+
+  const mesesRestantes=Math.ceil(faltan/promedio);
+
+  // Fecha estimada
+  const hoy=new Date();
+  const fechaEstimada=new Date(hoy.getFullYear(),hoy.getMonth()+mesesRestantes,1);
+  const MONTHS_ES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+  const fechaStr=`${MONTHS_ES[fechaEstimada.getMonth()]} ${fechaEstimada.getFullYear()}`;
+
+  let msg, tip;
+  if(mesesRestantes===1){
+    msg="🏁 ¡Un mes más y es tuyo!";
+    tip="Aporta un poco más este mes y lo adelantas";
+  } else if(mesesRestantes<=3){
+    msg=`🔥 ¡Ya casi lo tienes! Lo logras en ${fechaStr}`;
+    tip="Aporta un poco más y llegas antes";
+  } else if(mesesRestantes<=6){
+    msg=`💪 ¡Vas muy bien! Lo consigues en ${fechaStr}`;
+    tip="Cada peso extra que aportes te acerca más rápido";
+  } else if(mesesRestantes<=12){
+    msg=`🚀 ¡Sigue firme! En ${fechaStr} lo logras`;
+    tip="Un aporte extra al mes hace la diferencia";
+  } else {
+    msg=`⭐ Vale cada peso que ahorras · En ${fechaStr}`;
+    tip="Aumenta tu aporte mensual y acorta el camino";
+  }
+
+  return {meses:mesesRestantes, fecha:fechaStr, promedio, msg, tip};
+}
+
 // ─── CARD META (pestaña Metas) ────────────────────────────────────────────────
-function GoalCard({goal,aportado,aportadoEsteMes,onEdit}){
+function GoalCard({goal,aportado,aportadoEsteMes,txAll,onEdit}){
   const pct=goal.monto>0?Math.min(aportado/goal.monto,1):0;
   const done=pct>=1;
   const col=goalColor(pct);
   const grad=goalGradient(pct);
   const frase=getFrase(pct,goal.name);
+  const proy=!done?getProyeccion(goal,aportado,txAll):null;
   return <div onClick={onEdit}
     onMouseDown={e=>e.currentTarget.style.transform="scale(0.985)"}
     onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
@@ -384,7 +440,7 @@ function GoalCard({goal,aportado,aportadoEsteMes,onEdit}){
         </div>
       </div>
       <Bar pct={pct} color={col} h={8}/>
-      <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
+      <div style={{display:"flex",justifyContent:"space-between",marginTop:8,marginBottom:proy?.msg?8:0}}>
         <div style={{fontSize:11,color:C.text.s}}>
           {aportadoEsteMes>0
             ?<span style={{color:col}}>+{COP(aportadoEsteMes)} este mes</span>
@@ -392,16 +448,40 @@ function GoalCard({goal,aportado,aportadoEsteMes,onEdit}){
         </div>
         <div style={{fontSize:12,color:C.text.s}}>Faltan {COP(Math.max(goal.monto-aportado,0))}</div>
       </div>
+      {/* Proyección */}
+      {proy&&proy.promedio>0&&<div style={{
+        background:`${col}15`,borderRadius:12,padding:"10px 12px",
+        border:`1px solid ${col}40`,marginTop:6,
+      }}>
+        <div style={{fontSize:13,fontWeight:800,color:col,marginBottom:3}}>{proy.msg}</div>
+        <div style={{fontSize:12,color:"#cbd5e1",marginBottom:8}}>💡 {proy.tip}</div>
+        <div style={{display:"flex",gap:16}}>
+          <div>
+            <div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>PROMEDIO/MES</div>
+            <div style={{fontSize:13,fontWeight:800,color:"#f1f5f9"}}>{COP(Math.round(proy.promedio))}</div>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>TIEMPO RESTANTE</div>
+            <div style={{fontSize:13,fontWeight:800,color:col}}>{proy.meses} {proy.meses===1?"mes":"meses"}</div>
+          </div>
+        </div>
+      </div>}
+      {proy&&proy.promedio===0&&<div style={{
+        padding:"8px 0 2px",fontSize:12,color:"#94a3b8",marginTop:2
+      }}>
+        💡 Haz tu primer aporte y te digo cuándo lo tienes
+      </div>}
     </div>
   </div>;
 }
 
 // ─── META CHIP (Home — compacto) ──────────────────────────────────────────────
-function GoalChip({goal,aportado,aportadoEsteMes,onClick}){
+function GoalChip({goal,aportado,aportadoEsteMes,txAll,onClick}){
   const pct=goal.monto>0?Math.min(aportado/goal.monto,1):0;
   const col=goalColor(pct);
   const grad=goalGradient(pct);
   const frase=getFrase(pct,goal.name);
+  const proy=pct<1&&txAll?getProyeccion(goal,aportado,txAll):null;
   return <div onClick={onClick}
     onMouseDown={e=>e.currentTarget.style.transform="scale(0.98)"}
     onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
@@ -426,7 +506,9 @@ function GoalChip({goal,aportado,aportadoEsteMes,onClick}){
       <Bar pct={pct} color={col} h={4}/>
       <div style={{fontSize:11,color:C.text.s,marginTop:5,display:"flex",justifyContent:"space-between"}}>
         <span>Faltan {COP(Math.max(goal.monto-aportado,0))}</span>
-        {aportadoEsteMes>0&&<span style={{color:goalColor(aportado/Math.max(goal.monto,1))}}> +{COP(aportadoEsteMes)} hoy</span>}
+        {proy?.fecha
+          ?<span style={{color:col,fontWeight:600}}>📈 {proy.fecha}</span>
+          :aportadoEsteMes>0&&<span style={{color:goalColor(aportado/Math.max(goal.monto,1))}}> +{COP(aportadoEsteMes)} hoy</span>}
       </div>
     </div>
   </div>;
@@ -796,6 +878,7 @@ export default function App(){
   const [pagoModal,setPagoModal]=useState(null); // null | "new" | pago
   const [pagoModalDia,setPagoModalDia]=useState(null); // día preseleccionado
   const [presupuestoModal,setPresupuestoModal]=useState(null); // cat obj
+  const [exportModal,setExportModal]=useState(false);
 
   function changeTab(newTab){
     setTab(newTab); // El mes seleccionado se mantiene al cambiar de pestaña
@@ -910,6 +993,43 @@ export default function App(){
       aportesDeEstaMeta.map(t=>deleteDoc(doc(db,"usuarios",user.uid,"transacciones",t.id)))
     );
   },[user,tx]);
+
+  // ── Exportar movimientos a CSV ───────────────────────────────────────────
+  function exportarCSV(soloMesActual=false){
+    const txExport=soloMesActual
+      ?tx.filter(t=>isMonth(t.date,now.getMonth(),now.getFullYear()))
+      :[...tx].sort((a,b)=>a.date.localeCompare(b.date));
+
+    if(txExport.length===0){alert("No hay movimientos para exportar.");return;}
+
+    const header=["Fecha","Descripción","Categoría","Subcategoría","Monto","Tipo"];
+    const rows=txExport.map(t=>{
+      const main=MAIN_CATS.find(m=>m.subs?.some(s=>s.id===t.cat));
+      const sub=getCatInfo(t.cat);
+      const tipo=isIngreso(t.cat)?"Ingreso":isAporteMeta(t)||isSavingsLegacy(t.cat)?"Meta/Ahorro":"Gasto";
+      const monto=(isIngreso(t.cat)||isAporteMeta(t)||isSavingsLegacy(t.cat)?1:-1)*t.amount;
+      return [
+        t.date,
+        `"${(t.desc||"").replace(/"/g,'""')}"`,
+        `"${main?.labelFull||main?.label||sub.label}"`,
+        `"${sub.label}"`,
+        monto,
+        tipo,
+      ].join(",");
+    });
+
+    const csv=[header.join(","),...rows].join("\n");
+    const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    const nombre=soloMesActual
+      ?`finanzas_${MONTHS[now.getMonth()].toLowerCase()}_${now.getFullYear()}.csv`
+      :`finanzas_completo_${now.getFullYear()}.csv`;
+    a.href=url; a.download=nombre; a.click();
+    URL.revokeObjectURL(url);
+    setExportModal(false);
+    setMenuOpen(false);
+  }
 
   // Guardar presupuesto por categoría
   const handlePresupuestoSave=useCallback(async(catId,limite)=>{
@@ -1262,6 +1382,7 @@ export default function App(){
         {goals.slice(0,3).map(g=><GoalChip key={g.id} goal={g}
             aportado={getAportado(g.id)}
             aportadoEsteMes={getAportadoMes(g.id,month,now.getFullYear())}
+            txAll={tx}
             onClick={()=>changeTab("metas")}/>)}
       </>}
       {/* Gastos por cat */}
@@ -1344,6 +1465,7 @@ export default function App(){
       {goals.map(g=><GoalCard key={g.id} goal={g}
           aportado={getAportado(g.id)}
           aportadoEsteMes={getAportadoMes(g.id,month,now.getFullYear())}
+          txAll={tx}
           onEdit={()=>setGoalModal({
             ...g,
             _aportado:getAportado(g.id),
@@ -2154,7 +2276,7 @@ export default function App(){
       {[
         {icon:"⚙️", label:"Configuración", onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
         {icon:"🔔", label:"Notif. push (próx.)", onClick:()=>setMenuOpen(false), disabled:true},
-        {icon:"📤", label:"Exportar (próx.)", onClick:()=>setMenuOpen(false), disabled:true},
+        {icon:"📤", label:"Exportar movimientos", onClick:()=>{setExportModal(true);setMenuOpen(false);}},
       ].map(o=>(
         <button key={o.label} onClick={o.onClick} disabled={o.disabled}
           style={{width:"100%",padding:"12px 16px",background:"none",border:"none",cursor:o.disabled?"default":"pointer",
@@ -2211,6 +2333,48 @@ export default function App(){
       onClose={()=>{setPagoModal(null);setPagoModalDia(null);}}
       onSave={handlePagoSave}
       onDelete={handlePagoDelete}/>}
+    {/* Modal exportar CSV */}
+    {exportModal&&<div onClick={()=>setExportModal(false)}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
+      <div onClick={e=>e.stopPropagation()}
+        style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1117",borderRadius:"22px 22px 0 0",
+          border:`1px solid ${C.border}`,padding:"24px 20px 36px",
+          animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)"}}>
+        <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
+          <div style={{width:40,height:4,borderRadius:99,background:C.border}}/>
+        </div>
+        <div style={{fontSize:18,fontWeight:800,color:C.text.h,marginBottom:6}}>📤 Exportar movimientos</div>
+        <div style={{fontSize:13,color:C.text.b,marginBottom:20,lineHeight:1.6}}>
+          Descarga tus movimientos como archivo CSV. Ábrelo en Excel, Google Sheets o cualquier app de hojas de cálculo.
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <button onClick={()=>exportarCSV(true)}
+            style={{padding:"16px",borderRadius:14,border:"none",cursor:"pointer",
+              background:`linear-gradient(135deg,${C.emerald},#059669)`,
+              color:"#000",fontSize:15,fontWeight:800,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
+            <span style={{fontSize:24}}>📅</span>
+            <div>
+              <div>Solo {MONTHS[now.getMonth()]} {now.getFullYear()}</div>
+              <div style={{fontSize:11,fontWeight:600,opacity:0.7}}>{tx.filter(t=>isMonth(t.date,now.getMonth(),now.getFullYear())).length} movimientos</div>
+            </div>
+          </button>
+          <button onClick={()=>exportarCSV(false)}
+            style={{padding:"16px",borderRadius:14,border:`1px solid ${C.indigo}44`,cursor:"pointer",
+              background:`${C.indigo}15`,
+              color:C.text.h,fontSize:15,fontWeight:800,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
+            <span style={{fontSize:24}}>📊</span>
+            <div>
+              <div>Historial completo</div>
+              <div style={{fontSize:11,fontWeight:600,color:C.text.b}}>{tx.length} movimientos en total</div>
+            </div>
+          </button>
+          <button onClick={()=>setExportModal(false)}
+            style={{background:"none",border:"none",color:C.text.s,cursor:"pointer",fontSize:13,padding:"8px",fontWeight:600}}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>}
     {/* Banner in-app pagos pendientes hoy */}
     {pagosPendientesHoy.length>0&&!modal&&!goalModal&&!pagoModal&&(
       <div style={{position:"fixed",top:74,left:"50%",transform:"translateX(-50%)",width:"calc(100% - 32px)",maxWidth:398,zIndex:18,animation:"slideDown 0.3s ease"}}>
