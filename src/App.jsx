@@ -24,24 +24,26 @@ const C = {
 
 // ─── CATEGORÍAS ───────────────────────────────────────────────────────────────
 const MAIN_CATS = [
-  { id:"comida", label:"Comida", icon:"🍽️", color:"#facc15",
-    subs:[{id:"restaurantes",label:"Restaurantes",icon:"🍜"},{id:"mercado",label:"Mercado",icon:"🛒"},{id:"domicilios",label:"Domicilios",icon:"🛵"},{id:"cafeteria",label:"Cafetería",icon:"☕"}]},
-  { id:"hogar", label:"Hogar", icon:"🏠", color:"#60a5fa",
-    subs:[{id:"arriendo",label:"Arriendo",icon:"🏘️"},{id:"servicios",label:"Servicios",icon:"💡"},{id:"aseo",label:"Aseo",icon:"🧹"},{id:"reparaciones",label:"Reparaciones",icon:"🔧"}]},
-  { id:"transporte", label:"Transporte", icon:"🚗", color:"#34d399",
+  { id:"comida",     label:"Comida",   labelFull:"Comida",               icon:"🍽️", color:"#facc15",
+    subs:[{id:"restaurantes",label:"Restaurantes",icon:"🍽️"},{id:"mercado",label:"Mercado",icon:"🛒"},{id:"domicilios",label:"Domicilios",icon:"🛵"},{id:"cafeteria",label:"Cafetería",icon:"☕"}]},
+  { id:"hogar",      label:"Hogar",    labelFull:"Hogar",                icon:"🏠", color:"#60a5fa",
+    subs:[{id:"arriendo",label:"Arriendo",icon:"🏠"},{id:"servicios",label:"Servicios",icon:"💡"},{id:"aseo",label:"Aseo",icon:"🧹"},{id:"reparaciones",label:"Reparaciones",icon:"🔧"}]},
+  { id:"transporte", label:"Transp.",  labelFull:"Transporte",           icon:"🚗", color:"#34d399",
     subs:[{id:"bus",label:"Bus/Metro",icon:"🚌"},{id:"taxi",label:"Taxi/Uber",icon:"🚕"},{id:"gasolina",label:"Gasolina",icon:"⛽"},{id:"parqueadero",label:"Parqueadero",icon:"🅿️"}]},
-  { id:"vehiculo", label:"Vehículo", icon:"🏍️", color:"#fb923c",
+  { id:"vehiculo",   label:"Vehículo", labelFull:"Vehículo",             icon:"🏍️", color:"#fb923c",
     subs:[{id:"repuestos",label:"Repuestos",icon:"🔩"},{id:"mantenimiento",label:"Mantenimiento",icon:"🛠️"},{id:"soat",label:"SOAT/Seguro",icon:"📋"},{id:"revision",label:"Rev. Técnica",icon:"🔍"}]},
-  { id:"deudas", label:"Deudas", icon:"💳", color:"#f43f5e",
-    subs:[{id:"tarjeta",label:"Tarjeta",icon:"💳"},{id:"cuotas",label:"Cuotas",icon:"📦"},{id:"prestamo",label:"Préstamo",icon:"🏦"},{id:"credito",label:"Crédito",icon:"📝"}]},
-  { id:"salud", label:"Salud", icon:"💊", color:"#f87171",
-    subs:[{id:"medico",label:"Médico",icon:"🏥"},{id:"medicamentos",label:"Medicamentos",icon:"💉"},{id:"gym",label:"Gym",icon:"🏋️"},{id:"suplementos",label:"Suplementos",icon:"💪"}]},
-  { id:"ocio", label:"Ocio", icon:"🎉", color:"#e879f9",
-    subs:[{id:"salidas",label:"Salidas",icon:"🥂"},{id:"streaming",label:"Streaming",icon:"📺"},{id:"juegos",label:"Juegos",icon:"🎮"},{id:"viajes",label:"Viajes",icon:"✈️"}]},
-  { id:"estilo", label:"Estilo", icon:"👕", color:"#a78bfa",
-    subs:[{id:"ropa",label:"Ropa",icon:"👗"},{id:"calzado",label:"Calzado",icon:"👟"},{id:"accesorios",label:"Accesorios",icon:"💍"},{id:"belleza",label:"Belleza",icon:"💄"}]},
-  { id:"otros_main", label:"Otros", icon:"📦", color:"#94a3b8",
-    subs:[{id:"tecnologia",label:"Tecnología",icon:"💻"},{id:"educacion",label:"Educación",icon:"📚"},{id:"mascotas",label:"Mascotas",icon:"🐾"},{id:"otros",label:"Otros",icon:"🗂️"}]},
+  { id:"salud",      label:"Salud",    labelFull:"Salud y Bienestar",    icon:"🩺", color:"#f87171",
+    subs:[{id:"medico",label:"Médico",icon:"🏥"},{id:"medicamentos",label:"Medicamentos",icon:"💊"},{id:"gym",label:"Fitness",icon:"🏃"},{id:"barberia",label:"Barbería/Estética",icon:"✂️"}]},
+  { id:"ocio",       label:"Ocio",     labelFull:"Entretenimiento",      icon:"🎭", color:"#e879f9",
+    subs:[{id:"salidas",label:"Salidas",icon:"🥂"},{id:"eventos",label:"Eventos",icon:"🎟️"},{id:"viajes",label:"Viajes",icon:"✈️"},{id:"hobbies",label:"Hobbies",icon:"🎨"}]},
+  { id:"estilo",     label:"Estilo",   labelFull:"Ropa y Estilo",        icon:"👔", color:"#a78bfa",
+    subs:[{id:"ropa",label:"Ropa",icon:"👔"},{id:"calzado",label:"Calzado",icon:"👟"},{id:"accesorios",label:"Accesorios",icon:"⌚"},{id:"cuidado",label:"Cuidado personal",icon:"🧴"}]},
+  { id:"digital",    label:"Digital",  labelFull:"Digital y Suscripciones", icon:"📱", color:"#38bdf8",
+    subs:[{id:"streaming",label:"Streaming",icon:"📺"},{id:"apps",label:"Apps/Suscripc.",icon:"📲"},{id:"compras_online",label:"Compras online",icon:"🛍️"},{id:"tecnologia",label:"Tecnología",icon:"💻"}]},
+  { id:"deudas",     label:"Deudas",   labelFull:"Deudas y Préstamos",   icon:"💳", color:"#f43f5e",
+    subs:[{id:"tarjeta",label:"Tarjeta",icon:"💳"},{id:"cuotas",label:"Cuotas",icon:"📦"},{id:"credito",label:"Crédito",icon:"🏦"},{id:"prestamo_tercero",label:"Préstamo a tercero",icon:"🤝"}]},
+  { id:"otros_main", label:"Otros",    labelFull:"Otros",                icon:"📦", color:"#94a3b8",
+    subs:[{id:"educacion",label:"Educación",icon:"📚"},{id:"mascotas",label:"Mascotas",icon:"🐾"},{id:"regalos",label:"Regalos",icon:"🎁"},{id:"otros",label:"Otros",icon:"🗂️"}]},
 ];
 // Solo "ingreso" es categoría especial — suma al saldo
 // Las metas son el único concepto de ahorro (unificado)
@@ -57,12 +59,37 @@ function getCatInfo(id) {
   if(id==="ingreso") return INCOME_CAT;
   if(id==="emergencias") return {id:"emergencias",label:"Fondo Emergencias",icon:"🛡️",color:C.sky};
   if(id==="meta_aporte") return {id:"meta_aporte",label:"Aporte a Meta",icon:"⭐",color:C.indigo};
-  return ALL_SUBS.find(s=>s.id===id) ||
-    ({gym:{label:"Gym",icon:"🏋️",color:"#f97316"},suplementos:{label:"Suplementos",icon:"💪",color:"#fb923c"},
-      servicios:{label:"Servicios",icon:"📱",color:"#38bdf8"},comida:{label:"Comida",icon:"🍔",color:"#facc15"},
-      salidas:{label:"Salidas",icon:"🎉",color:"#e879f9"},ropa:{label:"Ropa",icon:"👕",color:"#a78bfa"},
-      transporte:{label:"Transporte",icon:"🚌",color:"#34d399"},nu:{label:"Cajita Nu",icon:"💚",color:C.emerald},
-      otros:{label:"Otros",icon:"📦",color:"#94a3b8"}}[id]) || {label:id,icon:"📦",color:"#94a3b8"};
+  // Buscar en subcategorías con labelFull del padre para mostrar en movimientos
+  const sub=ALL_SUBS.find(s=>s.id===id);
+  if(sub) return sub;
+  // Legacy / fallback
+  const legacy={
+    gym:{label:"Fitness",icon:"🏃",color:"#f97316"},
+    suplementos:{label:"Suplementos",icon:"💪",color:"#fb923c"},
+    servicios:{label:"Servicios",icon:"💡",color:"#38bdf8"},
+    comida:{label:"Comida",icon:"🍽️",color:"#facc15"},
+    salidas:{label:"Salidas",icon:"🥂",color:"#e879f9"},
+    ropa:{label:"Ropa",icon:"👔",color:"#a78bfa"},
+    belleza:{label:"Belleza/Estética",icon:"✂️",color:"#a78bfa"},
+    transporte:{label:"Transporte",icon:"🚌",color:"#34d399"},
+    nu:{label:"Cajita Nu",icon:"💚",color:"#10b981"},
+    juegos:{label:"Juegos",icon:"🎮",color:"#e879f9"},
+    streaming:{label:"Streaming",icon:"📺",color:"#38bdf8"},
+    tecnologia:{label:"Tecnología",icon:"💻",color:"#38bdf8"},
+    educacion:{label:"Educación",icon:"📚",color:"#94a3b8"},
+    mascotas:{label:"Mascotas",icon:"🐾",color:"#94a3b8"},
+    otros:{label:"Otros",icon:"📦",color:"#94a3b8"},
+    prestamo:{label:"Préstamo",icon:"🏦",color:"#f43f5e"},
+    credito:{label:"Crédito",icon:"📝",color:"#f43f5e"},
+    accesorios:{label:"Accesorios",icon:"⌚",color:"#a78bfa"},
+    calzado:{label:"Calzado",icon:"👟",color:"#a78bfa"},
+  };
+  return legacy[id] || {label:id,icon:"📦",color:"#94a3b8"};
+}
+// Obtener nombre completo de la categoría principal para mostrar en movimientos/gráficas
+function getCatLabelFull(mainId){
+  const m=MAIN_CATS.find(c=>c.id===mainId);
+  return m?.labelFull||m?.label||mainId;
 }
 
 // ─── EMOJIS PARA METAS ────────────────────────────────────────────────────────
@@ -197,22 +224,27 @@ function Lbl({children,style={}}){
 function CatSelector({value,onChange}){
   const curMain=MAIN_CATS.find(m=>m.subs.some(s=>s.id===value));
   const [sel,setSel]=useState(curMain?.id||null);
-  const isSav=false; // Metas ya no son categorías del selector
   function MBtn({m}){
-    const active=curMain?.id===m.id&&!isSav,open=sel===m.id;
+    const open=sel===m.id;
+    const active=!sel&&curMain?.id===m.id;
     return <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSel(p=>p===m.id?null:m.id)}
-      style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"10px 4px",borderRadius:14,border:"none",cursor:"pointer",
+      style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,
+        padding:"8px 2px",borderRadius:14,border:"none",cursor:"pointer",
+        minHeight:62, // altura fija igual para todos
         background:open?`${m.color}35`:active?`${m.color}22`:C.surface,
-        outline:(active||open)?`2px solid ${m.color}`:"2px solid transparent",transition:"all 0.15s"}}>
-      <span style={{fontSize:20}}>{m.icon}</span>
-      <span style={{fontSize:9,fontWeight:700,color:(active||open)?m.color:C.text.s,textAlign:"center",lineHeight:1.2}}>{m.label}</span>
+        outline:(open||active)?`2px solid ${m.color}`:"2px solid transparent",transition:"all 0.15s"}}>
+      <span style={{fontSize:20,lineHeight:1}}>{m.icon}</span>
+      <span style={{fontSize:9,fontWeight:700,color:(open||active)?m.color:C.text.s,
+        textAlign:"center",lineHeight:1.2,
+        width:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
+        paddingLeft:2,paddingRight:2}}>{m.label}</span>
     </button>;
   }
   return <div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:5,marginBottom:6}}>
       {MAIN_CATS.slice(0,5).map(m=><MBtn key={m.id} m={m}/>)}
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5,marginBottom:6}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:5,marginBottom:6}}>
       {MAIN_CATS.slice(5).map(m=><MBtn key={m.id} m={m}/>)}
     </div>
     {sel&&(()=>{
@@ -720,7 +752,7 @@ function TxRow({t,onEdit}){
     <div style={{flex:1,minWidth:0}}>
       <div style={{fontSize:14,fontWeight:700,color:bloqueado?"#8899aa":"#ffffff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc}</div>
       <div style={{fontSize:11,color:C.text.s,marginTop:3}}>
-        {t.date?.slice(5).replace("-","/")} · {isIngreso(t.cat)?"💵 Ingreso":esMeta?"⭐ Meta":cat.label}
+        {t.date?.slice(5).replace("-","/")} · {isIngreso(t.cat)?"💵 Ingreso":esMeta?"⭐ Meta":(()=>{const main=MAIN_CATS.find(m=>m.subs?.some(s=>s.id===t.cat));return main?`${main.labelFull||main.label} · ${cat.label}`:cat.label;})()}
       </div>
     </div>
     <div style={{textAlign:"right",flexShrink:0}}>
@@ -759,9 +791,11 @@ export default function App(){
   const [txLoading,setTxL]=useState(false);
   const [alertaGasto,setAlertaGasto]=useState(null);
   const [pagos,setPagos]=useState([]);
+  const [presupuestos,setPresupuestos]=useState({}); // {catId: limite}
   const [menuOpen,setMenuOpen]=useState(false);
   const [pagoModal,setPagoModal]=useState(null); // null | "new" | pago
   const [pagoModalDia,setPagoModalDia]=useState(null); // día preseleccionado
+  const [presupuestoModal,setPresupuestoModal]=useState(null); // cat obj
 
   function changeTab(newTab){
     setTab(newTab); // El mes seleccionado se mantiene al cambiar de pestaña
@@ -781,6 +815,11 @@ export default function App(){
   useEffect(()=>{if(!user){setTx([]);return;}setTxL(true);return onSnapshot(query(collection(db,"usuarios",user.uid,"transacciones"),orderBy("createdAt","desc")),snap=>{setTx(snap.docs.map(d=>({id:d.id,...d.data()})));setTxL(false);});},[user]);
   useEffect(()=>{if(!user){setGoals([]);return;}return onSnapshot(query(collection(db,"usuarios",user.uid,"metas"),orderBy("createdAt","desc")),snap=>{setGoals(snap.docs.map(d=>({id:d.id,...d.data()})));});},[user]);
   useEffect(()=>{if(!user){setPagos([]);return;}return onSnapshot(query(collection(db,"usuarios",user.uid,"pagos_programados"),orderBy("createdAt","desc")),snap=>{setPagos(snap.docs.map(d=>({id:d.id,...d.data()})));});},[user]);
+  useEffect(()=>{if(!user){setPresupuestos({});return;}
+    return onSnapshot(collection(db,"usuarios",user.uid,"presupuestos"),snap=>{
+      const p={};snap.docs.forEach(d=>{p[d.id]=d.data().limite;});
+      setPresupuestos(p);
+    });},[user]);
 
   // Cambiar salario: aplica desde el mes SIGUIENTE, guarda historial por mes
   async function handleSalarioChange(nuevoValor){
@@ -871,6 +910,17 @@ export default function App(){
       aportesDeEstaMeta.map(t=>deleteDoc(doc(db,"usuarios",user.uid,"transacciones",t.id)))
     );
   },[user,tx]);
+
+  // Guardar presupuesto por categoría
+  const handlePresupuestoSave=useCallback(async(catId,limite)=>{
+    if(!user)return;
+    if(!limite||limite<=0){
+      // Eliminar presupuesto si se borra el límite
+      await deleteDoc(doc(db,"usuarios",user.uid,"presupuestos",catId));
+    } else {
+      await setDoc(doc(db,"usuarios",user.uid,"presupuestos",catId),{limite});
+    }
+  },[user]);
 
   // CRUD pagos programados
   const handlePagoSave=useCallback(async p=>{
@@ -1216,31 +1266,61 @@ export default function App(){
       </>}
       {/* Gastos por cat */}
       {byMain.length>0&&<>
-        <Lbl style={{marginTop:6}}>Gastos por categoría</Lbl>
-        {byMain.map(c=><div key={c.id} style={{
-          marginBottom:8,borderRadius:16,padding:"14px 16px",
-          background:`linear-gradient(135deg,${c.color}12 0%,rgba(255,255,255,0.03) 100%)`,
-          border:`1px solid ${c.color}25`,
-          boxShadow:"0 2px 8px rgba(0,0,0,0.2)",
-        }}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <div style={{
-              width:44,height:44,borderRadius:14,flexShrink:0,
-              background:`linear-gradient(135deg,${c.color}35,${c.color}18)`,
-              border:`1px solid ${c.color}40`,
-              display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
-            }}>{c.icon}</div>
-            <div style={{flex:1}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:7}}>
-                <span style={{fontSize:14,fontWeight:700,color:"#ffffff"}}>{c.label}</span>
-                <span style={{fontSize:15,fontWeight:900,color:c.color}}>{COP(c.total)}</span>
-              </div>
-              <div style={{background:`${c.color}18`,borderRadius:99,height:5,overflow:"hidden"}}>
-                <div style={{height:5,borderRadius:99,background:c.color,width:`${Math.min(c.total/Math.max(totalGasto,1)*100,100)}%`,transition:"width 0.7s"}}/>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6,marginBottom:8}}>
+          <Lbl style={{marginBottom:0}}>Gastos por categoría</Lbl>
+          <span style={{fontSize:10,color:C.text.s,fontWeight:600}}>Toca para definir presupuesto</span>
+        </div>
+        {byMain.map(c=>{
+          const limite=presupuestos[c.id]||0;
+          const pctPres=limite>0?Math.min(c.total/limite,1):0;
+          const sobrePres=limite>0&&c.total>limite;
+          const cercaPres=limite>0&&pctPres>=0.8&&!sobrePres;
+          const colPres=sobrePres?C.red:cercaPres?C.amber:c.color;
+          return <div key={c.id} onClick={()=>setPresupuestoModal(c)}
+            onMouseDown={e=>e.currentTarget.style.transform="scale(0.985)"}
+            onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
+            onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
+            style={{
+              marginBottom:8,borderRadius:16,padding:"14px 16px",cursor:"pointer",
+              background:`linear-gradient(135deg,${sobrePres?C.red+"18":cercaPres?C.amber+"12":c.color+"12"} 0%,rgba(255,255,255,0.03) 100%)`,
+              border:`1px solid ${sobrePres?C.red+"55":cercaPres?C.amber+"44":c.color+"25"}`,
+              boxShadow:"0 2px 8px rgba(0,0,0,0.2)",
+              transition:"transform 0.15s",
+            }}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <div style={{
+                width:44,height:44,borderRadius:14,flexShrink:0,
+                background:`linear-gradient(135deg,${c.color}35,${c.color}18)`,
+                border:`1px solid ${c.color}40`,
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
+              }}>{c.icon}</div>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <span style={{fontSize:14,fontWeight:700,color:"#ffffff"}}>{c.label}</span>
+                  <div style={{textAlign:"right"}}>
+                    <span style={{fontSize:15,fontWeight:900,color:colPres}}>{COP(c.total)}</span>
+                    {limite>0&&<span style={{fontSize:10,color:C.text.s,marginLeft:4}}>/ {COP(limite)}</span>}
+                  </div>
+                </div>
+                {/* Barra — si hay presupuesto muestra % del presupuesto, si no % del total */}
+                <div style={{background:`${c.color}18`,borderRadius:99,height:5,overflow:"hidden"}}>
+                  <div style={{height:5,borderRadius:99,
+                    background:limite>0
+                      ?(sobrePres?`linear-gradient(90deg,${C.red},#ff6b6b)`:cercaPres?`linear-gradient(90deg,${C.amber},#fbbf24)`:c.color)
+                      :c.color,
+                    width:`${limite>0?Math.min(pctPres*100,100):Math.min(c.total/Math.max(totalGasto,1)*100,100)}%`,
+                    transition:"width 0.7s"}}/>
+                </div>
+                {limite>0&&<div style={{fontSize:10,marginTop:4,color:sobrePres?C.red:cercaPres?C.amber:C.text.s,fontWeight:sobrePres||cercaPres?700:400}}>
+                  {sobrePres?`🚨 +${COP(c.total-limite)} sobre el límite`:
+                   cercaPres?`⚠️ ${Math.round(pctPres*100)}% del presupuesto`:
+                   `${Math.round(pctPres*100)}% · quedan ${COP(limite-c.total)}`}
+                </div>}
+                {!limite&&<div style={{fontSize:10,marginTop:4,color:C.text.s}}>Sin presupuesto · toca para definir</div>}
               </div>
             </div>
-          </div>
-        </div>)}
+          </div>;
+        })}
       </>}
       {!txLoading&&monthTx.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:C.text.s,fontSize:14,lineHeight:2.2}}>
         Sin movimientos aún.<br/><span style={{fontSize:32}}>👆</span><br/>Toca <b style={{color:C.emerald}}>+</b> para registrar.
@@ -1278,24 +1358,84 @@ export default function App(){
     </div>;
   };
 
+  // ── Modal Presupuesto por Categoría ─────────────────────────────────────
+  function PresupuestoModal({cat,gastoActual,limiteActual,onClose,onSave}){
+    const [tmp,setTmp]=useState(limiteActual?Number(limiteActual).toLocaleString("es-CO"):"");
+    const val=parseFloat(tmp.replace(/\./g,"").replace(",","."))||0;
+    const pct=val>0?Math.min(gastoActual/val,1):0;
+    const col=pct>=1?C.red:pct>=0.8?C.amber:C.emerald;
+    function hm(e){const r=e.target.value.replace(/\D/g,"");setTmp(r?Number(r).toLocaleString("es-CO"):"");}
+    return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
+      <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1117",borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",padding:"20px 20px 36px"}}>
+        <div style={{display:"flex",justifyContent:"center",marginBottom:16}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+          <div style={{width:48,height:48,borderRadius:14,background:`${cat.color}22`,border:`1px solid ${cat.color}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>{cat.icon}</div>
+          <div>
+            <div style={{fontSize:16,fontWeight:800,color:C.text.h}}>Presupuesto · {cat.label}</div>
+            <div style={{fontSize:12,color:C.text.s}}>Gastado este mes: <span style={{color:C.red,fontWeight:700}}>{COP(gastoActual)}</span></div>
+          </div>
+        </div>
+        {/* Preview progreso */}
+        {val>0&&<div style={{marginBottom:16,padding:"12px 14px",background:"rgba(255,255,255,0.03)",borderRadius:12,border:`1px solid ${C.border}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+            <span style={{fontSize:12,color:C.text.b}}>Progreso del mes</span>
+            <span style={{fontSize:12,fontWeight:800,color:col}}>{Math.round(pct*100)}%</span>
+          </div>
+          <Bar pct={pct} color={col} h={8}/>
+          <div style={{fontSize:11,color:C.text.s,marginTop:6}}>
+            {pct>=1?`⚠️ Superaste el límite en ${COP(gastoActual-val)}`
+            :pct>=0.8?`⚠️ Cerca del límite — quedan ${COP(val-gastoActual)}`
+            :`Quedan ${COP(val-gastoActual)} del presupuesto`}
+          </div>
+        </div>}
+        <Lbl>Límite mensual (COP)</Lbl>
+        <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:14,overflow:"hidden",border:`2px solid ${val>0?cat.color:C.border}`,marginBottom:16}}>
+          <span style={{padding:"0 14px",color:C.text.s,fontSize:16,lineHeight:"56px"}}>$</span>
+          <input inputMode="numeric" placeholder="Sin límite" value={tmp} onChange={hm} autoFocus
+            style={{flex:1,background:"none",border:"none",outline:"none",fontSize:22,fontWeight:800,color:C.text.h,padding:"0 8px",height:56}}/>
+          {tmp&&<button onClick={()=>setTmp("")} style={{background:"none",border:"none",color:C.text.s,fontSize:20,padding:"0 14px",cursor:"pointer"}}>×</button>}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {!!limiteActual&&<button onClick={()=>{onSave(cat.id,0);onClose();}}
+            style={{padding:"16px 18px",borderRadius:14,border:`1px solid ${C.red}44`,background:"transparent",color:C.red,cursor:"pointer",fontSize:13,fontWeight:700,flexShrink:0}}>
+            Quitar
+          </button>}
+          <button onClick={()=>{onSave(cat.id,val);onClose();}}
+            style={{flex:1,padding:16,borderRadius:14,border:"none",cursor:"pointer",fontSize:15,fontWeight:800,
+              background:val>0?`linear-gradient(135deg,${cat.color},${cat.color}cc)`:C.surface,
+              color:val>0?"#000":C.text.s}}>
+            {val>0?`Guardar límite ${COP(val)}`:"Sin límite — toca para definir"}
+          </button>
+        </div>
+      </div>
+    </div>;
+  }
+
   // ── Gráfica de gastos/ingresos últimos meses ─────────────────────────────
   const GraficaMeses=()=>{
     const currentM=now.getMonth(), currentY=now.getFullYear();
+    const esMesFuturo=month>currentM; // mes seleccionado es futuro
+
+    // Si el mes seleccionado es futuro → no mostrar gráfica
+    if(esMesFuturo) return null;
 
     // Construir lista de hasta 6 meses con datos (pasados + actual)
-    // Incluir todos los meses con tx, más el actual aunque esté vacío
+    // Siempre incluir el mes seleccionado y el actual
     const mesesConDatos=new Set(
       tx.filter(t=>{
-        const d=new Date(t.date);
-        return d.getFullYear()<currentY||(d.getFullYear()===currentY&&d.getMonth()<=currentM);
-      }).map(t=>{const d=new Date(t.date);return `${d.getFullYear()}-${d.getMonth()}`;})
+        const[ty,tm]=t.date.split("-").map(Number);
+        return ty<currentY||(ty===currentY&&(tm-1)<=currentM);
+      }).map(t=>{const[ty,tm]=t.date.split("-").map(Number);return `${ty}-${tm-1}`;})
     );
-    mesesConDatos.add(`${currentY}-${currentM}`);
+    mesesConDatos.add(`${currentY}-${currentM}`); // mes actual siempre
+    mesesConDatos.add(`${currentY}-${month}`);    // mes seleccionado siempre
 
     const lista=[...mesesConDatos]
       .map(k=>{const[y,m]=k.split("-").map(Number);return{y,m};})
+      .filter(({y,m})=>y<currentY||(y===currentY&&m<=currentM)) // nunca futuros
       .sort((a,b)=>a.y!==b.y?a.y-b.y:a.m-b.m)
-      .slice(-6); // últimos 6
+      .slice(-6);
 
     // Calcular totales por mes
     const datos=lista.map(({y,m})=>{
@@ -1304,18 +1444,21 @@ export default function App(){
       const ingresos=mTx.filter(t=>isIngreso(t.cat)).reduce((s,t)=>s+t.amount,0)+(getSalarioDelMes(y,m)||sal);
       const ahorros=mTx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat)).reduce((s,t)=>s+t.amount,0);
       const esActual=y===currentY&&m===currentM;
-      const esSel=y===currentY&&m===month; // mes seleccionado en el filtro
+      const esSel=y===currentY&&m===month;
       return{y,m,gastos,ingresos,ahorros,esActual,esSel};
     });
 
-    // ── Con 1 solo mes: gráfica de gastos por día ────────────────────────────
+    // ── Con 1 solo mes: gráfica de gastos por día del mes seleccionado ───────
     if(lista.length===1){
       const {y:ly,m:lm,gastos:totalG}=datos[0];
       const ultimoDia=new Date(ly,lm+1,0).getDate();
       const hoy=ly===currentY&&lm===currentM?now.getDate():ultimoDia;
 
-      // Semana actual por defecto (0-indexed, semana que contiene hoy)
-      const [semanaIdx,setSemanaIdx]=useState(()=>Math.floor((hoy-1)/7));
+      // Semana inicial: si es el mes actual → semana de hoy, si es pasado → última semana
+      const semanaInicial=ly===currentY&&lm===currentM
+        ?Math.floor((hoy-1)/7)
+        :Math.ceil(ultimoDia/7)-1;
+      const [semanaIdx,setSemanaIdx]=useState(semanaInicial);
       const totalSemanas=Math.ceil(ultimoDia/7);
       const diaInicio=semanaIdx*7+1;
       const diaFin=Math.min(diaInicio+6,ultimoDia);
@@ -1339,8 +1482,8 @@ export default function App(){
 
       return <div style={{marginBottom:14}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-          <Lbl style={{marginBottom:0}}>Gastos por día · {MONTHS[lm]}</Lbl>
-          <span style={{fontSize:11,color:totalG>0?C.red:C.text.s,fontWeight:700}}>{totalG>0?COP(totalG):"Sin gastos aún"}</span>
+          <Lbl style={{marginBottom:0}}>Gastos por día · {MONTHS[lm]} {ly!==currentY?ly:""}</Lbl>
+          <span style={{fontSize:11,color:totalG>0?C.red:C.text.s,fontWeight:700}}>{totalG>0?COP(totalG):"Sin gastos este mes"}</span>
         </div>
         <div style={{background:"rgba(255,255,255,0.03)",borderRadius:16,padding:"14px 12px 14px",border:`1px solid ${C.border}`}}>
           {/* Navegación semanas */}
@@ -2054,6 +2197,12 @@ export default function App(){
     }}>＋</button>}
     {modal&&<TxModal initial={modal==="new"?null:modal} goals={goals} saldoDisponible={saldo} onClose={()=>setModal(null)} onSave={handleSave} onDelete={handleDelete}/>}
     {goalModal&&<GoalModal initial={goalModal==="new"?null:goalModal} onClose={()=>setGoalModal(null)} onSave={handleGoalSave} onDelete={handleGoalDelete}/>}
+    {presupuestoModal&&<PresupuestoModal
+      cat={presupuestoModal}
+      gastoActual={gastosTx.filter(t=>presupuestoModal.subs?.some(s=>s.id===t.cat)).reduce((s,t)=>s+t.amount,0)}
+      limiteActual={presupuestos[presupuestoModal.id]||0}
+      onClose={()=>setPresupuestoModal(null)}
+      onSave={handlePresupuestoSave}/>}
     {pagoModal&&<PagoModal
       initial={pagoModal==="new"?null:pagoModal}
       diaInicial={pagoModalDia||now.getDate()}
