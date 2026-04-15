@@ -19,7 +19,7 @@ const C = {
   red:     "#ef4444",       // Gastos / negativo
   violet:  "#8b5cf6",       // 75%+ progreso
   sky:     "#38bdf8",       // Info / menor prioridad
-  text:    { h:"#f1f5f9", b:"#94a3b8", s:"#475569" },
+  text:    { h:"#f1f5f9", b:"#a8b8cc", s:"#6b7f96" }, // s y b subidos para mejor contraste en AMOLED
 };
 
 // ─── CATEGORÍAS ───────────────────────────────────────────────────────────────
@@ -1500,7 +1500,7 @@ export default function App(){
             onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
             onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
             style={{
-              marginBottom:8,borderRadius:16,padding:"14px 16px",cursor:"pointer",
+              marginBottom:12,borderRadius:16,padding:"16px 16px",cursor:"pointer",
               background:`linear-gradient(135deg,${sobrePres?C.red+"18":cercaPres?C.amber+"12":c.color+"12"} 0%,rgba(255,255,255,0.03) 100%)`,
               border:`1px solid ${sobrePres?C.red+"55":cercaPres?C.amber+"44":c.color+"25"}`,
               boxShadow:"0 2px 8px rgba(0,0,0,0.2)",
@@ -2352,8 +2352,19 @@ export default function App(){
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"6px 14px",fontSize:12,color:C.text.b,fontWeight:700}}>{MONTHS_S[now.getMonth()]} {now.getFullYear()}</div>
         {/* Hamburguesa */}
-        <button onClick={()=>setMenuOpen(o=>!o)} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"8px 10px",cursor:"pointer",display:"flex",flexDirection:"column",gap:4,alignItems:"center",justifyContent:"center"}}>
-          {[0,1,2].map(i=><div key={i} style={{width:18,height:2,borderRadius:99,background:menuOpen?"rgba(255,255,255,0.8)":"rgba(255,255,255,0.5)",transition:"all 0.2s",transform:menuOpen?(i===0?"rotate(45deg) translate(4px,4px)":i===2?"rotate(-45deg) translate(4px,-4px)":"scaleX(0)"):"none"}}/>)}
+        <button onClick={()=>setMenuOpen(o=>!o)} style={{
+          background:menuOpen?"rgba(99,102,241,0.2)":"rgba(255,255,255,0.1)",
+          border:`1px solid ${menuOpen?"rgba(99,102,241,0.6)":"rgba(255,255,255,0.2)"}`,
+          borderRadius:10,padding:"8px 10px",cursor:"pointer",
+          display:"flex",flexDirection:"column",gap:4,alignItems:"center",justifyContent:"center",
+          transition:"all 0.2s",
+        }}>
+          {[0,1,2].map(i=><div key={i} style={{
+            width:18,height:2,borderRadius:99,
+            background:menuOpen?C.indigo:"rgba(255,255,255,0.85)",
+            transition:"all 0.2s",
+            transform:menuOpen?(i===0?"rotate(45deg) translate(4px,4px)":i===2?"rotate(-45deg) translate(4px,-4px)":"scaleX(0)"):"none",
+          }}/>)}
         </button>
       </div>
     </div>
