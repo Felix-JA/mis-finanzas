@@ -1302,7 +1302,367 @@ export default function App(){
     setMenuOpen(false);
   }
 
-  // Guardar presupuesto por categoría
+  // ── Exportar movimientos a PDF ────────────────────────────────────────────
+  function exportarPDF(soloMesActual=false){
+    const txExport=soloMesActual
+      ?[...tx].filter(t=>isMonth(t.date,now.getMonth(),now.getFullYear()))
+              .sort((a,b)=>a.date.localeCompare(b.date))
+      :[...tx].sort((a,b)=>a.date.localeCompare(b.date));
+
+    if(txExport.length===0){alert("No hay movimientos para exportar.");return;}
+
+    // ── Canvas PDF manual ──────────────────────────────────────────────────
+    // Dimensiones A4 a 96dpi: 794 x 1123px
+    const PW=794, MARGIN=48, COL=PW-MARGIN*2;
+    const ROW_H=28, HEADER_H=160, TABLE_HEAD_H=36;
+    const rowsPerPage=Math.floor((1123-HEADER_H-TABLE_HEAD_H-60)/ROW_H);
+
+    // Calcular páginas necesarias
+    const totalPages=Math.ceil(txExport.length/rowsPerPage)||1;
+    const pages=[];
+    for(let p=0;p<totalPages;p++){
+      pages.push(txExport.slice(p*rowsPerPage,(p+1)*rowsPerPage));
+    }
+
+    // Resumen financiero del export
+    const totalIng=txExport.filter(t=>isIngreso(t.cat)).reduce((s,t)=>s+t.amount,0);
+    const totalGas=txExport.filter(t=>isGasto(t.cat)&&!isAporteMeta(t)).reduce((s,t)=>s+t.amount,0);
+    const totalApo=txExport.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat)).reduce((s,t)=>s+t.amount,0);
+
+    // Paleta PDF (sobre fondo blanco)
+    const PDF={
+      bg:"#ffffff", surface:"#f8fafc", border:"#e2e8f0",
+      h:"#0f172a", b:"#334155", s:"#64748b",
+      indigo:"#6366f1", emerald:"#10b981", red:"#ef4444", amber:"#f59e0b",
+    };
+
+    // Columnas tabla
+    const COLS=[
+      {label:"Fecha",     w:0.12, align:"left"},
+      {label:"Descripción",w:0.30, align:"left"},
+      {label:"Categoría", w:0.22, align:"left"},
+      {label:"Tipo",      w:0.12, align:"center"},
+      {label:"Monto",     w:0.24, align:"right"},
+    ];
+
+    function getColX(i){
+      let x=MARGIN;
+      for(let j=0;j<i;j++) x+=COLS[j].w*COL;
+      return x;
+    }
+
+    function drawPage(canvas, pageRows, pageNum){
+      const ctx=canvas.getContext("2d");
+      ctx.fillStyle=PDF.bg;
+      ctx.fillRect(0,0,PW,canvas.height);
+
+      let y=MARGIN;
+
+      // ── Header (solo página 1) ─────────────────────────────────────────
+      if(pageNum===0){
+        // Barra superior indigo
+        ctx.fillStyle=PDF.indigo;
+        ctx.fillRect(0,0,PW,6);
+
+        // Título app
+        ctx.fillStyle=PDF.indigo;
+        ctx.font="bold 22px sans-serif";
+        ctx.fillText("MIS FINANZAS PRO",MARGIN,y+28);
+
+        // Nombre usuario + fecha
+        ctx.fillStyle=PDF.b;
+        ctx.font="13px sans-serif";
+        ctx.fillText(user.displayName||"",MARGIN,y+48);
+        const fechaDoc=new Date().toLocaleDateString("es-CO",{day:"2-digit",month:"long",year:"numeric"});
+        ctx.fillStyle=PDF.s;
+        ctx.font="11px sans-serif";
+        const titulo=soloMesActual
+          ?`Movimientos de ${MONTHS[now.getMonth()]} ${now.getFullYear()}`
+          :"Historial completo de movimientos";
+        ctx.fillText(titulo,MARGIN,y+66);
+        ctx.fillText(`Generado el ${fechaDoc}`,MARGIN,y+82);
+
+        y+=102;
+
+        // ── Cards resumen ──────────────────────────────────────────────
+        const cardW=(COL-16)/3, cardH=56;
+        const cards=[
+          {label:"Ingresos",val:COP(totalIng),color:PDF.emerald},
+          {label:"Gastos",  val:COP(totalGas),color:PDF.red},
+          {label:"En metas",val:COP(totalApo),color:PDF.indigo},
+        ];
+        cards.forEach((c,i)=>{
+          const cx=MARGIN+i*(cardW+8);
+          ctx.fillStyle=PDF.surface;
+          ctx.beginPath();
+          ctx.roundRect(cx,y,cardW,cardH,8);
+          ctx.fill();
+          ctx.strokeStyle=PDF.border;
+          ctx.lineWidth=1;
+          ctx.beginPath();
+          ctx.roundRect(cx,y,cardW,cardH,8);
+          ctx.stroke();
+          ctx.fillStyle=c.color;
+          ctx.font="bold 15px sans-serif";
+          ctx.fillText(c.val,cx+12,y+22);
+          ctx.fillStyle=PDF.s;
+          ctx.font="10px sans-serif";
+          ctx.fillText(c.label.toUpperCase(),cx+12,y+40);
+        });
+        y+=cardH+20;
+      } else {
+        // Páginas siguientes: barra + título compacto
+        ctx.fillStyle=PDF.indigo;
+        ctx.fillRect(0,0,PW,4);
+        ctx.fillStyle=PDF.b;
+        ctx.font="bold 13px sans-serif";
+        ctx.fillText("MIS FINANZAS PRO · "+user.displayName,MARGIN,y+20);
+        y+=36;
+      }
+
+      // ── Cabecera tabla ────────────────────────────────────────────────
+      ctx.fillStyle=PDF.indigo;
+      ctx.fillRect(MARGIN,y,COL,TABLE_HEAD_H);
+      ctx.fillStyle="#fff";
+      ctx.font="bold 11px sans-serif";
+      COLS.forEach((col,i)=>{
+        const cx=getColX(i);
+        const cw=col.w*COL;
+        if(col.align==="right") ctx.textAlign="right";
+        else if(col.align==="center") ctx.textAlign="center";
+        else ctx.textAlign="left";
+        const tx2=col.align==="right"?cx+cw-6:col.align==="center"?cx+cw/2:cx+6;
+        ctx.fillText(col.label.toUpperCase(),tx2,y+TABLE_HEAD_H/2+4);
+      });
+      ctx.textAlign="left";
+      y+=TABLE_HEAD_H;
+
+      // ── Filas ─────────────────────────────────────────────────────────
+      pageRows.forEach((t,idx)=>{
+        const isEven=idx%2===0;
+        ctx.fillStyle=isEven?PDF.bg:PDF.surface;
+        ctx.fillRect(MARGIN,y,COL,ROW_H);
+
+        // Línea separadora
+        ctx.strokeStyle=PDF.border;
+        ctx.lineWidth=0.5;
+        ctx.beginPath();
+        ctx.moveTo(MARGIN,y+ROW_H);
+        ctx.lineTo(MARGIN+COL,y+ROW_H);
+        ctx.stroke();
+
+        const main=MAIN_CATS.find(m=>m.subs?.some(s=>s.id===t.cat));
+        const sub=getCatInfo(t.cat);
+        const esIng=isIngreso(t.cat);
+        const esMeta=isAporteMeta(t)||isSavingsLegacy(t.cat);
+        const tipo=esIng?"Ingreso":esMeta?"Meta":"Gasto";
+        const tipoColor=esIng?PDF.emerald:esMeta?PDF.indigo:PDF.red;
+        const monto=(esIng||esMeta?1:-1)*t.amount;
+        const catLabel=main?`${main.label} · ${sub.label}`:sub.label;
+
+        const cells=[
+          t.date?.slice(5).replace("-","/")+"/"+(t.date?.slice(0,4)),
+          t.desc||"-",
+          catLabel,
+          tipo,
+          COP(monto),
+        ];
+
+        ctx.font="11px sans-serif";
+        COLS.forEach((col,i)=>{
+          const cx=getColX(i);
+          const cw=col.w*COL;
+          // Color especial para tipo y monto
+          if(i===3) ctx.fillStyle=tipoColor;
+          else if(i===4) ctx.fillStyle=monto>=0?PDF.emerald:PDF.red;
+          else ctx.fillStyle=PDF.h;
+
+          const text=cells[i]||"";
+          // Truncar si es muy largo
+          const maxChars=Math.floor(cw/6.5);
+          const display=text.length>maxChars?text.slice(0,maxChars-1)+"…":text;
+
+          if(col.align==="right"){ ctx.textAlign="right"; ctx.fillText(display,cx+cw-6,y+ROW_H/2+4); }
+          else if(col.align==="center"){ ctx.textAlign="center"; ctx.fillText(display,cx+cw/2,y+ROW_H/2+4); }
+          else { ctx.textAlign="left"; ctx.fillText(display,cx+6,y+ROW_H/2+4); }
+        });
+        ctx.textAlign="left";
+        y+=ROW_H;
+      });
+
+      // ── Pie de página ─────────────────────────────────────────────────
+      const pyFoot=canvas.height-24;
+      ctx.fillStyle=PDF.indigo;
+      ctx.fillRect(0,canvas.height-3,PW,3);
+      ctx.fillStyle=PDF.s;
+      ctx.font="10px sans-serif";
+      ctx.textAlign="left";
+      ctx.fillText("mis-finanzas-weld.vercel.app",MARGIN,pyFoot);
+      ctx.textAlign="right";
+      ctx.fillText(`Página ${pageNum+1} de ${totalPages}`,PW-MARGIN,pyFoot);
+      ctx.textAlign="left";
+    }
+
+    // ── Generar páginas y combinar en PDF ─────────────────────────────────
+    // PDF manual: cada página es un canvas → dataURL → PDF con encabezado mínimo
+    const pageHeight=Math.max(
+      HEADER_H+TABLE_HEAD_H+(rowsPerPage*ROW_H)+60,
+      1123
+    );
+
+    // Construir PDF binario básico (solo imágenes JPEG por página)
+    const jpegs=[];
+    pages.forEach((pageRows,i)=>{
+      const canvas=document.createElement("canvas");
+      canvas.width=PW;
+      canvas.height=pageHeight;
+      drawPage(canvas,pageRows,i);
+      jpegs.push(canvas.toDataURL("image/jpeg",0.92));
+    });
+
+    // Generar PDF con objetos mínimos
+    function b64toBytes(b64){ const bin=atob(b64.split(",")[1]); const arr=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i); return arr; }
+
+    let pdf="%PDF-1.4\n";
+    const offsets=[];
+    let obj=1;
+
+    function addObj(content){ offsets.push(pdf.length); pdf+=`${obj} 0 obj\n${content}\nendobj\n`; return obj++; }
+
+    // Catalog + Pages placeholder
+    const catalogId=obj; addObj("<</Type /Catalog /Pages 2 0 R>>");
+    const pagesId=obj;   addObj(`<</Type /Pages /Kids [${pages.map((_,i)=>`${3+i*2} 0 R`).join(" ")}] /Count ${pages.length}>>`);
+
+    pages.forEach((_, pi)=>{
+      const imgBytes=b64toBytes(jpegs[pi]);
+      const imgId=obj;
+      offsets.push(pdf.length);
+      pdf+=`${obj} 0 obj\n<</Type /XObject /Subtype /Image /Width ${PW} /Height ${pageHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imgBytes.length}>>\nstream\n`;
+      const pdfBytes=new TextEncoder().encode(pdf);
+      const combined=new Uint8Array(pdfBytes.length+imgBytes.length);
+      combined.set(pdfBytes); combined.set(imgBytes,pdfBytes.length);
+      // Restart building as string after binary — use blob approach instead
+      obj++;
+
+      const pageId=obj;
+      addObj(`<</Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${pageHeight}] /Contents ${pageId+1} 0 R /Resources <</XObject <</Im${pi} ${imgId} 0 R>>>>>>`);
+      addObj(`<</Length ${`q ${PW} 0 0 ${pageHeight} 0 0 cm /Im${pi} Do Q`.length}>>\nstream\nq ${PW} 0 0 ${pageHeight} 0 0 cm /Im${pi} Do Q\nendstream`);
+    });
+
+    // Usar enfoque alternativo más simple: generar HTML que el navegador imprime como PDF
+    const win=window.open("","_blank");
+    if(!win){alert("Permite ventanas emergentes para exportar el PDF.");return;}
+
+    const estilos=`
+      *{margin:0;padding:0;box-sizing:border-box;}
+      body{font-family:'DM Sans',system-ui,sans-serif;background:#f1f5f9;padding:24px;}
+      .page{background:#fff;width:210mm;min-height:297mm;margin:0 auto 24px;padding:20mm 16mm;
+            box-shadow:0 4px 24px rgba(0,0,0,0.12);border-radius:4px;position:relative;}
+      .bar{height:6px;background:#6366f1;margin:-20mm -16mm 16mm;border-radius:4px 4px 0 0;}
+      .logo{font-size:20px;font-weight:900;color:#6366f1;letter-spacing:-0.5px;}
+      .user{font-size:13px;color:#334155;margin-top:4px;}
+      .titulo{font-size:11px;color:#64748b;margin-top:2px;}
+      .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0;}
+      .card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;}
+      .card-val{font-size:15px;font-weight:800;margin-bottom:4px;}
+      .card-lbl{font-size:10px;color:#64748b;font-weight:700;letter-spacing:1px;}
+      table{width:100%;border-collapse:collapse;font-size:11px;margin-top:16px;}
+      thead tr{background:#6366f1;}
+      thead th{color:#fff;padding:9px 8px;text-align:left;font-size:10px;letter-spacing:0.5px;}
+      thead th:last-child{text-align:right;}
+      thead th:nth-child(4){text-align:center;}
+      tbody tr:nth-child(even){background:#f8fafc;}
+      tbody tr:hover{background:#f1f5f9;}
+      td{padding:7px 8px;color:#0f172a;border-bottom:1px solid #e2e8f0;}
+      td.monto{text-align:right;font-weight:700;}
+      td.tipo{text-align:center;}
+      td.pos{color:#10b981;}
+      td.neg{color:#ef4444;}
+      td.meta{color:#6366f1;}
+      .footer{position:absolute;bottom:10mm;left:16mm;right:16mm;
+              display:flex;justify-content:space-between;
+              font-size:9px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:6px;}
+      @media print{
+        body{background:#fff;padding:0;}
+        .page{box-shadow:none;margin:0;border-radius:0;page-break-after:always;}
+        .page:last-child{page-break-after:avoid;}
+        .no-print{display:none;}
+      }
+    `;
+
+    const fechaDoc=new Date().toLocaleDateString("es-CO",{day:"2-digit",month:"long",year:"numeric"});
+    const titulo=soloMesActual
+      ?`Movimientos de ${MONTHS[now.getMonth()]} ${now.getFullYear()}`
+      :"Historial completo de movimientos";
+
+    const pagesHTML=pages.map((pageRows,pi)=>{
+      const rows=pageRows.map(t=>{
+        const main=MAIN_CATS.find(m=>m.subs?.some(s=>s.id===t.cat));
+        const sub=getCatInfo(t.cat);
+        const esIng=isIngreso(t.cat);
+        const esMeta2=isAporteMeta(t)||isSavingsLegacy(t.cat);
+        const tipo=esIng?"Ingreso":esMeta2?"Meta":"Gasto";
+        const tipoClass=esIng?"pos":esMeta2?"meta":"neg";
+        const monto=(esIng||esMeta2?1:-1)*t.amount;
+        const catLabel=main?`${main.label} · ${sub.label}`:sub.label;
+        const fecha=t.date?`${t.date.slice(8,10)}/${t.date.slice(5,7)}/${t.date.slice(0,4)}`:"";
+        return `<tr>
+          <td>${fecha}</td>
+          <td>${t.desc||"-"}</td>
+          <td>${catLabel}</td>
+          <td class="tipo ${tipoClass}">${tipo}</td>
+          <td class="monto ${monto>=0?"pos":"neg"}">${COP(monto)}</td>
+        </tr>`;
+      }).join("");
+
+      const esP1=pi===0;
+      return `<div class="page">
+        <div class="bar"></div>
+        ${esP1?`
+          <div class="logo">💰 MIS FINANZAS PRO</div>
+          <div class="user">${user.displayName||""} · ${user.email||""}</div>
+          <div class="titulo">${titulo} · Generado el ${fechaDoc}</div>
+          <div class="cards">
+            <div class="card"><div class="card-val" style="color:#10b981">${COP(totalIng)}</div><div class="card-lbl">INGRESOS</div></div>
+            <div class="card"><div class="card-val" style="color:#ef4444">${COP(totalGas)}</div><div class="card-lbl">GASTOS</div></div>
+            <div class="card"><div class="card-val" style="color:#6366f1">${COP(totalApo)}</div><div class="card-lbl">EN METAS</div></div>
+          </div>
+        `:`<div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:12px;">MIS FINANZAS PRO · ${user.displayName||""} · ${titulo}</div>`}
+        <table>
+          <thead><tr>
+            <th style="width:11%">FECHA</th>
+            <th style="width:30%">DESCRIPCIÓN</th>
+            <th style="width:25%">CATEGORÍA</th>
+            <th style="width:10%">TIPO</th>
+            <th style="width:24%">MONTO</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="footer">
+          <span>mis-finanzas-weld.vercel.app</span>
+          <span>Página ${pi+1} de ${pages.length}</span>
+        </div>
+      </div>`;
+    }).join("");
+
+    win.document.write(`<!DOCTYPE html><html><head>
+      <meta charset="utf-8">
+      <title>Mis Finanzas · ${titulo}</title>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;700;800;900&display=swap" rel="stylesheet">
+      <style>${estilos}</style>
+    </head><body>
+      <div class="no-print" style="text-align:center;margin-bottom:20px;">
+        <button onclick="window.print()" style="background:#6366f1;color:#fff;border:none;padding:12px 28px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">
+          🖨️ Imprimir / Guardar PDF
+        </button>
+        <span style="margin-left:16px;font-size:13px;color:#64748b;">En el diálogo de impresión selecciona "Guardar como PDF"</span>
+      </div>
+      ${pagesHTML}
+    </body></html>`);
+    win.document.close();
+    setExportModal(false);
+    setMenuOpen(false);
+  }
   const handlePresupuestoSave=useCallback(async(catId,limite)=>{
     if(!user)return;
     if(!limite||limite<=0){
@@ -2624,7 +2984,7 @@ export default function App(){
       onClose={()=>{setPagoModal(null);setPagoModalDia(null);}}
       onSave={handlePagoSave}
       onDelete={handlePagoDelete}/>}
-    {/* Modal exportar CSV */}
+    {/* Modal exportar */}
     {exportModal&&<div onClick={()=>setExportModal(false)}
       style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
       <div onClick={e=>e.stopPropagation()}
@@ -2634,36 +2994,62 @@ export default function App(){
         <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
           <div style={{width:40,height:4,borderRadius:99,background:C.border}}/>
         </div>
-        <div style={{fontSize:18,fontWeight:800,color:C.text.h,marginBottom:6}}>📤 Exportar movimientos</div>
+        <div style={{fontSize:18,fontWeight:800,color:C.text.h,marginBottom:4}}>📤 Exportar movimientos</div>
         <div style={{fontSize:13,color:C.text.b,marginBottom:20,lineHeight:1.6}}>
-          Descarga tus movimientos como archivo CSV. Ábrelo en Excel, Google Sheets o cualquier app de hojas de cálculo.
+          Elige el formato y el período que quieres exportar.
         </div>
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {/* CSV */}
+        <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}}>📊 Formato CSV · Excel / Sheets</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
           <button onClick={()=>exportarCSV(true)}
-            style={{padding:"16px",borderRadius:14,border:"none",cursor:"pointer",
-              background:`linear-gradient(135deg,${C.emerald},#059669)`,
-              color:"#000",fontSize:15,fontWeight:800,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
-            <span style={{fontSize:24}}>📅</span>
+            style={{padding:"14px 16px",borderRadius:12,border:`1px solid ${C.emerald}44`,cursor:"pointer",
+              background:`${C.emerald}12`,
+              color:C.text.h,fontSize:14,fontWeight:700,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
+            <span style={{fontSize:22}}>📅</span>
             <div>
-              <div>Solo {MONTHS[now.getMonth()]} {now.getFullYear()}</div>
-              <div style={{fontSize:11,fontWeight:600,opacity:0.7}}>{tx.filter(t=>isMonth(t.date,now.getMonth(),now.getFullYear())).length} movimientos</div>
+              <div style={{color:C.emeraldLight}}>Solo {MONTHS[now.getMonth()]} {now.getFullYear()}</div>
+              <div style={{fontSize:11,color:C.text.s,marginTop:2}}>{tx.filter(t=>isMonth(t.date,now.getMonth(),now.getFullYear())).length} movimientos</div>
             </div>
           </button>
           <button onClick={()=>exportarCSV(false)}
-            style={{padding:"16px",borderRadius:14,border:`1px solid ${C.indigo}44`,cursor:"pointer",
-              background:`${C.indigo}15`,
-              color:C.text.h,fontSize:15,fontWeight:800,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
-            <span style={{fontSize:24}}>📊</span>
+            style={{padding:"14px 16px",borderRadius:12,border:`1px solid ${C.border}`,cursor:"pointer",
+              background:C.surface,
+              color:C.text.h,fontSize:14,fontWeight:700,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
+            <span style={{fontSize:22}}>📊</span>
             <div>
               <div>Historial completo</div>
-              <div style={{fontSize:11,fontWeight:600,color:C.text.b}}>{tx.length} movimientos en total</div>
+              <div style={{fontSize:11,color:C.text.s,marginTop:2}}>{tx.length} movimientos en total</div>
             </div>
           </button>
-          <button onClick={()=>setExportModal(false)}
-            style={{background:"none",border:"none",color:C.text.s,cursor:"pointer",fontSize:13,padding:"8px",fontWeight:600}}>
-            Cancelar
+        </div>
+        {/* PDF */}
+        <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}}>📄 Formato PDF · Imprimir / Compartir</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+          <button onClick={()=>exportarPDF(true)}
+            style={{padding:"14px 16px",borderRadius:12,border:`1px solid ${C.indigo}44`,cursor:"pointer",
+              background:`${C.indigo}12`,
+              color:C.text.h,fontSize:14,fontWeight:700,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
+            <span style={{fontSize:22}}>📄</span>
+            <div>
+              <div style={{color:C.indigoLight}}>PDF · Solo {MONTHS[now.getMonth()]} {now.getFullYear()}</div>
+              <div style={{fontSize:11,color:C.text.s,marginTop:2}}>Se abre una ventana para imprimir o guardar</div>
+            </div>
+          </button>
+          <button onClick={()=>exportarPDF(false)}
+            style={{padding:"14px 16px",borderRadius:12,border:`1px solid ${C.border}`,cursor:"pointer",
+              background:C.surface,
+              color:C.text.h,fontSize:14,fontWeight:700,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
+            <span style={{fontSize:22}}>📋</span>
+            <div>
+              <div>PDF · Historial completo</div>
+              <div style={{fontSize:11,color:C.text.s,marginTop:2}}>{tx.length} movimientos · todas las páginas</div>
+            </div>
           </button>
         </div>
+        <button onClick={()=>setExportModal(false)}
+          style={{width:"100%",background:"none",border:"none",color:C.text.s,cursor:"pointer",fontSize:13,padding:"8px",fontWeight:600}}>
+          Cancelar
+        </button>
       </div>
     </div>}
     {/* Banner in-app pagos pendientes hoy */}
