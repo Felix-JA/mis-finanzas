@@ -7,23 +7,42 @@ import {
   getDoc, setDoc
 } from "firebase/firestore";
 
-// ─── PALETA PRINCIPAL ─────────────────────────────────────────────────────────
-// Inspirada en Revolut + Robinhood: Indigo (confianza/metas) + Emerald (dinero) + Slate (fondo)
-const C = {
-  bg:      "#080e1e",
-  surface: "rgba(255,255,255,0.05)",
-  border:  "rgba(255,255,255,0.08)",
-  borderStrong: "rgba(255,255,255,0.18)",
-  indigo:  "#6366f1",
-  indigoLight: "#818cf8",
-  emerald: "#10b981",
-  emeraldLight: "#34d399",
-  amber:   "#f59e0b",
-  red:     "#ef4444",
-  violet:  "#8b5cf6",
-  sky:     "#38bdf8",
-  text:    { h:"#f1f5f9", b:"#a8b8cc", s:"#6b7f96", m:"#6b7f96" },
+// ─── TEMAS OSCUROS ────────────────────────────────────────────────────────────
+const TEMAS = {
+  // Azul marino — tema original
+  navy: {
+    bg:"#080e1e", card:"#0d1117",
+    surface:"rgba(255,255,255,0.05)", border:"rgba(255,255,255,0.08)", borderStrong:"rgba(255,255,255,0.18)",
+    indigo:"#6366f1", indigoLight:"#818cf8",
+    emerald:"#10b981", emeraldLight:"#34d399",
+    amber:"#f59e0b", red:"#ef4444", violet:"#8b5cf6", sky:"#38bdf8",
+    text:{ h:"#f1f5f9", b:"#a8b8cc", s:"#6b7f96", m:"#6b7f96" },
+    label:"🌊 Azul marino", desc:"El clásico",
+  },
+  // Negro puro — AMOLED
+  black: {
+    bg:"#000000", card:"#0a0a0a",
+    surface:"rgba(255,255,255,0.06)", border:"rgba(255,255,255,0.09)", borderStrong:"rgba(255,255,255,0.2)",
+    indigo:"#7c3aed", indigoLight:"#a78bfa",
+    emerald:"#10b981", emeraldLight:"#34d399",
+    amber:"#f59e0b", red:"#ef4444", violet:"#8b5cf6", sky:"#38bdf8",
+    text:{ h:"#ffffff", b:"#b0c0d0", s:"#606f80", m:"#606f80" },
+    label:"🖤 Midnight", desc:"Ahorra batería AMOLED",
+  },
+  // Verde oscuro — bosque
+  forest: {
+    bg:"#061210", card:"#0a1f1c",
+    surface:"rgba(255,255,255,0.05)", border:"rgba(255,255,255,0.08)", borderStrong:"rgba(255,255,255,0.18)",
+    indigo:"#059669", indigoLight:"#34d399",
+    emerald:"#10b981", emeraldLight:"#6ee7b7",
+    amber:"#f59e0b", red:"#ef4444", violet:"#8b5cf6", sky:"#38bdf8",
+    text:{ h:"#ecfdf5", b:"#a7c4bc", s:"#5f8a82", m:"#5f8a82" },
+    label:"🌿 Bosque", desc:"Verde oscuro relajante",
+  },
 };
+const DARK = TEMAS.navy; // alias para compatibilidad
+// C es mutable — se actualiza al cambiar tema
+const C = {...DARK};
 
 // ─── CATEGORÍAS ───────────────────────────────────────────────────────────────
 const MAIN_CATS = [
@@ -51,10 +70,11 @@ const MAIN_CATS = [
 // Solo "ingreso" es categoría especial — suma al saldo
 // Las metas son el único concepto de ahorro (unificado)
 const INCOME_CAT = {id:"ingreso",label:"Ingreso",icon:"💵",color:"#10b981"};
+const DEVOLUCION_CAT = {id:"prestamo_devuelto",label:"Devolución préstamo",icon:"🤝",color:"#10b981"};
 function isIngreso(cat){ return cat==="ingreso"; }
-// Un aporte a meta es cualquier tx con goalId — no necesita categoría especial
+function isDevolucion(cat){ return cat==="prestamo_devuelto"; } // suma al saldo como ingreso pero NO cuenta como ingreso del mes
 function isAporteMeta(t){ return !!t.goalId; }
-function isGasto(cat){ return !isIngreso(cat) && cat!=="meta_aporte"; }
+function isGasto(cat){ return !isIngreso(cat) && !isDevolucion(cat) && cat!=="meta_aporte"; }
 // Compatibilidad legacy: emergencias era categoría, ahora es meta especial
 function isSavingsLegacy(cat){ return cat==="emergencias"||cat==="meta_aporte"; }
 const ALL_SUBS = MAIN_CATS.flatMap(m=>m.subs.map(s=>({...s,mainId:m.id,color:m.color})));
@@ -65,6 +85,7 @@ const _customSubsLookup = {};
 
 function getCatInfo(id) {
   if(id==="ingreso") return INCOME_CAT;
+  if(id==="prestamo_devuelto") return DEVOLUCION_CAT;
   if(id==="emergencias") return {id:"emergencias",label:"Fondo Emergencias",icon:"🛡️",color:C.sky};
   if(id==="meta_aporte") return {id:"meta_aporte",label:"Aporte a Meta",icon:"⭐",color:C.indigo};
   // Buscar en subcategorías personalizadas (✦)
@@ -250,7 +271,7 @@ function CatPersonalModal({main, catsCustom, handleCatCustomSave, onClose}){
   return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:500,animation:"fadeIn 0.18s ease"}}>
     <div onClick={e=>e.stopPropagation()}
-      style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1117",borderRadius:"22px 22px 0 0",
+      style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
         border:`1px solid ${C.border}`,padding:"20px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"85vh",overflowY:"auto"}}>
       <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
         <div style={{width:40,height:4,borderRadius:99,background:C.border}}/>
@@ -444,7 +465,7 @@ function GoalModal({initial,onClose,onSave,onDelete}){
   }
   return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
-    <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1117",borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto"}}>
+    <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto"}}>
       <div style={{display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
       <div style={{padding:"0 20px 28px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
@@ -873,7 +894,7 @@ const META_PLACEHOLDERS = [
   "ej: Aporte especial",
 ];
 
-function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible,catsCustom={},onEditCustom}){
+function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible,catsCustom={},onEditCustom,onOpenPrestamo}){
   const isEdit=!!initial;
   const [amount,setAmount]=useState(initial?Number(initial.amount).toLocaleString("es-CO"):"");
   const [desc,setDesc]=useState(initial?.desc||"");
@@ -886,6 +907,12 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible,catsCust
   useEffect(()=>{const t=setTimeout(()=>ref.current?.focus(),120);return()=>clearTimeout(t);},[]);
   // Preservar posición de scroll al cambiar categoría
   function setCatSinScroll(v){
+    // Si elige A terceros → ir directo al módulo de préstamos sin pasar por aquí
+    if(v==="prestamo_tercero"&&onOpenPrestamo){
+      onClose();
+      onOpenPrestamo();
+      return;
+    }
     const pos=scrollRef.current?.scrollTop||0;
     setCat(v);
     requestAnimationFrame(()=>{if(scrollRef.current)scrollRef.current.scrollTop=pos;});
@@ -937,7 +964,7 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible,catsCust
   }
   return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:300,animation:"fadeIn 0.18s ease"}}>
-    <div ref={scrollRef} style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1117",borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto"}}>
+    <div ref={scrollRef} style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto"}}>
       <div style={{display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
       <div style={{padding:"0 20px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
@@ -1059,8 +1086,9 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible,catsCust
 function TxRow({t,onEdit}){
   const cat=getCatInfo(t.cat);
   const esMeta=isAporteMeta(t)||isSavingsLegacy(t.cat);
-  const esPos=esMeta||isIngreso(t.cat);
-  const bloqueado=esMesPasado(t.date); // meses anteriores al actual = solo lectura
+  const esPos=esMeta||isIngreso(t.cat)||isDevolucion(t.cat);
+  const esPrestamo=t.cat==="prestamo_tercero"||t.cat==="prestamo_devuelto";
+  const bloqueado=esMesPasado(t.date)||esPrestamo; // meses pasados + préstamos = solo lectura
   const [p,setP]=useState(false);
   return <div
     onClick={bloqueado?undefined:onEdit}
@@ -1089,17 +1117,258 @@ function TxRow({t,onEdit}){
     <div style={{flex:1,minWidth:0}}>
       <div style={{fontSize:14,fontWeight:700,color:bloqueado?"#8899aa":"#ffffff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc}</div>
       <div style={{fontSize:11,color:C.text.s,marginTop:3}}>
-        {t.date?.slice(5).replace("-","/")} · {isIngreso(t.cat)?"💵 Ingreso":esMeta?"⭐ Meta":(()=>{const main=MAIN_CATS.find(m=>m.subs?.some(s=>s.id===t.cat));return main?`${main.labelFull||main.label} · ${cat.label}`:cat.label;})()}
+        {t.date?.slice(5).replace("-","/")} · {isIngreso(t.cat)?"💵 Ingreso":isDevolucion(t.cat)?"🤝 Devolución":esMeta?"⭐ Meta":(()=>{const main=MAIN_CATS.find(m=>m.subs?.some(s=>s.id===t.cat));return main?`${main.labelFull||main.label} · ${cat.label}`:cat.label;})()}
       </div>
     </div>
     <div style={{textAlign:"right",flexShrink:0}}>
       <div style={{fontSize:16,fontWeight:800,color:esPos?C.emeraldLight:C.red,letterSpacing:-0.5}}>
         {esPos?"+":"-"}{COP(t.amount)}
       </div>
-      <div style={{fontSize:9,color:bloqueado?C.text.s+"88":C.text.s,marginTop:2}}>
-        {bloqueado?"🔒 bloqueado":"editar"}
+      <div style={{fontSize:9,color:C.text.s+"88",marginTop:2}}>
+        {esMesPasado(t.date)?"🔒 bloqueado":esPrestamo?"🤝 ver préstamos":"editar"}
       </div>
     </div>
+  </div>;
+}
+
+// ─── MODAL PRÉSTAMOS A TERCEROS ───────────────────────────────────────────────
+function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm,setPrestamoForm}){
+  const pendientes=prestamos.filter(p=>!p.devuelto);
+  const devueltos=prestamos.filter(p=>p.devuelto);
+  const totalPendiente=pendientes.reduce((s,p)=>s+p.monto,0);
+  const [cobroModal,setCobroModal]=useState(null); // prestamo a cobrar
+
+  // Mini-modal para registrar cobro
+  function CobroModal({prestamo,onClose3}){
+    const [monto,setMonto]=useState(Number(prestamo.monto).toLocaleString("es-CO"));
+    const raw=parseFloat(monto.replace(/\./g,"").replace(",","."))||0;
+    function hm(e){const r=e.target.value.replace(/\D/g,"");setMonto(r?Number(r).toLocaleString("es-CO"):"");}
+    function confirmar(){
+      if(!raw)return;
+      onToggle(prestamo.id,true,raw,prestamo.nombre);
+      onClose3();
+    }
+    return <div onClick={e=>{if(e.target===e.currentTarget)onClose3();}}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"flex-end",zIndex:700,animation:"fadeIn 0.15s ease"}}>
+      <div onClick={e=>e.stopPropagation()}
+        style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
+          border:"1px solid rgba(16,185,129,0.3)",padding:"24px 20px 40px",animation:"slideUp 0.2s cubic-bezier(0.34,1.56,0.64,1)"}}>
+        <div style={{display:"flex",justifyContent:"center",marginBottom:14}}><div style={{width:40,height:4,borderRadius:99,background:"rgba(255,255,255,0.08)"}}/></div>
+        <div style={{textAlign:"center",marginBottom:20}}>
+          <div style={{fontSize:32,marginBottom:6}}>🤝</div>
+          <div style={{fontSize:17,fontWeight:800,color:"#f1f5f9"}}>{prestamo.nombre} te pagó</div>
+          <div style={{fontSize:12,color:"#6b7f96",marginTop:4}}>Prestaste {COP(prestamo.monto)} · ¿Cuánto te devolvió?</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",background:"rgba(255,255,255,0.05)",borderRadius:12,overflow:"hidden",
+          border:`2px solid ${raw>0?"#10b981":"rgba(255,255,255,0.08)"}`,transition:"border-color 0.2s",marginBottom:10}}>
+          <span style={{padding:"0 14px",color:"#6b7f96",fontSize:18,lineHeight:"54px"}}>$</span>
+          <input inputMode="numeric" placeholder="0" value={monto} onChange={hm} autoFocus
+            style={{flex:1,background:"none",border:"none",outline:"none",fontSize:24,fontWeight:800,color:"#f1f5f9",padding:"0 8px",height:54}}/>
+        </div>
+        {raw!==prestamo.monto&&raw>0&&<div style={{fontSize:11,color:raw>prestamo.monto?"#10b981":"#f59e0b",marginBottom:12,textAlign:"center",fontWeight:600}}>
+          {raw>prestamo.monto?`✓ Te devolvió ${COP(raw-prestamo.monto)} extra (intereses)`:`⚠️ Te devolvió ${COP(prestamo.monto-raw)} menos de lo prestado`}
+        </div>}
+        <div style={{background:"rgba(16,185,129,0.08)",border:"1px solid rgba(16,185,129,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:11,color:"#a8b8cc",lineHeight:1.6}}>
+          💡 Se sumará a tu disponible como <b style={{color:"#10b981"}}>devolución de préstamo</b>, sin afectar tus ingresos del mes.
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={onClose3}
+            style={{flex:1,padding:14,borderRadius:12,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"#a8b8cc",cursor:"pointer",fontSize:14,fontWeight:700}}>
+            Cancelar
+          </button>
+          <button onClick={confirmar} disabled={!raw}
+            style={{flex:2,padding:14,borderRadius:12,border:"none",fontSize:14,fontWeight:800,
+              background:raw?"linear-gradient(135deg,#10b981,#059669)":"rgba(255,255,255,0.05)",
+              color:raw?"#000":"#6b7f96",cursor:raw?"pointer":"not-allowed"}}>
+            {raw?`✓ Confirmar ${COP(raw)}`:"Ingresa el monto"}
+          </button>
+        </div>
+      </div>
+    </div>;
+  }
+
+  // Sub-modal para crear/editar
+  function FormModal({initial,onClose2}){
+    const isEdit=!!initial?.id;
+    const [nombre,setNombre]=useState(initial?.nombre||"");
+    const [monto,setMonto]=useState(initial?Number(initial.monto).toLocaleString("es-CO"):"");
+    const [fecha,setFecha]=useState(initial?.fechaPrestamo||todayStr());
+    const [desc,setDesc]=useState(initial?.descripcion||"");
+    const [conf,setConf]=useState(false);
+    const raw=parseFloat(monto.replace(/\./g,"").replace(",","."))||0;
+    function hm(e){const r=e.target.value.replace(/\D/g,"");setMonto(r?Number(r).toLocaleString("es-CO"):"");}
+    function save(){
+      if(!nombre.trim()||!raw)return;
+      onSave({id:initial?.id||null,nombre:nombre.trim(),monto:raw,fechaPrestamo:fecha,descripcion:desc.trim(),devuelto:initial?.devuelto||false});
+      onClose2();
+    }
+    return <div onClick={e=>{if(e.target===e.currentTarget)onClose2();}}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:600,animation:"fadeIn 0.18s ease"}}>
+      <div onClick={e=>e.stopPropagation()}
+        style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
+          border:`1px solid rgba(244,63,94,0.3)`,padding:"20px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{display:"flex",justifyContent:"center",marginBottom:14}}><div style={{width:40,height:4,borderRadius:99,background:"rgba(255,255,255,0.08)"}}/></div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div style={{fontSize:17,fontWeight:800,color:"#f1f5f9"}}>{isEdit?"Editar préstamo":"🤝 Nuevo préstamo"}</div>
+          <button onClick={onClose2} style={{background:"none",border:"none",color:"#a8b8cc",fontSize:28,cursor:"pointer",lineHeight:1,padding:4}}>×</button>
+        </div>
+        <div style={{fontSize:10,color:"#6b7f96",fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>¿A quién le prestaste?</div>
+        <input placeholder="ej: Juan, María, Pedro…" value={nombre} onChange={e=>setNombre(e.target.value)}
+          style={{width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,
+            padding:"13px 16px",color:"#f1f5f9",fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:14}}/>
+        <div style={{fontSize:10,color:"#6b7f96",fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Monto prestado (COP)</div>
+        <div style={{display:"flex",alignItems:"center",background:"rgba(255,255,255,0.05)",borderRadius:12,overflow:"hidden",
+          border:`2px solid ${raw>0?"#f43f5e":"rgba(255,255,255,0.08)"}`,transition:"border-color 0.2s",marginBottom:14}}>
+          <span style={{padding:"0 14px",color:"#6b7f96",fontSize:18,lineHeight:"54px"}}>$</span>
+          <input inputMode="numeric" placeholder="0" value={monto} onChange={hm}
+            style={{flex:1,background:"none",border:"none",outline:"none",fontSize:24,fontWeight:800,color:"#f1f5f9",padding:"0 8px",height:54}}/>
+        </div>
+        <div style={{fontSize:10,color:"#6b7f96",fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Fecha del préstamo</div>
+        <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)}
+          style={{width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,
+            padding:"13px 16px",color:"#f1f5f9",fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:14}}/>
+        <div style={{fontSize:10,color:"#6b7f96",fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Motivo / Nota (opcional)</div>
+        <input placeholder="ej: Para el arriendo, emergencia médica…" value={desc} onChange={e=>setDesc(e.target.value)}
+          style={{width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,
+            padding:"13px 16px",color:"#f1f5f9",fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:20}}/>
+        <div style={{background:"rgba(244,63,94,0.08)",border:"1px solid rgba(244,63,94,0.25)",borderRadius:12,padding:"12px 14px",marginBottom:16}}>
+          <div style={{fontSize:12,color:"#f87171",fontWeight:700,marginBottom:3}}>
+            {isEdit?"ℹ️ Edición de datos":"💸 Se descontará de tu disponible"}
+          </div>
+          <div style={{fontSize:11,color:"#a8b8cc",lineHeight:1.6}}>
+            {isEdit
+              ?"Editar no modifica el movimiento original en tu historial. Si cambió el monto, elimina y crea uno nuevo."
+              :"Al guardar se registra un gasto automático en 'Deudas · A terceros'. Cuando te paguen, registra el ingreso tú mismo con el monto que recibas."}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {isEdit&&!conf&&<button onClick={()=>setConf(true)}
+            style={{padding:"16px 18px",borderRadius:14,border:"1px solid rgba(239,68,68,0.4)",background:"transparent",color:"#ef4444",cursor:"pointer",fontSize:22,flexShrink:0}}>🗑</button>}
+          {isEdit&&conf&&<button onClick={()=>{onDelete(initial.id,initial.txId);onClose2();}}
+            style={{padding:"16px 18px",borderRadius:14,border:"none",background:"#ef4444",color:"#fff",cursor:"pointer",fontSize:13,fontWeight:800,flexShrink:0,animation:"shake 0.3s ease"}}>¿Borrar?</button>}
+          <button onClick={save} disabled={!nombre.trim()||!raw}
+            style={{flex:1,padding:16,borderRadius:14,border:"none",fontSize:15,fontWeight:800,
+              cursor:(!nombre.trim()||!raw)?"not-allowed":"pointer",
+              background:(!nombre.trim()||!raw)?"rgba(255,255,255,0.05)":"linear-gradient(135deg,#f43f5e,#be123c)",
+              color:(!nombre.trim()||!raw)?"#6b7f96":"#fff"}}>
+            {(!nombre.trim()||!raw)?"Completa los campos":isEdit?"✓ Guardar":"+ Registrar préstamo"}
+          </button>
+        </div>
+      </div>
+    </div>;
+  }
+
+  const RED="#f43f5e", AMBER="#f59e0b", EMERALD="#10b981";
+
+  return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
+    style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:500,animation:"fadeIn 0.18s ease"}}>
+    <div onClick={e=>e.stopPropagation()}
+      style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
+        border:"1px solid rgba(255,255,255,0.08)",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",
+        maxHeight:"90vh",overflowY:"auto"}}>
+      <div style={{display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:"rgba(255,255,255,0.08)"}}/></div>
+      <div style={{padding:"0 20px 36px"}}>
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div>
+            <div style={{fontSize:18,fontWeight:800,color:"#f1f5f9"}}>🤝 Préstamos a terceros</div>
+            <div style={{fontSize:12,color:"#6b7f96",marginTop:2}}>Registra lo que te deben</div>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:"none",color:"#a8b8cc",fontSize:28,cursor:"pointer",lineHeight:1,padding:4}}>×</button>
+        </div>
+
+        {/* Resumen */}
+        {pendientes.length>0&&<div style={{
+          background:"linear-gradient(135deg,rgba(244,63,94,0.15),rgba(244,63,94,0.05))",
+          border:"1px solid rgba(244,63,94,0.3)",borderRadius:16,padding:"16px 18px",marginBottom:16,
+        }}>
+          <div style={{fontSize:11,color:"rgba(244,63,94,0.8)",fontWeight:700,letterSpacing:1,marginBottom:4}}>PENDIENTE DE COBRO</div>
+          <div style={{fontSize:28,fontWeight:900,color:RED,letterSpacing:-1}}>{COP(totalPendiente)}</div>
+          <div style={{fontSize:12,color:"#a8b8cc",marginTop:4}}>{pendientes.length} préstamo{pendientes.length!==1?"s":""} activo{pendientes.length!==1?"s":""}</div>
+        </div>}
+
+        {/* Lista pendientes */}
+        {pendientes.length>0&&<>
+          <div style={{fontSize:10,color:"#6b7f96",fontWeight:700,letterSpacing:1.2,marginBottom:10,textTransform:"uppercase"}}>Pendientes</div>
+          {pendientes.map(p=>{
+            const dias=Math.floor((Date.now()-new Date(p.fechaPrestamo).getTime())/(1000*60*60*24));
+            const urgente=dias>30;
+            return <div key={p.id}
+              style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,
+                background:urgente?"rgba(244,63,94,0.08)":"rgba(255,255,255,0.04)",
+                borderRadius:16,padding:"14px 16px",
+                border:`1px solid ${urgente?"rgba(244,63,94,0.3)":"rgba(255,255,255,0.08)"}`}}>
+              <div style={{width:44,height:44,borderRadius:13,background:"rgba(244,63,94,0.2)",
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>
+                🤝
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:14,fontWeight:800,color:"#f1f5f9"}}>{p.nombre}</div>
+                {p.descripcion&&<div style={{fontSize:11,color:"#6b7f96",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.descripcion}</div>}
+                <div style={{fontSize:11,color:urgente?RED:AMBER,marginTop:2,fontWeight:600}}>
+                  {dias===0?"Hoy":dias===1?"Hace 1 día":`Hace ${dias} días`}{urgente?" · ⚠️ Más de un mes":""}
+                </div>
+              </div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <div style={{fontSize:15,fontWeight:800,color:RED}}>{COP(p.monto)}</div>
+                <div style={{display:"flex",gap:6,marginTop:6,justifyContent:"flex-end"}}>
+                  <button onClick={()=>setPrestamoForm(p)}
+                    style={{background:"rgba(255,255,255,0.08)",border:"none",borderRadius:8,padding:"5px 10px",color:"#a8b8cc",cursor:"pointer",fontSize:11,fontWeight:700}}>
+                    Editar
+                  </button>
+                  <button onClick={()=>setCobroModal(p)}
+                    style={{background:"rgba(16,185,129,0.2)",border:"1px solid rgba(16,185,129,0.4)",borderRadius:8,padding:"5px 10px",color:EMERALD,cursor:"pointer",fontSize:11,fontWeight:700}}>
+                    ✓ Me pagó
+                  </button>
+                </div>
+              </div>
+            </div>;
+          })}
+        </>}
+
+        {/* Botón agregar */}
+        <button onClick={()=>setPrestamoForm("new")}
+          style={{width:"100%",padding:14,borderRadius:14,border:"1px dashed rgba(244,63,94,0.4)",background:"transparent",
+            color:RED,cursor:"pointer",fontSize:14,fontWeight:700,marginTop:8,marginBottom:16}}>
+          + Nuevo préstamo
+        </button>
+
+        {/* Devueltos */}
+        {devueltos.length>0&&<>
+          <div style={{fontSize:10,color:"#6b7f96",fontWeight:700,letterSpacing:1.2,marginBottom:10,textTransform:"uppercase"}}>Devueltos ✓</div>
+          {devueltos.map(p=><div key={p.id}
+            style={{display:"flex",alignItems:"center",gap:12,marginBottom:8,
+              background:"rgba(16,185,129,0.05)",borderRadius:14,padding:"12px 16px",
+              border:"1px solid rgba(16,185,129,0.15)",opacity:0.7}}>
+            <div style={{width:38,height:38,borderRadius:10,background:"rgba(16,185,129,0.15)",
+              display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>✓</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#f1f5f9"}}>{p.nombre}</div>
+              {p.fechaDevolucion&&<div style={{fontSize:11,color:"#6b7f96"}}>Devuelto el {p.fechaDevolucion?.slice(8,10)}/{p.fechaDevolucion?.slice(5,7)}</div>}
+            </div>
+            <div style={{textAlign:"right",flexShrink:0}}>
+              <div style={{fontSize:13,fontWeight:700,color:EMERALD}}>{COP(p.monto)}</div>
+              <button onClick={()=>onToggle(p.id,false)}
+                style={{background:"none",border:"none",color:"#6b7f96",cursor:"pointer",fontSize:10,fontWeight:600,marginTop:2}}>
+                Deshacer
+              </button>
+            </div>
+          </div>)}
+        </>}
+
+        {prestamos.length===0&&<div style={{textAlign:"center",padding:"28px 0 8px",color:"#6b7f96",fontSize:14,lineHeight:2.2}}>
+          <div style={{fontSize:40,marginBottom:8}}>🤝</div>
+          Sin préstamos registrados.<br/>
+          <span style={{fontSize:12}}>Desde ahora, cuando prestas dinero<br/>úsalo aquí para hacer seguimiento.</span>
+          <div style={{marginTop:14,padding:"12px 14px",background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:12,textAlign:"left"}}>
+            <div style={{fontSize:11,color:"#f59e0b",fontWeight:700,marginBottom:4}}>⚠️ Préstamos anteriores</div>
+            <div style={{fontSize:11,color:"#a8b8cc",lineHeight:1.6}}>Los gastos en "A terceros" que registraste antes no aparecen aquí porque no tienen seguimiento. Puedes agregarlos manualmente con + Nuevo préstamo.</div>
+          </div>
+        </div>}
+      </div>
+    </div>
+    {prestamoForm&&<FormModal initial={prestamoForm==="new"?null:prestamoForm} onClose2={()=>setPrestamoForm(null)}/>}
+    {cobroModal&&<CobroModal prestamo={cobroModal} onClose3={()=>setCobroModal(null)}/>}
   </div>;
 }
 
@@ -1136,6 +1405,20 @@ export default function App(){
   const [exportModal,setExportModal]=useState(false);
   const [catsCustom,setCatsCustom]=useState({}); // {mainId:[{id,label,icon}]}
   const [catPersonalModal,setCatPersonalModal]=useState(null); // main obj | null
+  const [prestamos,setPrestamos]=useState([]);
+  const [prestamosModal,setPrestamosModal]=useState(false);
+  const [prestamoForm,setPrestamoForm]=useState(null);
+  const [tema,setTema]=useState(()=>localStorage.getItem("mf_tema")||"navy");
+
+  // Mutar C con el tema activo antes de cada render
+  const paleta=TEMAS[tema]||TEMAS.navy;
+  Object.assign(C,paleta);
+  Object.assign(C.text,paleta.text);
+
+  function cambiarTema(nuevoTema){
+    setTema(nuevoTema);
+    localStorage.setItem("mf_tema",nuevoTema);
+  } // null | "new" | prestamo obj
 
   function changeTab(newTab){
     setTab(newTab); // El mes seleccionado se mantiene al cambiar de pestaña
@@ -1169,6 +1452,10 @@ export default function App(){
     return onSnapshot(collection(db,"usuarios",user.uid,"presupuestos"),snap=>{
       const p={};snap.docs.forEach(d=>{p[d.id]=d.data().limite;});
       setPresupuestos(p);
+    });},[user]);
+  useEffect(()=>{if(!user){setPrestamos([]);return;}
+    return onSnapshot(query(collection(db,"usuarios",user.uid,"prestamos"),orderBy("createdAt","desc")),snap=>{
+      setPrestamos(snap.docs.map(d=>({id:d.id,...d.data()})));
     });},[user]);
 
   // Cambiar salario: aplica desde el mes SIGUIENTE, guarda historial por mes
@@ -1681,6 +1968,78 @@ export default function App(){
     await setDoc(doc(db,"usuarios",user.uid),{catsCustom:updated},{merge:true});
   },[user,catsCustom]);
 
+  // CRUD préstamos a terceros
+  const handlePrestamoSave=useCallback(async p=>{
+    if(!user)return;
+    const pl={nombre:p.nombre,monto:p.monto,fechaPrestamo:p.fechaPrestamo,descripcion:p.descripcion||"",devuelto:p.devuelto||false};
+    if(p.id){
+      // Edición — solo actualiza datos del préstamo, no toca la tx original
+      await updateDoc(doc(db,"usuarios",user.uid,"prestamos",p.id),pl);
+    } else {
+      // Nuevo préstamo — crear tx de gasto automáticamente en "A terceros"
+      // Asegurar formato YYYY-MM-DD
+      const fechaFmt = p.fechaPrestamo && /^\d{4}-\d{2}-\d{2}$/.test(p.fechaPrestamo)
+        ? p.fechaPrestamo : todayStr();
+      const txRef=await addDoc(collection(db,"usuarios",user.uid,"transacciones"),{
+        desc:`Préstamo a ${p.nombre}${p.descripcion?` · ${p.descripcion}`:""}`,
+        amount:p.monto,
+        cat:"prestamo_tercero",
+        date:fechaFmt,
+        createdAt:serverTimestamp(),
+      });
+      // Guardar con referencia a la tx para poder eliminarla si se borra el préstamo
+      await addDoc(collection(db,"usuarios",user.uid,"prestamos"),{...pl,txId:txRef.id,createdAt:serverTimestamp()});
+    }
+  },[user]);
+  const handlePrestamoDelete=useCallback(async(id,txId)=>{
+    if(!user)return;
+    // Obtener datos del préstamo para saber si hay tx de devolución
+    const snap=await getDoc(doc(db,"usuarios",user.uid,"prestamos",id));
+    const txDevId=snap.data()?.txDevolucionId;
+    // Eliminar el préstamo
+    await deleteDoc(doc(db,"usuarios",user.uid,"prestamos",id));
+    // Eliminar tx de gasto original
+    if(txId){
+      try{ await deleteDoc(doc(db,"usuarios",user.uid,"transacciones",txId)); }catch(e){}
+    }
+    // Eliminar tx de devolución si existe
+    if(txDevId){
+      try{ await deleteDoc(doc(db,"usuarios",user.uid,"transacciones",txDevId)); }catch(e){}
+    }
+  },[user]);
+  const handlePrestamoToggle=useCallback(async(id,devuelto,montoDevuelto,nombre)=>{
+    if(!user)return;
+    if(devuelto&&montoDevuelto>0){
+      // Crear tx de devolución y guardar su id en el préstamo
+      const txDev=await addDoc(collection(db,"usuarios",user.uid,"transacciones"),{
+        desc:`Devolución de ${nombre}`,
+        amount:montoDevuelto,
+        cat:"prestamo_devuelto",
+        date:todayStr(),
+        createdAt:serverTimestamp(),
+      });
+      await updateDoc(doc(db,"usuarios",user.uid,"prestamos",id),{
+        devuelto:true,
+        fechaDevolucion:todayStr(),
+        txDevolucionId:txDev.id,
+        montoDevuelto,
+      });
+    } else {
+      // Deshacer devolución — buscar y eliminar la tx de devolución si existe
+      const snap=await getDoc(doc(db,"usuarios",user.uid,"prestamos",id));
+      const txDevId=snap.data()?.txDevolucionId;
+      if(txDevId){
+        try{ await deleteDoc(doc(db,"usuarios",user.uid,"transacciones",txDevId)); }catch(e){}
+      }
+      await updateDoc(doc(db,"usuarios",user.uid,"prestamos",id),{
+        devuelto:false,
+        fechaDevolucion:null,
+        txDevolucionId:null,
+        montoDevuelto:null,
+      });
+    }
+  },[user]);
+
   // CRUD pagos programados
   const handlePagoSave=useCallback(async p=>{
     if(!user)return;
@@ -1733,14 +2092,16 @@ export default function App(){
   const monthTx=tx.filter(t=>isMonth(t.date,month,now.getFullYear()));
   const gastosTx=monthTx.filter(t=>isGasto(t.cat)&&!isAporteMeta(t));
   const ingresosTx=monthTx.filter(t=>isIngreso(t.cat));
+  const devolucionesTx=monthTx.filter(t=>isDevolucion(t.cat)); // devoluciones préstamos
   // Aportes a metas = cualquier tx con goalId (incluye legacy emergencias/meta_aporte)
   const aporteMesAll=monthTx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat));
   const totalGasto=gastosTx.reduce((s,t)=>s+t.amount,0);
+  const totalDevoluciones=devolucionesTx.reduce((s,t)=>s+t.amount,0);
   const totalAportes=aporteMesAll.reduce((s,t)=>s+t.amount,0);
   const sal=salario||0;
   // Salario que correspondía al mes seleccionado (respeta historial)
   const salDelMes=getSalarioDelMes(now.getFullYear(),month);
-  // Ingreso del mes = salario del mes + extras registrados (se suman)
+  // Ingreso del mes = salario del mes + extras registrados (devoluciones NO cuentan aquí)
   const ingresosExtra=ingresosTx.reduce((s,t)=>s+t.amount,0);
   const totalIngresoMes=salDelMes+ingresosExtra;
 
@@ -1787,8 +2148,9 @@ export default function App(){
     txPasadas.forEach(t => {
       const d = new Date(t.date);
       const key = `${d.getFullYear()}-${d.getMonth()}`;
-      if (!porMes[key]) porMes[key] = { ingresos: 0, gastos: 0, ahorros: 0 };
+      if (!porMes[key]) porMes[key] = { ingresos: 0, gastos: 0, ahorros: 0, devoluciones: 0 };
       if (isIngreso(t.cat)) porMes[key].ingresos += t.amount;
+      else if (isDevolucion(t.cat)) porMes[key].devoluciones += t.amount;
       else if (isAporteMeta(t)||isSavingsLegacy(t.cat)) porMes[key].ahorros += t.amount;
       else porMes[key].gastos += t.amount;
     });
@@ -1798,11 +2160,10 @@ export default function App(){
     let y = minYear, m = minMes;
     while (y < limiteYear || (y === limiteYear && m < limiteMes)) {
       const key = `${y}-${m}`;
-      const datos = porMes[key] || { ingresos: 0, gastos: 0, ahorros: 0 };
-      // Usar el salario que correspondía a ESE mes (historial), no el actual
+      const datos = porMes[key] || { ingresos: 0, gastos: 0, ahorros: 0, devoluciones: 0 };
       const salMes = getSalarioDelMes(y, m);
       const ingMes = salMes + datos.ingresos;
-      const disponibleMes = ingMes + saldoAcumulado - datos.gastos - datos.ahorros;
+      const disponibleMes = ingMes + saldoAcumulado - datos.gastos - datos.ahorros + datos.devoluciones;
       saldoAcumulado = Math.max(disponibleMes, 0);
       m++;
       if (m > 11) { m = 0; y++; }
@@ -1811,7 +2172,7 @@ export default function App(){
   }
 
   const saldoAnterior=getSaldoAcumulado();
-  const saldo=totalIngresoMes+saldoAnterior-totalGasto-totalAportes;
+  const saldo=totalIngresoMes+saldoAnterior-totalGasto-totalAportes+totalDevoluciones;
   const tasaAhorr=totalIngresoMes>0?totalAportes/totalIngresoMes:0;
   const pctUsado=totalIngresoMes>0?totalGasto/totalIngresoMes:0;
   const totalEnMetas=tx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat)).reduce((s,t)=>s+t.amount,0);
@@ -1829,7 +2190,7 @@ export default function App(){
 
   const CSS=`
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800;900&display=swap');
-    html,body{background:#080e1e!important;margin:0;padding:0;}
+    html,body{background:${C.bg}!important;margin:0;padding:0;}
     *{box-sizing:border-box;}
     @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
     @keyframes slideUp{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -1837,7 +2198,7 @@ export default function App(){
     @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.75}}
     input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.6);}
-    input::placeholder{color:#2d3a4a;}
+    input::placeholder{color:${paleta.text.s}44;}
     ::-webkit-scrollbar{display:none;}
   `;
 
@@ -2124,7 +2485,7 @@ export default function App(){
     function hm(e){const r=e.target.value.replace(/\D/g,"");setTmp(r?Number(r).toLocaleString("es-CO"):"");}
     return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
       style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
-      <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1117",borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",padding:"20px 20px 36px"}}>
+      <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",padding:"20px 20px 36px"}}>
         <div style={{display:"flex",justifyContent:"center",marginBottom:16}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
           <div style={{width:48,height:48,borderRadius:14,background:`${cat.color}22`,border:`1px solid ${cat.color}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>{cat.icon}</div>
@@ -2400,7 +2761,7 @@ export default function App(){
     const ci=getCatInfo(cat);
     return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
       style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:300,animation:"fadeIn 0.18s ease"}}>
-      <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1117",borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto",scrollBehavior:"auto"}}>
+      <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto",scrollBehavior:"auto"}}>
         <div style={{display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
         <div style={{padding:"0 20px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
@@ -2730,7 +3091,7 @@ export default function App(){
         <div onClick={()=>setConfirmPago(null)}
           style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
           <div onClick={e=>e.stopPropagation()}
-            style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1117",borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,padding:"24px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)"}}>
+            style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,padding:"24px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)"}}>
             <div style={{textAlign:"center",marginBottom:20}}>
               <div style={{fontSize:36,marginBottom:10}}>{getCatInfo(confirmPago.cat).icon}</div>
               <div style={{fontSize:17,fontWeight:900,color:C.text.h,marginBottom:6}}>{confirmPago.nombre}</div>
@@ -2812,6 +3173,30 @@ export default function App(){
         <div style={{fontSize:12,color:C.indigo,fontWeight:700,marginBottom:8,letterSpacing:1}}>📐 REGLA DE ORO</div>
         <div style={{fontSize:14,color:C.text.b,lineHeight:1.9}}><b style={{color:C.text.h}}>Págate primero.</b> Al recibir el sueldo, transfiere el ahorro <i>antes</i> de gastar.</div>
       </Card>
+      <Card style={{marginBottom:12}}>
+        <Lbl>Tema de color</Lbl>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {Object.entries(TEMAS).map(([key,t])=>(
+            <button key={key} onClick={()=>cambiarTema(key)}
+              style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:12,border:"none",cursor:"pointer",
+                background:tema===key?`${t.indigo}20`:C.surface,
+                outline:tema===key?`2px solid ${t.indigo}`:"2px solid transparent",
+                transition:"all 0.15s",textAlign:"left"}}>
+              {/* Preview colores */}
+              <div style={{display:"flex",gap:3,flexShrink:0}}>
+                <div style={{width:16,height:16,borderRadius:4,background:t.bg,border:"1px solid rgba(255,255,255,0.15)"}}/>
+                <div style={{width:16,height:16,borderRadius:4,background:t.indigo}}/>
+                <div style={{width:16,height:16,borderRadius:4,background:t.emerald}}/>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:700,color:C.text.h}}>{t.label}</div>
+                <div style={{fontSize:11,color:C.text.s,marginTop:1}}>{t.desc}</div>
+              </div>
+              {tema===key&&<span style={{color:t.indigo,fontSize:16,fontWeight:800}}>✓</span>}
+            </button>
+          ))}
+        </div>
+      </Card>
       <div style={{textAlign:"center",fontSize:12,color:C.text.s,padding:"18px 0",lineHeight:1.8}}>Datos guardados en Firebase · accesibles desde cualquier dispositivo.</div>
     </div>;
   };
@@ -2888,17 +3273,26 @@ export default function App(){
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"6px 14px",fontSize:12,color:C.text.b,fontWeight:700}}>{MONTHS_S[now.getMonth()]} {now.getFullYear()}</div>
+        {/* Badge préstamos pendientes */}
+        {prestamos.filter(p=>!p.devuelto).length>0&&(
+          <button onClick={()=>setPrestamosModal(true)}
+            style={{background:"rgba(244,63,94,0.15)",border:"1px solid rgba(244,63,94,0.4)",borderRadius:10,
+              padding:"6px 10px",fontSize:12,fontWeight:700,color:"#f43f5e",cursor:"pointer",
+              display:"flex",alignItems:"center",gap:4}}>
+            🤝 {prestamos.filter(p=>!p.devuelto).length}
+          </button>
+        )}
         {/* Hamburguesa */}
         <button onClick={()=>setMenuOpen(o=>!o)} style={{
-          background:menuOpen?"rgba(99,102,241,0.2)":"rgba(255,255,255,0.1)",
-          border:`1px solid ${menuOpen?"rgba(99,102,241,0.6)":"rgba(255,255,255,0.2)"}`,
+          background:menuOpen?`${C.indigo}30`:C.surface,
+          border:`1px solid ${menuOpen?C.indigo:C.border}`,
           borderRadius:10,padding:"8px 10px",cursor:"pointer",
           display:"flex",flexDirection:"column",gap:4,alignItems:"center",justifyContent:"center",
           transition:"all 0.2s",
         }}>
           {[0,1,2].map(i=><div key={i} style={{
             width:18,height:2,borderRadius:99,
-            background:menuOpen?C.indigo:"rgba(255,255,255,0.85)",
+            background:menuOpen?C.indigo:C.text.b,
             transition:"all 0.2s",
             transform:menuOpen?(i===0?"rotate(45deg) translate(4px,4px)":i===2?"rotate(-45deg) translate(4px,-4px)":"scaleX(0)"):"none",
           }}/>)}
@@ -2907,37 +3301,68 @@ export default function App(){
     </div>
     {/* Menú hamburguesa */}
     {menuOpen&&<div onClick={()=>setMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:19,background:"rgba(0,0,0,0.5)",animation:"fadeIn 0.18s ease"}}/>}
-    {menuOpen&&<div style={{position:"fixed",top:72,right:20,zIndex:21,background:"#0d1117",borderRadius:16,border:`1px solid ${C.border}`,padding:"8px 0",minWidth:200,boxShadow:"0 16px 48px rgba(0,0,0,0.6)",animation:"slideDown 0.18s ease"}}>
+    {menuOpen&&<div style={{position:"fixed",top:72,right:20,zIndex:21,background:C.card,borderRadius:18,border:`1px solid ${C.border}`,padding:"0",minWidth:220,boxShadow:"0 16px 48px rgba(0,0,0,0.4)",animation:"slideDown 0.18s ease",overflow:"hidden"}}>
       {/* Info usuario */}
-      <div style={{padding:"12px 16px 10px",borderBottom:`1px solid ${C.border}`}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <img src={user.photoURL} alt="" style={{width:36,height:36,borderRadius:"50%"}}/>
-          <div>
-            <div style={{fontSize:13,fontWeight:700,color:C.text.h}}>{user.displayName?.split(" ")[0]}</div>
-            <div style={{fontSize:11,color:C.text.s}}>{user.email}</div>
+      <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,background:C.surface}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+          <img src={user.photoURL} alt="" style={{width:38,height:38,borderRadius:"50%",border:`2px solid ${C.indigo}44`}}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:700,color:C.text.h,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.displayName?.split(" ")[0]}</div>
+            <div style={{fontSize:10,color:C.text.s,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.email}</div>
+          </div>
+        </div>
+        {/* Resumen financiero rápido */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+          <div style={{background:`${C.emerald}12`,border:`1px solid ${C.emerald}25`,borderRadius:10,padding:"8px 10px"}}>
+            <div style={{fontSize:9,color:C.emerald,fontWeight:700,letterSpacing:0.8,marginBottom:2}}>DISPONIBLE</div>
+            <div style={{fontSize:13,fontWeight:800,color:C.emeraldLight}}>{COP(Math.max(saldo,0))}</div>
+          </div>
+          <div style={{background:`${C.red}10`,border:`1px solid ${C.red}20`,borderRadius:10,padding:"8px 10px"}}>
+            <div style={{fontSize:9,color:C.red,fontWeight:700,letterSpacing:0.8,marginBottom:2}}>GASTOS</div>
+            <div style={{fontSize:13,fontWeight:800,color:C.red}}>{COP(totalGasto)}</div>
           </div>
         </div>
       </div>
       {/* Opciones */}
-      {[
-        {icon:"⚙️", label:"Configuración", onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
-        {icon:"🔔", label:"Notif. push (próx.)", onClick:()=>setMenuOpen(false), disabled:true},
-        {icon:"📤", label:"Exportar movimientos", onClick:()=>{setExportModal(true);setMenuOpen(false);}},
-      ].map(o=>(
-        <button key={o.label} onClick={o.onClick} disabled={o.disabled}
-          style={{width:"100%",padding:"12px 16px",background:"none",border:"none",cursor:o.disabled?"default":"pointer",
-            display:"flex",alignItems:"center",gap:12,fontSize:14,fontWeight:600,
-            color:o.disabled?C.text.s:C.text.h,textAlign:"left",opacity:o.disabled?0.5:1}}>
-          <span style={{fontSize:18}}>{o.icon}</span>{o.label}
-          {o.disabled&&<span style={{marginLeft:"auto",fontSize:9,background:"rgba(255,255,255,0.08)",borderRadius:99,padding:"2px 8px",color:C.text.s,letterSpacing:1}}>PRONTO</span>}
+      <div style={{padding:"6px 0"}}>
+        {[
+          {icon:"🏠", label:"Inicio",        onClick:()=>{changeTab("home");setMenuOpen(false);}},
+          {icon:"≡",  label:"Movimientos",   onClick:()=>{changeTab("mov");setMenuOpen(false);}},
+          {icon:"⭐", label:"Metas",          onClick:()=>{changeTab("metas");setMenuOpen(false);}},
+          {icon:"📅", label:"Agenda",         onClick:()=>{changeTab("cal");setMenuOpen(false);}},
+        ].map(o=>(
+          <button key={o.label} onClick={o.onClick}
+            style={{width:"100%",padding:"10px 16px",background:"none",border:"none",cursor:"pointer",
+              display:"flex",alignItems:"center",gap:12,fontSize:13,fontWeight:600,
+              color:C.text.h,textAlign:"left"}}>
+            <span style={{fontSize:16,width:20,textAlign:"center"}}>{o.icon}</span>{o.label}
+          </button>
+        ))}
+        <div style={{height:1,background:C.border,margin:"4px 16px"}}/>
+        {[
+          {icon:"🤝", label:"Préstamos",            badge:prestamos.filter(p=>!p.devuelto).length||null, color:"#f43f5e", onClick:()=>{setPrestamosModal(true);setMenuOpen(false);}},
+          {icon:"📤", label:"Exportar",              onClick:()=>{setExportModal(true);setMenuOpen(false);}},
+          {icon:"🎨", label:`Tema: ${TEMAS[tema]?.label||"Navy"}`, onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
+          {icon:"⚙️", label:"Configuración",        onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
+        ].map(o=>(
+          <button key={o.label} onClick={o.onClick}
+            style={{width:"100%",padding:"10px 16px",background:"none",border:"none",cursor:"pointer",
+              display:"flex",alignItems:"center",gap:12,fontSize:13,fontWeight:600,
+              color:C.text.h,textAlign:"left"}}>
+            <span style={{fontSize:16,width:20,textAlign:"center"}}>{o.icon}</span>
+            <span style={{flex:1}}>{o.label}</span>
+            {o.badge&&<span style={{background:"#f43f5e",color:"#fff",borderRadius:99,padding:"1px 7px",fontSize:10,fontWeight:800}}>{o.badge}</span>}
+          </button>
+        ))}
+      </div>
+      <div style={{borderTop:`1px solid ${C.border}`}}/>
+      <div style={{padding:"6px 0"}}>
+        <button onClick={()=>{handleLogout();setMenuOpen(false);}}
+          style={{width:"100%",padding:"10px 16px",background:"none",border:"none",cursor:"pointer",
+            display:"flex",alignItems:"center",gap:12,fontSize:13,fontWeight:600,color:C.red,textAlign:"left"}}>
+          <span style={{fontSize:16,width:20,textAlign:"center"}}>🚪</span> Cerrar sesión
         </button>
-      ))}
-      <div style={{borderTop:`1px solid ${C.border}`,marginTop:4}}/>
-      <button onClick={()=>{handleLogout();setMenuOpen(false);}}
-        style={{width:"100%",padding:"12px 16px",background:"none",border:"none",cursor:"pointer",
-          display:"flex",alignItems:"center",gap:12,fontSize:14,fontWeight:600,color:C.red,textAlign:"left"}}>
-        <span style={{fontSize:18}}>🚪</span> Cerrar sesión
-      </button>
+      </div>
     </div>}
     {tab==="home"&&<HomeTab/>}{tab==="metas"&&<MetasTab/>}{tab==="cal"&&<CalendarioTab/>}{tab==="mov"&&<MovTab/>}{tab==="cfg"&&<ConfigTab/>}
     {/* FAB */}
@@ -2963,13 +3388,21 @@ export default function App(){
       zIndex:100,lineHeight:1,
       transition:"all 0.3s ease",
     }}>＋</button>}
-    {modal&&<TxModal initial={modal==="new"?null:modal} goals={goals} saldoDisponible={saldo} onClose={()=>setModal(null)} onSave={handleSave} onDelete={handleDelete} catsCustom={catsCustom} onEditCustom={m=>setCatPersonalModal(m)}/>}
+    {modal&&<TxModal initial={modal==="new"?null:modal} goals={goals} saldoDisponible={saldo} onClose={()=>setModal(null)} onSave={handleSave} onDelete={handleDelete} catsCustom={catsCustom} onEditCustom={m=>setCatPersonalModal(m)} onOpenPrestamo={()=>{setPrestamosModal(true);setPrestamoForm("new");}}/>}
     {goalModal&&<GoalModal initial={goalModal==="new"?null:goalModal} onClose={()=>setGoalModal(null)} onSave={handleGoalSave} onDelete={handleGoalDelete}/>}
     {catPersonalModal&&<CatPersonalModal
       main={catPersonalModal}
       catsCustom={catsCustom}
       handleCatCustomSave={handleCatCustomSave}
       onClose={()=>setCatPersonalModal(null)}/>}
+    {prestamosModal&&<PrestamosModal
+      prestamos={prestamos}
+      onClose={()=>setPrestamosModal(false)}
+      onSave={handlePrestamoSave}
+      onDelete={handlePrestamoDelete}
+      onToggle={handlePrestamoToggle}
+      prestamoForm={prestamoForm}
+      setPrestamoForm={setPrestamoForm}/>}
     {presupuestoModal&&<PresupuestoModal
       cat={presupuestoModal}
       gastoActual={gastosTx.filter(t=>presupuestoModal.subs?.some(s=>s.id===t.cat)).reduce((s,t)=>s+t.amount,0)}
@@ -2988,7 +3421,7 @@ export default function App(){
     {exportModal&&<div onClick={()=>setExportModal(false)}
       style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
       <div onClick={e=>e.stopPropagation()}
-        style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1117",borderRadius:"22px 22px 0 0",
+        style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
           border:`1px solid ${C.border}`,padding:"24px 20px 36px",
           animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)"}}>
         <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
@@ -3078,7 +3511,7 @@ export default function App(){
     <nav style={{
       position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",
       width:"100%",maxWidth:430,
-      background:"rgba(8,14,30,0.92)",
+      background:`${C.bg}ee`,
       borderTop:"1px solid rgba(255,255,255,0.10)",
       backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
       display:"flex",justifyContent:"space-around",padding:"12px 0 20px",zIndex:50,
