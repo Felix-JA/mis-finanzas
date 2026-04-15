@@ -10,16 +10,19 @@ import {
 // ─── PALETA PRINCIPAL ─────────────────────────────────────────────────────────
 // Inspirada en Revolut + Robinhood: Indigo (confianza/metas) + Emerald (dinero) + Slate (fondo)
 const C = {
-  bg:      "#080e1e",          // Azul marino profundo
+  bg:      "#080e1e",
   surface: "rgba(255,255,255,0.05)",
   border:  "rgba(255,255,255,0.08)",
-  indigo:  "#6366f1",       // Metas / acciones principales
-  emerald: "#10b981",       // Dinero disponible / ahorros
-  amber:   "#f59e0b",       // Alertas
-  red:     "#ef4444",       // Gastos / negativo
-  violet:  "#8b5cf6",       // 75%+ progreso
-  sky:     "#38bdf8",       // Info / menor prioridad
-  text:    { h:"#f1f5f9", b:"#a8b8cc", s:"#6b7f96" }, // s y b subidos para mejor contraste en AMOLED
+  borderStrong: "rgba(255,255,255,0.18)",
+  indigo:  "#6366f1",
+  indigoLight: "#818cf8",
+  emerald: "#10b981",
+  emeraldLight: "#34d399",
+  amber:   "#f59e0b",
+  red:     "#ef4444",
+  violet:  "#8b5cf6",
+  sky:     "#38bdf8",
+  text:    { h:"#f1f5f9", b:"#a8b8cc", s:"#6b7f96", m:"#6b7f96" },
 };
 
 // ─── CATEGORÍAS ───────────────────────────────────────────────────────────────
@@ -37,11 +40,11 @@ const MAIN_CATS = [
   { id:"ocio",       label:"Ocio",     labelFull:"Entretenimiento",      icon:"🎭", color:"#e879f9",
     subs:[{id:"salidas",label:"Salidas",icon:"🥂"},{id:"eventos",label:"Eventos",icon:"🎟️"},{id:"viajes",label:"Viajes",icon:"✈️"},{id:"hobbies",label:"Hobbies",icon:"🎨"}]},
   { id:"estilo",     label:"Estilo",   labelFull:"Ropa y Estilo",        icon:"👔", color:"#a78bfa",
-    subs:[{id:"ropa",label:"Ropa",icon:"👔"},{id:"calzado",label:"Calzado",icon:"👟"},{id:"accesorios",label:"Accesorios",icon:"⌚"},{id:"cuidado",label:"Cuidado personal",icon:"🧴"}]},
+    subs:[{id:"ropa",label:"Ropa",icon:"👔"},{id:"calzado",label:"Calzado",icon:"👟"},{id:"accesorios",label:"Accesorios",icon:"⌚"},{id:"cuidado",label:"Cuidado",icon:"🧴"}]},
   { id:"digital",    label:"Digital",  labelFull:"Digital y Suscripciones", icon:"📱", color:"#38bdf8",
     subs:[{id:"streaming",label:"Streaming",icon:"📺"},{id:"apps",label:"Apps/Suscripc.",icon:"📲"},{id:"compras_online",label:"Compras online",icon:"🛍️"},{id:"tecnologia",label:"Tecnología",icon:"💻"}]},
   { id:"deudas",     label:"Deudas",   labelFull:"Deudas y Préstamos",   icon:"💳", color:"#f43f5e",
-    subs:[{id:"tarjeta",label:"Tarjeta",icon:"💳"},{id:"cuotas",label:"Cuotas",icon:"📦"},{id:"credito",label:"Crédito",icon:"🏦"},{id:"prestamo_tercero",label:"Préstamo a tercero",icon:"🤝"}]},
+    subs:[{id:"tarjeta",label:"Tarjeta",icon:"💳"},{id:"cuotas",label:"Cuotas",icon:"📦"},{id:"credito",label:"Crédito",icon:"🏦"},{id:"prestamo_tercero",label:"A terceros",icon:"🤝"}]},
   { id:"otros_main", label:"Otros",    labelFull:"Otros",                icon:"📦", color:"#94a3b8",
     subs:[{id:"educacion",label:"Educación",icon:"📚"},{id:"mascotas",label:"Mascotas",icon:"🐾"},{id:"regalos",label:"Regalos",icon:"🎁"},{id:"otros",label:"Otros",icon:"🗂️"}]},
 ];
@@ -55,10 +58,20 @@ function isGasto(cat){ return !isIngreso(cat) && cat!=="meta_aporte"; }
 // Compatibilidad legacy: emergencias era categoría, ahora es meta especial
 function isSavingsLegacy(cat){ return cat==="emergencias"||cat==="meta_aporte"; }
 const ALL_SUBS = MAIN_CATS.flatMap(m=>m.subs.map(s=>({...s,mainId:m.id,color:m.color})));
+
+// Lookup mutable para subcategorías personalizadas — se sincroniza desde App() vía useEffect
+// Estructura: { [mainId]: [{id, label, icon, mainId, color}] }
+const _customSubsLookup = {};
+
 function getCatInfo(id) {
   if(id==="ingreso") return INCOME_CAT;
   if(id==="emergencias") return {id:"emergencias",label:"Fondo Emergencias",icon:"🛡️",color:C.sky};
   if(id==="meta_aporte") return {id:"meta_aporte",label:"Aporte a Meta",icon:"⭐",color:C.indigo};
+  // Buscar en subcategorías personalizadas (✦)
+  for(const mainId of Object.keys(_customSubsLookup)){
+    const found=_customSubsLookup[mainId]?.find(s=>s.id===id);
+    if(found) return found;
+  }
   // Buscar en subcategorías con labelFull del padre para mostrar en movimientos
   const sub=ALL_SUBS.find(s=>s.id===id);
   if(sub) return sub;
@@ -86,12 +99,6 @@ function getCatInfo(id) {
   };
   return legacy[id] || {label:id,icon:"📦",color:"#94a3b8"};
 }
-// Obtener nombre completo de la categoría principal para mostrar en movimientos/gráficas
-function getCatLabelFull(mainId){
-  const m=MAIN_CATS.find(c=>c.id===mainId);
-  return m?.labelFull||m?.label||mainId;
-}
-
 // ─── EMOJIS PARA METAS ────────────────────────────────────────────────────────
 const GOAL_EMOJIS = [
   "🏍️","🚗","📱","💻","🏠","✈️","🎮","📷","⌚","🎸",
@@ -220,24 +227,117 @@ function Lbl({children,style={}}){
   }}>{children}</div>;
 }
 
+// ─── MODAL CATEGORÍAS PERSONALIZADAS ─────────────────────────────────────────
+// Función global — tiene sus propios useState internos (regla de hooks OK)
+const CAT_CUSTOM_ICONS = ["⭐","🔥","💎","🎯","🧩","🛠️","📦","🎪","🏷️","💡","🎀","🌀","🧸","🎲","🦄","🏅","🔮","🎭","🌈","🍀"];
+function CatPersonalModal({main, catsCustom, handleCatCustomSave, onClose}){
+  const existing = catsCustom[main.id] || [];
+  const [extras, setExtras] = useState(existing.slice(0,3));
+  const [newLabel, setNewLabel] = useState("");
+  const [newIcon, setNewIcon] = useState("⭐");
+  const [showIconPicker, setShowIconPicker] = useState(false);
+
+  function addSub(){
+    const label = newLabel.trim();
+    if(!label || extras.length >= 3) return;
+    const id = `custom_${main.id}_${Date.now()}`;
+    setExtras(prev => [...prev, {id, label, icon: newIcon}]);
+    setNewLabel(""); setNewIcon("⭐"); setShowIconPicker(false);
+  }
+  function removeSub(id){ setExtras(prev => prev.filter(s => s.id !== id)); }
+  function save(){ handleCatCustomSave(main.id, extras); onClose(); }
+
+  return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
+    style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:500,animation:"fadeIn 0.18s ease"}}>
+    <div onClick={e=>e.stopPropagation()}
+      style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1117",borderRadius:"22px 22px 0 0",
+        border:`1px solid ${C.border}`,padding:"20px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"85vh",overflowY:"auto"}}>
+      <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
+        <div style={{width:40,height:4,borderRadius:99,background:C.border}}/>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div>
+          <div style={{fontSize:17,fontWeight:800,color:C.text.h}}>
+            {main.icon} Personalizar {main.label}
+          </div>
+          <div style={{fontSize:12,color:C.text.s,marginTop:3}}>Hasta 3 subcategorías propias ✦</div>
+        </div>
+        <button onClick={onClose} style={{background:"none",border:"none",color:C.text.b,fontSize:28,cursor:"pointer",lineHeight:1,padding:4}}>×</button>
+      </div>
+
+      {/* Subs existentes */}
+      {extras.length > 0 && <div style={{marginBottom:14}}>
+        {extras.map(s => <div key={s.id}
+          style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,
+            background:`${main.color}15`,border:`1px solid ${main.color}33`,marginBottom:8}}>
+          <span style={{fontSize:20}}>{s.icon}</span>
+          <span style={{flex:1,fontSize:14,fontWeight:700,color:C.text.h}}>{s.label}</span>
+          <span style={{fontSize:10,color:main.color,fontWeight:800,marginRight:4}}>✦</span>
+          <button onClick={()=>removeSub(s.id)}
+            style={{background:"none",border:"none",color:C.text.s,cursor:"pointer",fontSize:18,lineHeight:1,padding:"0 2px"}}>✕</button>
+        </div>)}
+      </div>}
+
+      {/* Agregar nueva */}
+      {extras.length < 3 && <div style={{marginBottom:16}}>
+        <div style={{fontSize:11,color:C.text.s,fontWeight:700,letterSpacing:1,marginBottom:8,textTransform:"uppercase"}}>
+          Nueva subcategoría ({extras.length}/3)
+        </div>
+        {/* Selector de ícono */}
+        <button onClick={()=>setShowIconPicker(p=>!p)}
+          style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 14px",borderRadius:12,
+            background:C.surface,border:`1px solid ${C.border}`,cursor:"pointer",marginBottom:8}}>
+          <span style={{fontSize:22}}>{newIcon}</span>
+          <span style={{fontSize:13,color:C.text.b,fontWeight:600}}>Ícono</span>
+          <span style={{marginLeft:"auto",color:C.text.s,fontSize:14}}>{showIconPicker?"▲":"▼"}</span>
+        </button>
+        {showIconPicker && <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:4,marginBottom:8,
+          background:C.surface,borderRadius:12,padding:"8px",border:`1px solid ${C.border}`}}>
+          {CAT_CUSTOM_ICONS.map(ic=><button key={ic} onClick={()=>{setNewIcon(ic);setShowIconPicker(false);}}
+            style={{fontSize:22,padding:"7px 0",borderRadius:8,border:"none",cursor:"pointer",
+              background:newIcon===ic?`${main.color}30`:"transparent",
+              outline:newIcon===ic?`2px solid ${main.color}`:"2px solid transparent"}}>
+            {ic}
+          </button>)}
+        </div>}
+        <div style={{display:"flex",gap:8}}>
+          <input placeholder="Nombre de la subcategoría" value={newLabel} onChange={e=>setNewLabel(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&addSub()}
+            style={{flex:1,background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,
+              padding:"12px 14px",color:C.text.h,fontSize:14,outline:"none"}}/>
+          <button onClick={addSub} disabled={!newLabel.trim()}
+            style={{padding:"12px 18px",borderRadius:12,border:"none",cursor:newLabel.trim()?"pointer":"not-allowed",
+              background:newLabel.trim()?`linear-gradient(135deg,${main.color},${main.color}bb)`:`${C.surface}`,
+              color:newLabel.trim()?"#fff":C.text.s,fontSize:16,fontWeight:800}}>+</button>
+        </div>
+      </div>}
+
+      {extras.length === 0 && <div style={{textAlign:"center",padding:"16px 0 8px",color:C.text.s,fontSize:13}}>
+        Agrega tu primera subcategoría personalizada
+      </div>}
+
+      <button onClick={save}
+        style={{width:"100%",padding:16,borderRadius:14,border:"none",cursor:"pointer",fontSize:15,fontWeight:800,
+          background:`linear-gradient(135deg,${main.color},${main.color}bb)`,color:"#fff",marginTop:4}}>
+        ✓ Guardar cambios
+      </button>
+    </div>
+  </div>;
+}
+
 // ─── SELECTOR CATEGORÍAS ──────────────────────────────────────────────────────
-function CatSelector({value,onChange}){
-  const curMain=MAIN_CATS.find(m=>m.subs.some(s=>s.id===value));
+function CatSelector({value, onChange, subsCustom={}, onEditCustom}){
+  const curMain=MAIN_CATS.find(m=>m.subs.some(s=>s.id===value)||
+    (subsCustom[m.id]||[]).some(s=>s.id===value));
   const [sel,setSel]=useState(curMain?.id||null);
   function MBtn({m}){
-    const open=sel===m.id;
-    const active=!sel&&curMain?.id===m.id;
+    const active=curMain?.id===m.id&&!sel,open=sel===m.id;
     return <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSel(p=>p===m.id?null:m.id)}
-      style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,
-        padding:"8px 2px",borderRadius:14,border:"none",cursor:"pointer",
-        minHeight:62, // altura fija igual para todos
+      style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"10px 4px",borderRadius:14,border:"none",cursor:"pointer",
         background:open?`${m.color}35`:active?`${m.color}22`:C.surface,
-        outline:(open||active)?`2px solid ${m.color}`:"2px solid transparent",transition:"all 0.15s"}}>
-      <span style={{fontSize:20,lineHeight:1}}>{m.icon}</span>
-      <span style={{fontSize:9,fontWeight:700,color:(open||active)?m.color:C.text.s,
-        textAlign:"center",lineHeight:1.2,
-        width:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
-        paddingLeft:2,paddingRight:2}}>{m.label}</span>
+        outline:(active||open)?`2px solid ${m.color}`:"2px solid transparent",transition:"all 0.15s"}}>
+      <span style={{fontSize:20}}>{m.icon}</span>
+      <span style={{fontSize:9,fontWeight:700,color:(active||open)?m.color:C.text.s,textAlign:"center",lineHeight:1.2}}>{m.label}</span>
     </button>;
   }
   return <div>
@@ -249,14 +349,33 @@ function CatSelector({value,onChange}){
     </div>
     {sel&&(()=>{
       const main=MAIN_CATS.find(m=>m.id===sel);
+      const customSubs = subsCustom[sel] || [];
       return <div style={{background:`${main.color}12`,border:`1px solid ${main.color}44`,borderRadius:14,padding:"12px 10px",marginBottom:8,animation:"slideDown 0.18s ease"}}>
-        <div style={{fontSize:11,color:main.color,fontWeight:700,letterSpacing:1,marginBottom:10,paddingLeft:4}}>{main.icon} {main.label.toUpperCase()}</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,paddingLeft:4}}>
+          <div style={{fontSize:11,color:main.color,fontWeight:700,letterSpacing:1}}>{main.icon} {main.label.toUpperCase()}</div>
+          {onEditCustom&&<button onMouseDown={e=>e.preventDefault()} onClick={()=>onEditCustom(main)}
+            style={{fontSize:10,fontWeight:800,color:main.color,background:`${main.color}20`,border:`1px solid ${main.color}44`,
+              borderRadius:8,padding:"3px 8px",cursor:"pointer",letterSpacing:0.3}}>
+            ✦ Personalizar
+          </button>}
+        </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
           {main.subs.map(s=>{const a=value===s.id;return <button key={s.id} onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(s.id);setSel(null);}}
-            style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"11px 4px",borderRadius:12,border:"none",cursor:"pointer",
+            style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,padding:"8px 4px",borderRadius:12,border:"none",cursor:"pointer",
+              height:72,overflow:"hidden",
               background:a?`${main.color}35`:C.surface,outline:a?`2px solid ${main.color}`:"2px solid transparent",transition:"all 0.12s"}}>
-            <span style={{fontSize:20}}>{s.icon}</span>
-            <span style={{fontSize:10,fontWeight:700,color:a?main.color:C.text.b,textAlign:"center",lineHeight:1.2}}>{s.label}</span>
+            <span style={{fontSize:20,flexShrink:0}}>{s.icon}</span>
+            <span style={{fontSize:10,fontWeight:700,color:a?main.color:C.text.b,textAlign:"center",lineHeight:1.2,width:"100%",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{s.label}</span>
+          </button>;})}
+          {/* Subcategorías personalizadas ✦ */}
+          {customSubs.map(s=>{const a=value===s.id;return <button key={s.id} onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(s.id);setSel(null);}}
+            style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,padding:"8px 4px",borderRadius:12,border:"none",cursor:"pointer",
+              height:72,overflow:"hidden",
+              background:a?`${main.color}35`:C.surface,outline:a?`2px solid ${main.color}`:"2px solid transparent",
+              position:"relative",transition:"all 0.12s"}}>
+            <span style={{fontSize:20,flexShrink:0}}>{s.icon}</span>
+            <span style={{fontSize:10,fontWeight:700,color:a?main.color:C.text.b,textAlign:"center",lineHeight:1.2,width:"100%",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{s.label}</span>
+            <span style={{position:"absolute",top:4,right:4,fontSize:8,color:main.color,fontWeight:900}}>✦</span>
           </button>;})}
         </div>
       </div>;
@@ -677,7 +796,49 @@ function BudgetAlert({pct,salario,gastado}){
   </div>;
 }
 
-// Ejemplos de placeholder para gastos e ingresos
+// Placeholders específicos por subcategoría
+const GASTO_PLACEHOLDERS_MAP = {
+  restaurantes:"ej: Almuerzo en el trabajo",
+  mercado:"ej: Mercado de la semana",
+  domicilios:"ej: Domicilio de pizza",
+  cafeteria:"ej: Café de la mañana",
+  arriendo:"ej: Arriendo del mes",
+  servicios:"ej: Recibo de luz",
+  aseo:"ej: Productos de limpieza",
+  reparaciones:"ej: Arreglo de la llave",
+  bus:"ej: Recarga de la T",
+  taxi:"ej: Uber al aeropuerto",
+  gasolina:"ej: Gasolina moto",
+  parqueadero:"ej: Parqueadero centro",
+  repuestos:"ej: Llanta trasera",
+  mantenimiento:"ej: Aceite y filtro",
+  soat:"ej: SOAT 2025",
+  revision:"ej: Revisión técnico-mecánica",
+  medico:"ej: Consulta médica",
+  medicamentos:"ej: Medicamentos mes",
+  gym:"ej: Mensualidad gym",
+  barberia:"ej: Corte de cabello",
+  salidas:"ej: Salida con amigos",
+  eventos:"ej: Entrada al concierto",
+  viajes:"ej: Hotel Cartagena",
+  hobbies:"ej: Materiales de pintura",
+  ropa:"ej: Camisas nuevas",
+  calzado:"ej: Tenis Nike",
+  accesorios:"ej: Correa del reloj",
+  cuidado:"ej: Crema hidratante",
+  streaming:"ej: Netflix mensual",
+  apps:"ej: Spotify premium",
+  compras_online:"ej: Compra Amazon",
+  tecnologia:"ej: Teclado mecánico",
+  tarjeta:"ej: Cuota tarjeta Visa",
+  cuotas:"ej: Cuota celular",
+  credito:"ej: Crédito bancario",
+  prestamo_tercero:"ej: Préstamo a Juan",
+  educacion:"ej: Curso de inglés",
+  mascotas:"ej: Veterinario de Max",
+  regalos:"ej: Regalo cumpleaños",
+  otros:"ej: Gasto del día",
+};
 const GASTO_PLACEHOLDERS = [
   "ej: Almuerzo en el trabajo",
   "ej: Recarga de transporte",
@@ -712,7 +873,7 @@ const META_PLACEHOLDERS = [
   "ej: Aporte especial",
 ];
 
-function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible}){
+function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible,catsCustom={},onEditCustom}){
   const isEdit=!!initial;
   const [amount,setAmount]=useState(initial?Number(initial.amount).toLocaleString("es-CO"):"");
   const [desc,setDesc]=useState(initial?.desc||"");
@@ -805,12 +966,12 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible}){
           <input
             placeholder={
               esIngreso
-                ?INGRESO_PLACEHOLDERS[Math.abs(desc.length+1)%INGRESO_PLACEHOLDERS.length]
+                ?INGRESO_PLACEHOLDERS[cat.split("").reduce((a,c)=>a+c.charCodeAt(0),0)%INGRESO_PLACEHOLDERS.length]
                 :cat==="emergencias"
-                  ?EMERGENCIA_PLACEHOLDERS[Math.abs(desc.length+1)%EMERGENCIA_PLACEHOLDERS.length]
+                  ?EMERGENCIA_PLACEHOLDERS[0]
                 :cat==="meta_aporte"
-                  ?META_PLACEHOLDERS[Math.abs(desc.length+1)%META_PLACEHOLDERS.length]
-                :GASTO_PLACEHOLDERS[Math.abs(desc.length+1)%GASTO_PLACEHOLDERS.length]
+                  ?META_PLACEHOLDERS[0]
+                :GASTO_PLACEHOLDERS_MAP[cat]||(GASTO_PLACEHOLDERS[cat.split("").reduce((a,c)=>a+c.charCodeAt(0),0)%GASTO_PLACEHOLDERS.length])
             }
             value={desc} onChange={e=>setDesc(e.target.value)} enterKeyHint="done"
             style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box"}}/>
@@ -831,18 +992,18 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible}){
             </button>
           ))}
         </div>
-        {!esIngreso&&cat!=="meta_aporte"&&<div style={{marginBottom:14}}>
+        {!esIngreso&&cat!=="meta_aporte"&&<div style={{marginBottom:14,animation:"fadeIn 0.18s ease"}}>
           <Lbl>Categoría del gasto</Lbl>
-          <CatSelector value={cat} onChange={v=>{setCatSinScroll(v);setGoalId("");}}/>
+          <CatSelector value={cat} onChange={v=>{setCatSinScroll(v);setGoalId("");}} subsCustom={catsCustom} onEditCustom={onEditCustom}/>
           {faltaSubcat&&raw>0&&<div style={{marginTop:8,fontSize:12,color:C.amber,fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
             <span>⚠️</span><span>Elige el tipo específico dentro de la categoría</span>
           </div>}
         </div>}
-        {esIngreso&&<div style={{marginBottom:14,padding:"12px 16px",background:`${C.emerald}10`,border:`1px solid ${C.emerald}30`,borderRadius:12}}>
+        {esIngreso&&<div style={{marginBottom:14,padding:"12px 16px",background:`${C.emerald}10`,border:`1px solid ${C.emerald}30`,borderRadius:12,animation:"fadeIn 0.18s ease"}}>
           <div style={{fontSize:13,color:C.emerald,fontWeight:700,marginBottom:4}}>💵 Registrar ingreso</div>
           <div style={{fontSize:12,color:C.text.b,lineHeight:1.7}}>Salario, comisión, freelance, bono, venta u otro dinero que recibiste. Puedes registrar varios ingresos en el mismo mes y se suman automáticamente.</div>
         </div>}
-        {isMeta&&goals.length>0&&<div style={{marginBottom:14}}>
+        {isMeta&&goals.length>0&&<div style={{marginBottom:14,animation:"fadeIn 0.18s ease"}}>
           <Lbl>¿Para qué meta?</Lbl>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {goals.map(g=><button key={g.id} onMouseDown={e=>e.preventDefault()} onClick={()=>setGoalId(g.id)}
@@ -853,7 +1014,7 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible}){
             </button>)}
           </div>
         </div>}
-        {isMeta&&goals.length===0&&<div style={{marginBottom:14,padding:"14px 16px",background:`${C.amber}12`,border:`1px solid ${C.amber}35`,borderRadius:12}}>
+        {isMeta&&goals.length===0&&<div style={{marginBottom:14,padding:"14px 16px",background:`${C.amber}12`,border:`1px solid ${C.amber}35`,borderRadius:12,animation:"fadeIn 0.18s ease"}}>
           <div style={{fontSize:13,fontWeight:700,color:C.amber,marginBottom:4}}>⭐ Sin metas creadas aún</div>
           <div style={{fontSize:12,color:C.text.b,lineHeight:1.6}}>Primero ve a la pestaña <b style={{color:C.indigo}}>Metas</b> y crea tu primera meta de ahorro. Luego vuelve aquí para registrar tu aporte.</div>
         </div>}
@@ -863,7 +1024,7 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible}){
         </div>
         {/* Alerta saldo insuficiente */}
         {sinSaldo&&raw>0&&!esIngreso&&(
-          <div style={{marginBottom:12,padding:"12px 14px",background:`${C.red}15`,border:`1px solid ${C.red}40`,borderRadius:12,display:"flex",gap:10,alignItems:"flex-start"}}>
+          <div style={{marginBottom:12,padding:"12px 14px",background:`${C.red}15`,border:`1px solid ${C.red}40`,borderRadius:12,display:"flex",gap:10,alignItems:"flex-start",animation:"fadeIn 0.18s ease"}}>
             <span style={{fontSize:20,flexShrink:0}}>🚫</span>
             <div>
               <div style={{fontSize:13,fontWeight:800,color:C.red,marginBottom:3}}>
@@ -973,20 +1134,32 @@ export default function App(){
   const [pagoModalDia,setPagoModalDia]=useState(null); // día preseleccionado
   const [presupuestoModal,setPresupuestoModal]=useState(null); // cat obj
   const [exportModal,setExportModal]=useState(false);
+  const [catsCustom,setCatsCustom]=useState({}); // {mainId:[{id,label,icon}]}
+  const [catPersonalModal,setCatPersonalModal]=useState(null); // main obj | null
 
   function changeTab(newTab){
     setTab(newTab); // El mes seleccionado se mantiene al cambiar de pestaña
   }
 
   useEffect(()=>onAuthStateChanged(auth,u=>{setUser(u);setAL(false);}),[]);
-  useEffect(()=>{if(!user){setSalario(null);setSalarioHistory({});return;}
+  useEffect(()=>{if(!user){setSalario(null);setSalarioHistory({});setCatsCustom({});return;}
     getDoc(doc(db,"usuarios",user.uid)).then(snap=>{
       if(snap.exists()&&snap.data().salario){
         setSalario(snap.data().salario);
         setSalarioHistory(snap.data().salarioHistory||{});
+        setCatsCustom(snap.data().catsCustom||{});
         setShowOnb(false);
       }else{setSalario(0);setShowOnb(true);}
     });},[user]);
+  // Sincronizar _customSubsLookup global cuando catsCustom cambia
+  useEffect(()=>{
+    Object.keys(_customSubsLookup).forEach(k=>delete _customSubsLookup[k]);
+    Object.entries(catsCustom).forEach(([mainId,subs])=>{
+      const main=MAIN_CATS.find(m=>m.id===mainId);
+      if(!main||!subs?.length)return;
+      _customSubsLookup[mainId]=subs.map(s=>({...s,mainId,color:main.color}));
+    });
+  },[catsCustom]);
   // Guardar salario global (solo el valor actual — el historial se guarda en handleSalarioChange)
   useEffect(()=>{if(!user||salario===null||showOnb)return;setDoc(doc(db,"usuarios",user.uid),{salario},{merge:true});},[salario,user,showOnb]);
   useEffect(()=>{if(!user){setTx([]);return;}setTxL(true);return onSnapshot(query(collection(db,"usuarios",user.uid,"transacciones"),orderBy("createdAt","desc")),snap=>{setTx(snap.docs.map(d=>({id:d.id,...d.data()})));setTxL(false);});},[user]);
@@ -1140,6 +1313,14 @@ export default function App(){
     }
   },[user]);
 
+  // Guardar subcategorías personalizadas — campo catsCustom en usuarios/{uid}
+  const handleCatCustomSave=useCallback(async(mainId,subs)=>{
+    if(!user)return;
+    const updated={...catsCustom,[mainId]:subs};
+    setCatsCustom(updated);
+    await setDoc(doc(db,"usuarios",user.uid),{catsCustom:updated},{merge:true});
+  },[user,catsCustom]);
+
   // CRUD pagos programados
   const handlePagoSave=useCallback(async p=>{
     if(!user)return;
@@ -1195,8 +1376,7 @@ export default function App(){
   // Aportes a metas = cualquier tx con goalId (incluye legacy emergencias/meta_aporte)
   const aporteMesAll=monthTx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat));
   const totalGasto=gastosTx.reduce((s,t)=>s+t.amount,0);
-  const totalAportes=aporteMesAll.reduce((s,t)=>s+t.amount,0); // total guardado en metas
-  const totalAhorr=totalAportes; // alias para compatibilidad
+  const totalAportes=aporteMesAll.reduce((s,t)=>s+t.amount,0);
   const sal=salario||0;
   // Salario que correspondía al mes seleccionado (respeta historial)
   const salDelMes=getSalarioDelMes(now.getFullYear(),month);
@@ -1271,12 +1451,10 @@ export default function App(){
   }
 
   const saldoAnterior=getSaldoAcumulado();
-  const saldo=totalIngresoMes+saldoAnterior-totalGasto-totalAhorr;
-  const tasaAhorr=totalIngresoMes>0?totalAhorr/totalIngresoMes:0;
+  const saldo=totalIngresoMes+saldoAnterior-totalGasto-totalAportes;
+  const tasaAhorr=totalIngresoMes>0?totalAportes/totalIngresoMes:0;
   const pctUsado=totalIngresoMes>0?totalGasto/totalIngresoMes:0;
-  // Total aportado a todas las metas (acumulado histórico)
   const totalEnMetas=tx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat)).reduce((s,t)=>s+t.amount,0);
-  const metaTotal=totalEnMetas; // alias
   const saldoColor=saldo>sal*0.4?C.emerald:saldo>sal*0.15?C.amber:C.red;
   const animSaldo=useCountUp(Math.max(saldo,0));
   function getAportado(gid){
@@ -1293,12 +1471,11 @@ export default function App(){
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800;900&display=swap');
     html,body{background:#080e1e!important;margin:0;padding:0;}
     *{box-sizing:border-box;}
-    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
     @keyframes slideUp{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
     @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.75}}
-    @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
     input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.6);}
     input::placeholder{color:#2d3a4a;}
     ::-webkit-scrollbar{display:none;}
@@ -1881,7 +2058,7 @@ export default function App(){
               style={{flex:1,background:"none",border:"none",outline:"none",fontSize:24,fontWeight:800,color:C.text.h,padding:"0 10px",height:56}}/>
           </div>
           <Lbl>Categoría</Lbl>
-          <div style={{marginBottom:14}}><CatSelector value={cat} onChange={setCat}/></div>
+          <div style={{marginBottom:14}}><CatSelector value={cat} onChange={setCat} subsCustom={catsCustom}/></div>
           <Lbl>Día del mes en que se paga</Lbl>
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
             {Array.from({length:28},(_,i)=>i+1).map(d=>(
@@ -1936,7 +2113,7 @@ export default function App(){
           {l:"Ingresos del mes",v:totalIngresoMes,c:C.emerald},
           ...(saldoAnterior>0?[{l:"+ Sobrante meses ant.",v:saldoAnterior,c:C.emerald}]:[]),
           {l:"Gastos",v:totalGasto,c:C.red},
-          {l:"Ahorros",v:totalAhorr,c:C.indigo},
+          {l:"Ahorros",v:totalAportes,c:C.indigo},
           {l:"Disponible",v:saldo,c:saldoColor},
         ].map(k=>(
           <div key={k.l} style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${C.border}`}}>
@@ -2265,7 +2442,7 @@ export default function App(){
         <Lbl style={{color:"#34d399"}}>Total guardado en metas</Lbl>
         <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
           <span style={{fontSize:14,color:C.text.h}}>⭐ En todas las metas</span>
-          <span style={{fontSize:14,fontWeight:800,color:C.indigo}}>{COP(metaTotal)}</span>
+          <span style={{fontSize:14,fontWeight:800,color:C.indigo}}>{COP(totalEnMetas)}</span>
         </div>
         <div style={{fontSize:11,color:C.text.s,marginTop:8,lineHeight:1.6}}>
           Cada meta tiene su propio progreso. Ve a la pestaña ⭐ Metas para ver el detalle.
@@ -2369,7 +2546,7 @@ export default function App(){
       </div>
     </div>
     {/* Menú hamburguesa */}
-    {menuOpen&&<div onClick={()=>setMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:19,background:"rgba(0,0,0,0.5)"}}/>}
+    {menuOpen&&<div onClick={()=>setMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:19,background:"rgba(0,0,0,0.5)",animation:"fadeIn 0.18s ease"}}/>}
     {menuOpen&&<div style={{position:"fixed",top:72,right:20,zIndex:21,background:"#0d1117",borderRadius:16,border:`1px solid ${C.border}`,padding:"8px 0",minWidth:200,boxShadow:"0 16px 48px rgba(0,0,0,0.6)",animation:"slideDown 0.18s ease"}}>
       {/* Info usuario */}
       <div style={{padding:"12px 16px 10px",borderBottom:`1px solid ${C.border}`}}>
@@ -2426,8 +2603,13 @@ export default function App(){
       zIndex:100,lineHeight:1,
       transition:"all 0.3s ease",
     }}>＋</button>}
-    {modal&&<TxModal initial={modal==="new"?null:modal} goals={goals} saldoDisponible={saldo} onClose={()=>setModal(null)} onSave={handleSave} onDelete={handleDelete}/>}
+    {modal&&<TxModal initial={modal==="new"?null:modal} goals={goals} saldoDisponible={saldo} onClose={()=>setModal(null)} onSave={handleSave} onDelete={handleDelete} catsCustom={catsCustom} onEditCustom={m=>setCatPersonalModal(m)}/>}
     {goalModal&&<GoalModal initial={goalModal==="new"?null:goalModal} onClose={()=>setGoalModal(null)} onSave={handleGoalSave} onDelete={handleGoalDelete}/>}
+    {catPersonalModal&&<CatPersonalModal
+      main={catPersonalModal}
+      catsCustom={catsCustom}
+      handleCatCustomSave={handleCatCustomSave}
+      onClose={()=>setCatPersonalModal(null)}/>}
     {presupuestoModal&&<PresupuestoModal
       cat={presupuestoModal}
       gastoActual={gastosTx.filter(t=>presupuestoModal.subs?.some(s=>s.id===t.cat)).reduce((s,t)=>s+t.amount,0)}
@@ -2525,7 +2707,7 @@ export default function App(){
         {v.id==="metas"
           ?<StarIcon active={tab==="metas"}/>
           :<span style={{fontSize:22,lineHeight:1}}>{v.icon}</span>}
-        <span style={{fontSize:9,fontWeight:tab===v.id?800:600,letterSpacing:0.5}}>{v.label}</span>
+        <span style={{fontSize:9,fontWeight:tab===v.id?800:600,letterSpacing:0.5,transition:"font-weight 0s, color 0.2s"}}>{v.label}</span>
       </button>)}
     </nav>
   </div>;
