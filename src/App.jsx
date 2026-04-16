@@ -71,10 +71,12 @@ const MAIN_CATS = [
 // Las metas son el único concepto de ahorro (unificado)
 const INCOME_CAT = {id:"ingreso",label:"Ingreso",icon:"💵",color:"#10b981"};
 const DEVOLUCION_CAT = {id:"prestamo_devuelto",label:"Devolución préstamo",icon:"🤝",color:"#10b981"};
+const EXTRA_CAT = {id:"ingreso_extra",label:"Ingreso extra",icon:"💫",color:"#f59e0b"};
 function isIngreso(cat){ return cat==="ingreso"; }
-function isDevolucion(cat){ return cat==="prestamo_devuelto"; } // suma al saldo como ingreso pero NO cuenta como ingreso del mes
+function isDevolucion(cat){ return cat==="prestamo_devuelto"; }
+function isIngresoExtra(cat){ return cat==="ingreso_extra"; } // suma al disponible, NO al salario
 function isAporteMeta(t){ return !!t.goalId; }
-function isGasto(cat){ return !isIngreso(cat) && !isDevolucion(cat) && cat!=="meta_aporte"; }
+function isGasto(cat){ return !isIngreso(cat) && !isDevolucion(cat) && !isIngresoExtra(cat) && cat!=="meta_aporte"; }
 // Compatibilidad legacy: emergencias era categoría, ahora es meta especial
 function isSavingsLegacy(cat){ return cat==="emergencias"||cat==="meta_aporte"; }
 const ALL_SUBS = MAIN_CATS.flatMap(m=>m.subs.map(s=>({...s,mainId:m.id,color:m.color})));
@@ -86,6 +88,7 @@ const _customSubsLookup = {};
 function getCatInfo(id) {
   if(id==="ingreso") return INCOME_CAT;
   if(id==="prestamo_devuelto") return DEVOLUCION_CAT;
+  if(id==="ingreso_extra") return EXTRA_CAT;
   if(id==="emergencias") return {id:"emergencias",label:"Fondo Emergencias",icon:"🛡️",color:C.sky};
   if(id==="meta_aporte") return {id:"meta_aporte",label:"Aporte a Meta",icon:"⭐",color:C.indigo};
   // Buscar en subcategorías personalizadas (✦)
@@ -921,12 +924,13 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible,catsCust
   const ci=getCatInfo(cat);
   const isMeta=cat==="meta_aporte";
   const esIngreso=isIngreso(cat);
+  const esIngresoExtra=isIngresoExtra(cat);
   const changed=isEdit&&(raw!==initial.amount||desc.trim()!==initial.desc||cat!==initial.cat||date!==initial.date||goalId!==(initial.goalId||""));
-  const acc=esIngreso?C.emerald:isMeta?C.indigo:ci.color||C.emerald;
+  const acc=esIngreso?C.emerald:esIngresoExtra?C.amber:isMeta?C.indigo:ci.color||C.emerald;
   function ha(e){const r=e.target.value.replace(/\D/g,"");setAmount(r?Number(r).toLocaleString("es-CO"):"");}
   const esEdicion=!!initial?.id;
   const montoDiff=esEdicion?(raw-initial.amount):raw;
-  const sinSaldo=!esIngreso&&!esEdicion&&saldoDisponible<raw&&saldoDisponible>=0;
+  const sinSaldo=!esIngreso&&!esIngresoExtra&&!esEdicion&&saldoDisponible<raw&&saldoDisponible>=0;
 
   // ── Validaciones de campos requeridos ──────────────────────────────────────
   // 1. Monto obligatorio siempre
@@ -934,7 +938,7 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible,catsCust
   // 2. Para gastos: debe tener subcategoría (no puede quedar en categoría principal)
   //    Las subcategorías válidas son las de ALL_SUBS. Emergencias y meta_aporte son válidas.
   const subCats = ALL_SUBS.map(s=>s.id);
-  const catValida = esIngreso || cat==="emergencias" || cat==="meta_aporte" || subCats.includes(cat);
+  const catValida = esIngreso || esIngresoExtra || cat==="emergencias" || cat==="meta_aporte" || cat==="prestamo_devuelto" || subCats.includes(cat);
   const faltaSubcat = !catValida;
   // 3. Para aporte a meta: debe haber seleccionado una meta
   const faltaMeta = isMeta && !goalId && goals.length > 0;
@@ -957,7 +961,7 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible,catsCust
     if(hayError || sinMetas) return;
     onSave({
       id:initial?.id||null,
-      desc:desc.trim()||(isMeta&&goalId?goals.find(g=>g.id===goalId)?.name||"Aporte meta":esIngreso?"Ingreso del mes":ci.label),
+      desc:desc.trim()||(isMeta&&goalId?goals.find(g=>g.id===goalId)?.name||"Aporte meta":esIngreso?"Ingreso del mes":esIngresoExtra?"Ingreso extra":ci.label),
       amount:raw,cat,date,...(isMeta&&goalId?{goalId}:{})
     });
     onClose();
@@ -986,6 +990,7 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible,catsCust
         <div style={{marginBottom:14}}>
           <Lbl>{
             esIngreso?"¿De dónde viene?":
+            esIngresoExtra?"¿De dónde viene?":
             cat==="emergencias"?"Descripción (opcional)":
             cat==="meta_aporte"?"Descripción (opcional)":
             "¿En qué lo gastaste?"
@@ -994,6 +999,8 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible,catsCust
             placeholder={
               esIngreso
                 ?INGRESO_PLACEHOLDERS[cat.split("").reduce((a,c)=>a+c.charCodeAt(0),0)%INGRESO_PLACEHOLDERS.length]
+                :esIngresoExtra
+                  ?"ej: Ganancia Betplay, Venta celular, Regalo..."
                 :cat==="emergencias"
                   ?EMERGENCIA_PLACEHOLDERS[0]
                 :cat==="meta_aporte"
@@ -1003,15 +1010,16 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible,catsCust
             value={desc} onChange={e=>setDesc(e.target.value)} enterKeyHint="done"
             style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box"}}/>
         </div>
-        {/* Toggle Gasto / Meta / Ingreso */}
-        <div style={{display:"flex",gap:6,marginBottom:14}}>
+        {/* Toggle Gasto / Meta / Ingreso / Extra */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5,marginBottom:14}}>
           {[
-            {id:"gasto",  label:"🛍️ Gasto",   color:C.red,    active:!esIngreso&&cat!=="meta_aporte", onClick:()=>setCatSinScroll("restaurantes")},
-            {id:"meta",   label:"⭐ Meta",     color:C.indigo, active:cat==="meta_aporte",             onClick:()=>setCatSinScroll("meta_aporte")},
-            {id:"ingreso",label:"💵 Ingreso",  color:C.emerald,active:esIngreso,                       onClick:()=>setCatSinScroll("ingreso")},
+            {id:"gasto",  label:"🛍️ Gasto",   color:C.red,    active:!esIngreso&&!esIngresoExtra&&cat!=="meta_aporte", onClick:()=>setCatSinScroll("restaurantes")},
+            {id:"meta",   label:"⭐ Meta",     color:C.indigo, active:cat==="meta_aporte",                              onClick:()=>setCatSinScroll("meta_aporte")},
+            {id:"ingreso",label:"💵 Salario",  color:C.emerald,active:esIngreso,                                        onClick:()=>setCatSinScroll("ingreso")},
+            {id:"extra",  label:"💫 Extra",    color:C.amber,  active:esIngresoExtra,                                   onClick:()=>setCatSinScroll("ingreso_extra")},
           ].map(t=>(
             <button key={t.id} onMouseDown={e=>e.preventDefault()} onClick={t.onClick}
-              style={{flex:1,padding:"10px 0",borderRadius:12,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,
+              style={{padding:"9px 0",borderRadius:12,border:"none",cursor:"pointer",fontSize:11,fontWeight:700,
                 background:t.active?`${t.color}22`:C.surface,
                 outline:t.active?`2px solid ${t.color}`:"2px solid transparent",
                 color:t.active?t.color:C.text.s,transition:"all 0.15s"}}>
@@ -1019,7 +1027,7 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible,catsCust
             </button>
           ))}
         </div>
-        {!esIngreso&&cat!=="meta_aporte"&&<div style={{marginBottom:14,animation:"fadeIn 0.18s ease"}}>
+        {!esIngreso&&!esIngresoExtra&&cat!=="meta_aporte"&&<div style={{marginBottom:14,animation:"fadeIn 0.18s ease"}}>
           <Lbl>Categoría del gasto</Lbl>
           <CatSelector value={cat} onChange={v=>{setCatSinScroll(v);setGoalId("");}} subsCustom={catsCustom} onEditCustom={onEditCustom}/>
           {faltaSubcat&&raw>0&&<div style={{marginTop:8,fontSize:12,color:C.amber,fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
@@ -1027,8 +1035,12 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible,catsCust
           </div>}
         </div>}
         {esIngreso&&<div style={{marginBottom:14,padding:"12px 16px",background:`${C.emerald}10`,border:`1px solid ${C.emerald}30`,borderRadius:12,animation:"fadeIn 0.18s ease"}}>
-          <div style={{fontSize:13,color:C.emerald,fontWeight:700,marginBottom:4}}>💵 Registrar ingreso</div>
-          <div style={{fontSize:12,color:C.text.b,lineHeight:1.7}}>Salario, comisión, freelance, bono, venta u otro dinero que recibiste. Puedes registrar varios ingresos en el mismo mes y se suman automáticamente.</div>
+          <div style={{fontSize:13,color:C.emerald,fontWeight:700,marginBottom:4}}>💵 Ingreso de trabajo</div>
+          <div style={{fontSize:12,color:C.text.b,lineHeight:1.7}}>Salario, comisión, freelance, bono. Se suma al ingreso del mes y afecta el "de $X" de tu disponible.</div>
+        </div>}
+        {esIngresoExtra&&<div style={{marginBottom:14,padding:"12px 16px",background:`${C.amber}10`,border:`1px solid ${C.amber}30`,borderRadius:12,animation:"fadeIn 0.18s ease"}}>
+          <div style={{fontSize:13,color:C.amber,fontWeight:700,marginBottom:4}}>💫 Ingreso extra</div>
+          <div style={{fontSize:12,color:C.text.b,lineHeight:1.7}}>Apuestas, ventas, regalos, cashback u otro dinero que no es de trabajo. <b style={{color:C.amber}}>Suma al disponible sin cambiar tu salario del mes.</b></div>
         </div>}
         {isMeta&&goals.length>0&&<div style={{marginBottom:14,animation:"fadeIn 0.18s ease"}}>
           <Lbl>¿Para qué meta?</Lbl>
@@ -1075,7 +1087,7 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible,catsCust
               background:(hayError||sinMetas)?C.surface:sinSaldo?`${C.red}20`:isEdit&&!changed?`${C.sky}18`:`linear-gradient(135deg,${acc},${acc}cc)`,
               color:(hayError||sinMetas)?C.text.s:sinSaldo?C.red:isEdit&&!changed?C.sky:"#fff",
               opacity:(hayError||sinSaldo||sinMetas)?0.65:1}}>
-            {getMensajeError() ?? (sinSaldo?"Saldo insuficiente 🚫":isEdit&&!changed?"Sin cambios":isEdit?"✓ Guardar":esIngreso?`Registrar ingreso ${COP(raw)} →`:`Registrar ${COP(raw)} →`)}
+            {getMensajeError() ?? (sinSaldo?"Saldo insuficiente 🚫":isEdit&&!changed?"Sin cambios":isEdit?"✓ Guardar":esIngreso?`Registrar salario ${COP(raw)} →`:esIngresoExtra?`Registrar extra ${COP(raw)} →`:`Registrar ${COP(raw)} →`)}
           </button>
         </div>
       </div>
@@ -1086,7 +1098,7 @@ function TxModal({initial,onClose,onSave,onDelete,goals,saldoDisponible,catsCust
 function TxRow({t,onEdit}){
   const cat=getCatInfo(t.cat);
   const esMeta=isAporteMeta(t)||isSavingsLegacy(t.cat);
-  const esPos=esMeta||isIngreso(t.cat)||isDevolucion(t.cat);
+  const esPos=esMeta||isIngreso(t.cat)||isDevolucion(t.cat)||isIngresoExtra(t.cat);
   const esPrestamo=t.cat==="prestamo_tercero"||t.cat==="prestamo_devuelto";
   const bloqueado=esMesPasado(t.date)||esPrestamo; // meses pasados + préstamos = solo lectura
   const [p,setP]=useState(false);
@@ -1117,7 +1129,7 @@ function TxRow({t,onEdit}){
     <div style={{flex:1,minWidth:0}}>
       <div style={{fontSize:14,fontWeight:700,color:bloqueado?"#8899aa":"#ffffff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc}</div>
       <div style={{fontSize:11,color:C.text.s,marginTop:3}}>
-        {t.date?.slice(5).replace("-","/")} · {isIngreso(t.cat)?"💵 Ingreso":isDevolucion(t.cat)?"🤝 Devolución":esMeta?"⭐ Meta":(()=>{const main=MAIN_CATS.find(m=>m.subs?.some(s=>s.id===t.cat));return main?`${main.labelFull||main.label} · ${cat.label}`:cat.label;})()}
+        {t.date?.slice(5).replace("-","/")} · {isIngreso(t.cat)?"💵 Salario":isDevolucion(t.cat)?"🤝 Devolución":isIngresoExtra(t.cat)?"💫 Extra":esMeta?"⭐ Meta":(()=>{const main=MAIN_CATS.find(m=>m.subs?.some(s=>s.id===t.cat));return main?`${main.labelFull||main.label} · ${cat.label}`:cat.label;})()}
       </div>
     </div>
     <div style={{textAlign:"right",flexShrink:0}}>
@@ -2092,18 +2104,17 @@ export default function App(){
   const monthTx=tx.filter(t=>isMonth(t.date,month,now.getFullYear()));
   const gastosTx=monthTx.filter(t=>isGasto(t.cat)&&!isAporteMeta(t));
   const ingresosTx=monthTx.filter(t=>isIngreso(t.cat));
-  const devolucionesTx=monthTx.filter(t=>isDevolucion(t.cat)); // devoluciones préstamos
-  // Aportes a metas = cualquier tx con goalId (incluye legacy emergencias/meta_aporte)
+  const devolucionesTx=monthTx.filter(t=>isDevolucion(t.cat));
+  const extrasTx=monthTx.filter(t=>isIngresoExtra(t.cat)); // apuestas, ventas, regalos — no cuentan como salario
   const aporteMesAll=monthTx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat));
   const totalGasto=gastosTx.reduce((s,t)=>s+t.amount,0);
   const totalDevoluciones=devolucionesTx.reduce((s,t)=>s+t.amount,0);
+  const totalExtras=extrasTx.reduce((s,t)=>s+t.amount,0);
   const totalAportes=aporteMesAll.reduce((s,t)=>s+t.amount,0);
   const sal=salario||0;
-  // Salario que correspondía al mes seleccionado (respeta historial)
   const salDelMes=getSalarioDelMes(now.getFullYear(),month);
-  // Ingreso del mes = salario del mes + extras registrados (devoluciones NO cuentan aquí)
   const ingresosExtra=ingresosTx.reduce((s,t)=>s+t.amount,0);
-  const totalIngresoMes=salDelMes+ingresosExtra;
+  const totalIngresoMes=salDelMes+ingresosExtra; // solo salario + ingresos reales de trabajo
 
   // Saldo acumulativo por mes — salario base + ingresos extra registrados
   function getSaldoAcumulado() {
@@ -2148,9 +2159,10 @@ export default function App(){
     txPasadas.forEach(t => {
       const d = new Date(t.date);
       const key = `${d.getFullYear()}-${d.getMonth()}`;
-      if (!porMes[key]) porMes[key] = { ingresos: 0, gastos: 0, ahorros: 0, devoluciones: 0 };
+      if (!porMes[key]) porMes[key] = { ingresos: 0, gastos: 0, ahorros: 0, devoluciones: 0, extras: 0 };
       if (isIngreso(t.cat)) porMes[key].ingresos += t.amount;
       else if (isDevolucion(t.cat)) porMes[key].devoluciones += t.amount;
+      else if (isIngresoExtra(t.cat)) porMes[key].extras += t.amount;
       else if (isAporteMeta(t)||isSavingsLegacy(t.cat)) porMes[key].ahorros += t.amount;
       else porMes[key].gastos += t.amount;
     });
@@ -2160,10 +2172,10 @@ export default function App(){
     let y = minYear, m = minMes;
     while (y < limiteYear || (y === limiteYear && m < limiteMes)) {
       const key = `${y}-${m}`;
-      const datos = porMes[key] || { ingresos: 0, gastos: 0, ahorros: 0, devoluciones: 0 };
+      const datos = porMes[key] || { ingresos: 0, gastos: 0, ahorros: 0, devoluciones: 0, extras: 0 };
       const salMes = getSalarioDelMes(y, m);
       const ingMes = salMes + datos.ingresos;
-      const disponibleMes = ingMes + saldoAcumulado - datos.gastos - datos.ahorros + datos.devoluciones;
+      const disponibleMes = ingMes + saldoAcumulado - datos.gastos - datos.ahorros + datos.devoluciones + datos.extras;
       saldoAcumulado = Math.max(disponibleMes, 0);
       m++;
       if (m > 11) { m = 0; y++; }
@@ -2172,7 +2184,7 @@ export default function App(){
   }
 
   const saldoAnterior=getSaldoAcumulado();
-  const saldo=totalIngresoMes+saldoAnterior-totalGasto-totalAportes+totalDevoluciones;
+  const saldo=totalIngresoMes+saldoAnterior-totalGasto-totalAportes+totalDevoluciones+totalExtras;
   const tasaAhorr=totalIngresoMes>0?totalAportes/totalIngresoMes:0;
   const pctUsado=totalIngresoMes>0?totalGasto/totalIngresoMes:0;
   const totalEnMetas=tx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat)).reduce((s,t)=>s+t.amount,0);
