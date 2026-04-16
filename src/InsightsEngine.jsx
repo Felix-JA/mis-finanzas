@@ -2,7 +2,6 @@
 // Compara mes actual vs anterior normalizado por días transcurridos
 // Máximo 3 insights · copywriting orientado a acción
 
-// parseDateSafe local — evita bug de zona horaria
 function parseDateSafe(str){
   if(!str||typeof str!=='string')return new Date();
   const[y,m,d]=str.split('-').map(Number);
@@ -17,7 +16,6 @@ export function InsightsEngine({
   const currentYear = now.getFullYear();
   const today       = now.getDate();
 
-  // ── Mes anterior ──────────────────────────────────────────────────────────
   const prevMonth = month === 0 ? 11 : month - 1;
   const prevYear  = month === 0 ? currentYear - 1 : currentYear;
 
@@ -25,20 +23,19 @@ export function InsightsEngine({
   const prevGastos = prevTx.filter(t => isGasto(t.cat) && !isAporteMeta(t));
   const prevTotalRaw = prevGastos.reduce((s, t) => s + t.amount, 0);
 
-  // Normalizar mes anterior: ajustarlo a los mismos días transcurridos del mes actual
-  // para comparación justa (mes actual es parcial, anterior fue completo)
+  // Normalizar mes anterior a los mismos días transcurridos del mes actual
   const daysInPrev = new Date(prevYear, prevMonth + 1, 0).getDate();
-  const safeDays   = Math.max(today, 5); // mínimo 5 días para estabilizar
+  const safeDays   = Math.max(today, 5);
   const factor     = safeDays / daysInPrev;
-  const prevTotal  = prevTotalRaw * factor; // normalizado al mismo período
+  const prevTotal  = prevTotalRaw * factor;
 
-  // ── Gastos por categoría mes actual ───────────────────────────────────────
+  // Gastos por categoría mes actual — usa label corto (NO labelFull)
   const byCat = MAIN_CATS.map(m => ({
     ...m,
     total: gastosTx.filter(t => m.subs.some(s => s.id === t.cat)).reduce((s, t) => s + t.amount, 0),
   })).filter(c => c.total > 0).sort((a, b) => b.total - a.total);
 
-  // ── Gastos por categoría mes anterior (normalizados) ──────────────────────
+  // Gastos por categoría mes anterior (normalizados)
   const byCatPrev = MAIN_CATS.map(m => ({
     ...m,
     total: (prevGastos.filter(t => m.subs.some(s => s.id === t.cat)).reduce((s, t) => s + t.amount, 0)) * factor,
@@ -46,13 +43,15 @@ export function InsightsEngine({
 
   const insights = [];
 
-  // 1. Mayor gasto del mes
+  // 1. Mayor gasto del mes — usa label corto siempre
   if (byCat.length > 0) {
     const top       = byCat[0];
     const pctDelIng = totalIng > 0 ? top.total / totalIng : 0;
+    // Usar label corto — nunca labelFull que puede incluir "y Préstamos" etc
+    const catNombre = top.label;
     insights.push({
       id: "top_cat", icon: top.icon, color: top.color,
-      title: `${top.labelFull || top.label} es donde más estás gastando`,
+      title: `${catNombre} es donde más estás gastando`,
       body: `${COP(top.total)} este mes${pctDelIng > 0 ? ` — ${Math.round(pctDelIng * 100)}% de tu ingreso` : ""}`,
       type: pctDelIng > 0.4 ? "warning" : "info",
     });
@@ -78,7 +77,7 @@ export function InsightsEngine({
     }
   }
 
-  // 3. Categoría que más subió
+  // 3. Categoría que más subió vs mes anterior — usa label corto
   const catSubidas = byCat
     .map(c => {
       const prev = byCatPrev.find(p => p.id === c.id)?.total || 0;
@@ -93,16 +92,17 @@ export function InsightsEngine({
     const c = catSubidas[0];
     insights.push({
       id: "cat_subida", icon: c.icon, color: C.amber,
-      title: `${c.labelFull || c.label} subió ${Math.round(c.pct)}% vs el mes pasado`,
+      // Usar label corto — no labelFull
+      title: `${c.label} subió ${Math.round(c.pct)}% vs el mes pasado`,
       body: `Revisa si hay algo que puedas reducir ahí`,
       type: "warning",
     });
   }
 
-  // 4. Sugerencia ahorro si gasto > 80% del ingreso
+  // 4. Sugerencia ahorro si gasto > 80% del ingreso — usa label corto
   if (totalIng > 0 && totalGasto / totalIng > 0.8 && byCat.length >= 2) {
-    const segundo        = byCat[1];
-    const posibleAhorro  = Math.round(segundo.total * 0.2);
+    const segundo       = byCat[1];
+    const posibleAhorro = Math.round(segundo.total * 0.2);
     insights.push({
       id: "sugerencia_ahorro", icon: "💡", color: C.indigo,
       title: `Reducir ${segundo.label} un 20% te daría ${COP(posibleAhorro)} extra`,
@@ -111,7 +111,7 @@ export function InsightsEngine({
     });
   }
 
-  // 5. Sin aportes a metas — motivador, no culpable
+  // 5. Sin aportes a metas
   if (totalIng > 0 && totalAhorr === 0) {
     insights.push({
       id: "sin_metas", icon: "⭐", color: C.violet,

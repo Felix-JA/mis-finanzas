@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { InsightsEngine } from "./InsightsEngine";
 import { FinancialScore } from "./FinancialScore";
 import { MonthlyProjection } from "./MonthlyProjection";
@@ -7,7 +7,7 @@ import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import {
   collection, addDoc, updateDoc, deleteDoc, doc,
   onSnapshot, query, orderBy, serverTimestamp,
-  getDoc, setDoc
+  getDoc, setDoc, getDocs
 } from "firebase/firestore";
 
 // ─── TEMAS OSCUROS ────────────────────────────────────────────────────────────
@@ -830,6 +830,112 @@ function OnboardingScreen({user,onSave}){
       </div>
     </div>
   </div>;
+}
+
+
+// ─── ALERTAS INTELIGENTES AVANZADAS ──────────────────────────────────────────
+// Extiende BudgetAlert sin romperlo — detecta 3 situaciones nuevas:
+// 1. Gasto acelerado vs ritmo ideal del mes
+// 2. Categoría fuera de control (supera presupuesto definido)
+// 3. Mejora vs mes anterior (motivadora)
+function AlertasAvanzadas({
+  gastosTx, totalGasto, totalIngresoMes, presupuestos,
+  MAIN_CATS, tx, month, isGasto, isAporteMeta, isMonth,
+  C, COP, MONTHS_S
+}){
+  const now         = new Date();
+  const today       = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), month + 1, 0).getDate();
+  const daysLeft    = daysInMonth - today;
+  const safeDays    = Math.max(today, 5);
+
+  const alertas = [];
+
+  // ── 2. Categoría fuera de control ────────────────────────────────────────
+  // Solo si tiene presupuesto definido y lo supera
+  const catsFueraControl = MAIN_CATS
+    .map(m => {
+      const limite = presupuestos[m.id] || 0;
+      if(!limite) return null;
+      const gastoCat = gastosTx
+        .filter(t => m.subs.some(s => s.id === t.cat))
+        .reduce((s, t) => s + t.amount, 0);
+      const pct = gastoCat / limite;
+      return pct >= 1.0 ? { ...m, gastoCat, limite, pct } : null; // alerta desde el 100% del presupuesto
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.pct - a.pct);
+
+  if(catsFueraControl.length > 0){
+    const c = catsFueraControl[0];
+    const exacto = c.pct >= 1.0 && c.pct < 1.05; // llegó al límite pero no lo superó significativamente
+    alertas.push({
+      id:    "cat_control",
+      icon:  c.icon,
+      color: exacto ? C.amber : C.red,
+      title: exacto
+        ? `${c.label} llegó al límite del presupuesto`
+        : `${c.label} superó su presupuesto`,
+      body: exacto
+        ? `Llevas ${COP(c.gastoCat)} de ${COP(c.limite)} — cuidado con los gastos restantes del mes`
+        : `Llevas ${COP(c.gastoCat)} de ${COP(c.limite)} — ${Math.round((c.pct-1)*100)}% sobre el límite que definiste`,
+      type:  "warning",
+    });
+  }
+
+  // ── 3. Mejora vs mes anterior (motivadora) ────────────────────────────────
+  const prevMonth    = month === 0 ? 11 : month - 1;
+  const prevYear     = month === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const prevGastos   = tx.filter(t => isMonth(t.date, prevMonth, prevYear) && isGasto(t.cat) && !isAporteMeta(t));
+  const prevTotal    = prevGastos.reduce((s, t) => s + t.amount, 0);
+
+  if(prevTotal > 0 && totalGasto > 0 && today >= 10){
+    // Normalizar mes anterior al mismo período
+    const daysInPrev  = new Date(prevYear, prevMonth + 1, 0).getDate();
+    const prevNorm    = prevTotal * (safeDays / daysInPrev);
+    const mejora      = prevNorm - totalGasto;
+    const pctMejora   = mejora / prevNorm;
+
+    if(pctMejora >= 0.15){ // mejora del 15%+ vs mes anterior
+      alertas.push({
+        id:    "mejora",
+        icon:  "🎉",
+        color: C.emerald,
+        title: `¡Vas ${Math.round(pctMejora*100)}% mejor que el mes pasado!`,
+        body:  `Llevas ${COP(Math.round(mejora))} menos gastados en el mismo período — sigue así`,
+        type:  "success",
+      });
+    }
+  }
+
+  if(alertas.length === 0) return null;
+
+  // Solo mostrar la más importante (máximo 1 a la vez para no saturar)
+  const ORDER  = { warning: 0, success: 1 };
+  const alerta = [...alertas].sort((a, b) => (ORDER[a.type]||0) - (ORDER[b.type]||0))[0];
+
+  const bgMap    = { warning: `${alerta.color}12`, success: `${C.emerald}12` };
+  const borderMap= { warning: `${alerta.color}35`, success: `${C.emerald}35` };
+
+  return (
+    <div style={{
+      borderRadius: 14, padding: "13px 15px", marginBottom: 14,
+      background: bgMap[alerta.type] || `${alerta.color}12`,
+      border: `1px solid ${borderMap[alerta.type] || alerta.color+"35"}`,
+      display: "flex", alignItems: "flex-start", gap: 12,
+      animation: "fadeIn 0.3s ease",
+    }}>
+      <span style={{fontSize: 22, flexShrink: 0, lineHeight: 1.2}}>{alerta.icon}</span>
+      <div style={{flex: 1}}>
+        <div style={{fontSize: 13, fontWeight: 800, color: alerta.color, marginBottom: 3, lineHeight: 1.3}}>
+          {alerta.title}
+        </div>
+        <div style={{fontSize: 12, color: C.text.b, lineHeight: 1.5}}>
+          {alerta.body}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function BudgetAlert({pct,salario,gastado}){
@@ -2211,7 +2317,8 @@ export default function App(){
   const saldoAnterior=getSaldoAcumulado();
   const saldo=totalIngresoMes+saldoAnterior-totalGasto-totalAportes+totalDevoluciones+totalExtras;
   const tasaAhorr=totalIngresoMes>0?totalAportes/totalIngresoMes:0;
-  const pctUsado=totalIngresoMes>0?totalGasto/totalIngresoMes:0;
+  const totalDisponibleBase=totalIngresoMes+saldoAnterior;
+  const pctUsado=totalDisponibleBase>0?totalGasto/totalDisponibleBase:0;
   const totalEnMetas=tx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat)).reduce((s,t)=>s+t.amount,0);
   const saldoColor=saldo>sal*0.4?C.emerald:saldo>sal*0.15?C.amber:C.red;
   const animSaldo=useCountUp(Math.max(saldo,0));
@@ -2298,6 +2405,21 @@ export default function App(){
     return <div style={{padding:"16px 20px 0"}}>
       <MonthSelector/>
       <BudgetAlert pct={pctUsado} salario={sal} gastado={totalGasto}/>
+      <AlertasAvanzadas
+        gastosTx={gastosTx}
+        totalGasto={totalGasto}
+        totalIngresoMes={totalIngresoMes}
+        presupuestos={presupuestos}
+        MAIN_CATS={MAIN_CATS}
+        tx={tx}
+        month={month}
+        isGasto={isGasto}
+        isAporteMeta={isAporteMeta}
+        isMonth={isMonth}
+        C={C}
+        COP={COP}
+        MONTHS_S={MONTHS_S}
+      />
       {/* ── 1. Disponible ── */}
       <div style={{borderRadius:22,padding:"22px 22px 20px",marginBottom:16,background:pctUsado>=1?"linear-gradient(135deg,#2d0a0a 0%,#1a0505 100%)":pctUsado>=0.8?"linear-gradient(135deg,#1a1000 0%,#0e0800 100%)":"linear-gradient(135deg,#1a1f4e 0%,#0d1235 50%,#080e1e 100%)",border:`1px solid ${pctUsado>=1?C.red+"55":pctUsado>=0.8?C.amber+"44":"rgba(99,102,241,0.3)"}`,boxShadow:`0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)`,position:"relative",overflow:"hidden",transition:"all 0.5s ease"}}>
         <div style={{position:"absolute",top:-60,right:-40,width:180,height:180,borderRadius:"50%",background:"rgba(99,102,241,0.08)",pointerEvents:"none"}}/>
@@ -2314,7 +2436,7 @@ export default function App(){
             <div style={{height:8,borderRadius:99,background:pctUsado>=1?`linear-gradient(90deg,${C.red},#ff6b6b)`:pctUsado>=0.8?`linear-gradient(90deg,${C.amber},#fbbf24)`:`linear-gradient(90deg,${C.indigo},${C.emerald})`,width:`${Math.min(pctUsado*100,100)}%`,transition:"width 0.8s ease",boxShadow:pctUsado<0.8?`0 0 12px rgba(99,102,241,0.6)`:"none"}}/>
           </div>
           <div style={{display:"flex",justifyContent:"space-between"}}>
-            <span style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{totalIngresoMes>0?`de ${COP(totalIngresoMes+saldoAnterior)}`:"Sin ingresos"}</span>
+            <span style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{totalDisponibleBase>0?`de ${COP(totalDisponibleBase)}`:"Sin ingresos"}</span>
             <span style={{fontSize:12,fontWeight:700,color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:"rgba(255,255,255,0.5)"}}>{Math.round(pctUsado*100)}% gastado</span>
           </div>
           {!sinDatos&&<MonthlyProjection gastosTx={gastosTx} saldo={saldo} month={month} C={C} COP={COP} MONTHS_S={MONTHS_S}/>}
@@ -2631,7 +2753,7 @@ export default function App(){
               <span>Barra roja = total gastado ese día</span>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:8,fontSize:11,color:C.text.s}}>
-              <circle style={{width:8,height:8,borderRadius:"50%",background:C.emerald,flexShrink:0,display:"inline-block"}}/>
+              <div style={{width:8,height:8,borderRadius:"50%",background:C.emerald,flexShrink:0,display:"inline-block"}}/>
               <span style={{color:C.emerald,fontWeight:700}}>Verde = hoy ({DIAS_S[new Date(ly,lm,hoy).getDay()]} {hoy})</span>
             </div>
           </div>
@@ -2777,7 +2899,32 @@ export default function App(){
   }
 
   const MovTab=()=>{
-    const sorted=[...monthTx].sort((a,b)=>new Date(b.date)-new Date(a.date));
+    const [busqueda,setBusqueda]=useState("");
+    const [filtroCat,setFiltroCat]=useState("todos"); // todos | gasto | ingreso | meta
+
+    // Filtrar por búsqueda de texto + tipo
+    const txFiltradas=useMemo(()=>{
+      let base=[...monthTx];
+      // Filtro por tipo
+      if(filtroCat==="gasto")   base=base.filter(t=>isGasto(t.cat)&&!isAporteMeta(t));
+      if(filtroCat==="ingreso") base=base.filter(t=>isIngreso(t.cat)||isIngresoExtra(t.cat)||isDevolucion(t.cat));
+      if(filtroCat==="meta")    base=base.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat));
+      // Filtro por texto — busca en descripción y categoría
+      if(busqueda.trim()){
+        const q=busqueda.toLowerCase().trim();
+        base=base.filter(t=>{
+          const desc=(t.desc||"").toLowerCase();
+          const cat=getCatInfo(t.cat);
+          const catLabel=(cat.label||"").toLowerCase();
+          return desc.includes(q)||catLabel.includes(q);
+        });
+      }
+      return base.sort((a,b)=>parseDateSafe(b.date)-parseDateSafe(a.date));
+    },[monthTx,busqueda,filtroCat]);
+
+    const sorted=txFiltradas;
+    const hayFiltro=busqueda.trim()!=""||filtroCat!=="todos";
+
     // Scroll al mes activo al montar o al cambiar de mes
     useEffect(()=>{
       if(!monthScrollRef.current)return;
@@ -2827,9 +2974,40 @@ export default function App(){
         </div>
       )}
       {sorted.length>0&&!monthTx.some(t=>esMesPasado(t.date))&&<div style={{fontSize:12,color:C.text.s,textAlign:"center",marginBottom:12}}>✏️ Toca cualquier movimiento para editarlo</div>}
-      {sorted.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:C.text.s,fontSize:14,lineHeight:2}}>
-        Sin movimientos en {MONTHS[month]}.<br/>
-        <span style={{fontSize:11,color:C.text.s}}>Los registros de otros meses están disponibles<br/>seleccionando el mes arriba.</span>
+      {/* ── Buscador ── */}
+      {monthTx.length>0&&<div style={{marginBottom:12}}>
+        <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:14,border:`1px solid ${busqueda?C.indigo+"55":C.border}`,padding:"0 14px",gap:10,transition:"border-color 0.2s",marginBottom:8}}>
+          <span style={{fontSize:16,color:C.text.s}}>🔍</span>
+          <input
+            placeholder="Buscar movimiento o categoría..."
+            value={busqueda}
+            onChange={e=>setBusqueda(e.target.value)}
+            style={{flex:1,background:"none",border:"none",outline:"none",fontSize:14,color:C.text.h,padding:"13px 0"}}
+          />
+          {busqueda&&<button onClick={()=>setBusqueda("")} style={{background:"none",border:"none",color:C.text.s,cursor:"pointer",fontSize:18,padding:"0 2px",lineHeight:1}}>×</button>}
+        </div>
+        <div style={{display:"flex",gap:6}}>
+          {[
+            {id:"todos",   label:"Todos"},
+            {id:"gasto",   label:"💸 Gastos"},
+            {id:"ingreso", label:"💵 Ingresos"},
+            {id:"meta",    label:"⭐ Metas"},
+          ].map(f=><button key={f.id} onClick={()=>setFiltroCat(f.id)} style={{
+            padding:"6px 12px",borderRadius:99,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,
+            background:filtroCat===f.id?C.indigo:"rgba(255,255,255,0.06)",
+            color:filtroCat===f.id?"#fff":C.text.b,
+            transition:"all 0.15s",
+          }}>{f.label}</button>)}
+        </div>
+        {hayFiltro&&<div style={{fontSize:12,color:C.text.s,marginTop:8,textAlign:"center"}}>
+          {sorted.length===0?"Sin resultados":`${sorted.length} resultado${sorted.length!==1?"s":""} encontrado${sorted.length!==1?"s":""}`}
+        </div>}
+      </div>}
+      {sorted.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:C.text.b,fontSize:14,lineHeight:2}}>
+        {hayFiltro
+          ?<><span style={{fontSize:32}}>🔍</span><br/>Sin resultados para esa búsqueda.<br/><span style={{fontSize:12,color:C.text.s}}>Intenta con otra palabra o categoría.</span></>
+          :<>Sin movimientos en {MONTHS[month]}.<br/><span style={{fontSize:11,color:C.text.s}}>Los registros de otros meses están disponibles<br/>seleccionando el mes arriba.</span></>
+        }
       </div>}
       {sorted.map(t=><TxRow key={t.id} t={t} onEdit={()=>setModal(t)}/>)}
     </div>;
@@ -3091,6 +3269,144 @@ export default function App(){
     </div>;
   };
 
+
+  // ── Eliminar registros de un mes ─────────────────────────────────────────
+  function EliminarMesSection({tx, MONTHS, MONTHS_S, user, db, isMonth}){
+    const [mesSelec, setMesSelec] = useState(null);
+    const [confirm1, setConfirm1] = useState(false);
+    const [loading,  setLoading]  = useState(false);
+    const [abierto,  setAbierto]  = useState(false);
+
+    const mesesConTx = [...new Set(tx.map(t => {
+      const[y,m]=t.date.split("-").map(Number);
+      return `${y}-${m-1}`;
+    }))].map(k => {
+      const[y,m]=k.split("-").map(Number);
+      return {y, m, label:`${MONTHS[m]} ${y}`, count: tx.filter(t=>isMonth(t.date,m,y)).length};
+    }).sort((a,b)=>b.y!==a.y?b.y-a.y:b.m-a.m);
+
+    async function eliminarMes(){
+      if(!mesSelec||!user)return;
+      setLoading(true);
+      const txDelMes = tx.filter(t=>isMonth(t.date,mesSelec.m,mesSelec.y));
+      await Promise.all(txDelMes.map(t=>deleteDoc(doc(db,"usuarios",user.uid,"transacciones",t.id))));
+      setMesSelec(null); setConfirm1(false); setLoading(false);
+    }
+
+    return (
+      <div>
+        <div style={{fontSize:13,fontWeight:700,color:C.text.h,marginBottom:4}}>Eliminar registros de un mes</div>
+        <div style={{fontSize:12,color:C.text.b,marginBottom:12,lineHeight:1.5}}>
+          Borra todas las transacciones de un mes específico. Las metas y presupuestos no se tocan.
+        </div>
+        {/* Selector personalizado — sin el feo select nativo */}
+        <div style={{position:"relative",marginBottom:10}}>
+          <button onClick={()=>setAbierto(a=>!a)} style={{
+            width:"100%",padding:"11px 14px",borderRadius:10,
+            border:`1px solid ${C.border}`,background:C.surface,
+            color:mesSelec?C.text.h:C.text.s,fontSize:14,fontWeight:mesSelec?700:400,
+            cursor:"pointer",textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",
+          }}>
+            <span>{mesSelec?`${mesSelec.label} · ${mesSelec.count} movimiento${mesSelec.count!==1?"s":""}` : "Selecciona un mes..."}</span>
+            <span style={{fontSize:10,color:C.text.s}}>{abierto?"▲":"▼"}</span>
+          </button>
+          {abierto&&(
+            <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:C.card||"#0d1117",border:`1px solid ${C.border}`,borderRadius:10,zIndex:100,overflow:"hidden",maxHeight:200,overflowY:"auto"}}>
+              {mesesConTx.length===0&&<div style={{padding:"12px 14px",fontSize:13,color:C.text.s}}>Sin meses con movimientos</div>}
+              {mesesConTx.map(({y,m,label,count})=>(
+                <button key={`${y}-${m}`} onClick={()=>{
+                  setMesSelec({y,m,label,count});
+                  setConfirm1(false); setAbierto(false);
+                }} style={{
+                  width:"100%",padding:"11px 14px",background:"none",border:"none",
+                  borderBottom:`1px solid ${C.border}`,cursor:"pointer",
+                  textAlign:"left",fontSize:13,color:C.text.h,fontWeight:600,
+                }}>
+                  {label} · <span style={{color:C.text.s,fontWeight:400}}>{count} movimiento{count!==1?"s":""}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {mesSelec&&!confirm1&&(
+          <button onClick={()=>setConfirm1(true)} style={{width:"100%",padding:"11px",borderRadius:10,border:`1px solid ${C.red}44`,background:"transparent",color:C.red,cursor:"pointer",fontSize:13,fontWeight:700}}>
+            Eliminar {mesSelec.count} movimiento{mesSelec.count!==1?"s":""} de {mesSelec.label}
+          </button>
+        )}
+        {mesSelec&&confirm1&&(
+          <div style={{background:`${C.red}12`,borderRadius:10,padding:"12px 14px",border:`1px solid ${C.red}40`}}>
+            <div style={{fontSize:12,color:C.text.h,marginBottom:10,lineHeight:1.6}}>
+              ¿Seguro? Se eliminarán <b style={{color:C.red}}>{mesSelec.count} movimientos</b> de <b>{mesSelec.label}</b>. No se puede deshacer.
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>{setConfirm1(false);setMesSelec(null);}} style={{flex:1,padding:"10px",borderRadius:9,border:`1px solid ${C.border}`,background:"transparent",color:C.text.b,cursor:"pointer",fontSize:13,fontWeight:700}}>Cancelar</button>
+              <button onClick={eliminarMes} disabled={loading} style={{flex:1,padding:"10px",borderRadius:9,border:"none",background:C.red,color:"#fff",cursor:loading?"not-allowed":"pointer",fontSize:13,fontWeight:800}}>
+                {loading?"Eliminando...":"Sí, eliminar"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Eliminar cuenta completa ──────────────────────────────────────────────
+  function EliminarCuentaSection({user, db, handleLogout}){
+    const [paso, setPaso] = useState(0); // 0=inicial 1=confirmar 2=eliminando
+    // Reset if component remounts
+    
+    async function eliminarCuenta(){
+      if(!user)return;
+      setPaso(2);
+      const uid=user.uid;
+      // Eliminar todas las subcolecciones
+      const colecciones=["transacciones","metas","pagos_programados","presupuestos","prestamos"];
+      for(const col of colecciones){
+        const snap=await getDocs(collection(db,"usuarios",uid,col));
+        await Promise.all(snap.docs.map(d=>deleteDoc(d.ref)));
+      }
+      // Eliminar el documento principal del usuario
+      await deleteDoc(doc(db,"usuarios",uid));
+      // Cerrar sesión
+      await handleLogout();
+    }
+
+    return (
+      <div>
+        <div style={{fontSize:13,fontWeight:700,color:C.text.h,marginBottom:4}}>Eliminar cuenta y todos los datos</div>
+        <div style={{fontSize:12,color:C.text.b,marginBottom:12,lineHeight:1.5}}>
+          Borra permanentemente todas tus transacciones, metas, presupuestos y configuración. Tu cuenta de Google no se elimina.
+        </div>
+        {paso===0&&(
+          <button onClick={()=>setPaso(1)} style={{width:"100%",padding:"11px",borderRadius:10,border:`1px solid ${C.red}44`,background:"transparent",color:C.red,cursor:"pointer",fontSize:13,fontWeight:700}}>
+            Eliminar mi cuenta y todos mis datos
+          </button>
+        )}
+        {paso===1&&(
+          <div style={{background:`${C.red}12`,borderRadius:10,padding:"12px 14px",border:`1px solid ${C.red}40`}}>
+            <div style={{fontSize:13,fontWeight:800,color:C.red,marginBottom:6}}>⚠️ Esto no se puede deshacer</div>
+            <div style={{fontSize:12,color:C.text.h,marginBottom:12,lineHeight:1.6}}>
+              Se eliminarán permanentemente todas tus transacciones, metas, pagos programados y configuración. ¿Estás completamente seguro?
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setPaso(0)} style={{flex:1,padding:"10px",borderRadius:9,border:`1px solid ${C.border}`,background:"transparent",color:C.text.b,cursor:"pointer",fontSize:13,fontWeight:700}}>
+                No, cancelar
+              </button>
+              <button onClick={eliminarCuenta} style={{flex:1,padding:"10px",borderRadius:9,border:"none",background:C.red,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:800}}>
+                Sí, eliminar todo
+              </button>
+            </div>
+          </div>
+        )}
+        {paso===2&&(
+          <div style={{textAlign:"center",padding:"12px 0",fontSize:13,color:C.text.b}}>
+            Eliminando datos... un momento
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const ConfigTab=()=>{
     const [tmp,setTmp]=useState(String(sal));
     return <div style={{padding:"16px 20px 0"}}>
@@ -3155,6 +3471,13 @@ export default function App(){
             </button>
           ))}
         </div>
+      </Card>
+      {/* ── Zona de peligro ── */}
+      <Card style={{marginBottom:12,borderColor:`${C.red}30`,background:"linear-gradient(135deg,rgba(239,68,68,0.06),rgba(15,23,42,0.8))"}}>
+        <Lbl style={{color:C.red}}>⚠️ Zona de peligro</Lbl>
+        <EliminarMesSection tx={tx} MONTHS={MONTHS} MONTHS_S={MONTHS_S} user={user} db={db} isMonth={isMonth}/>
+        <div style={{height:1,background:C.border,margin:"16px 0"}}/>
+        <EliminarCuentaSection user={user} db={db} handleLogout={handleLogout}/>
       </Card>
       <div style={{textAlign:"center",fontSize:12,color:C.text.s,padding:"18px 0",lineHeight:1.8}}>Datos guardados en Firebase · accesibles desde cualquier dispositivo.</div>
     </div>;

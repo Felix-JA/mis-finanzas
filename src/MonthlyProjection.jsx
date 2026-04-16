@@ -1,6 +1,6 @@
 // ─── PROYECCIÓN MENSUAL GLOBAL ────────────────────────────────────────────────
-// Base: saldo actual (ya tiene descontado gastos + metas + sobrante anterior)
-// Proyección: cuánto más gastarás a este ritmo vs lo que te queda
+// Solo proyecta cuando hay suficientes días con datos para ser confiable
+// Requiere mínimo 8 días transcurridos Y al menos 4 días distintos con gastos
 
 export function MonthlyProjection({ gastosTx, saldo, month, C, COP, MONTHS_S }) {
   const now         = new Date();
@@ -8,40 +8,41 @@ export function MonthlyProjection({ gastosTx, saldo, month, C, COP, MONTHS_S }) 
   const daysInMonth = new Date(now.getFullYear(), month + 1, 0).getDate();
   const daysLeft    = daysInMonth - today;
 
+  // Requisitos mínimos para proyectar con confianza
   if (gastosTx.length === 0 || daysLeft < 1 || saldo == null) return null;
+  if (today < 8) return null; // muy inicio de mes — datos insuficientes
 
-  const totalGastado = gastosTx.reduce((s, t) => s + t.amount, 0);
+  // Agrupar gastos por día
+  const porDia = {};
+  gastosTx.forEach(t => {
+    const d = parseInt(t.date.split('-')[2], 10);
+    porDia[d] = (porDia[d] || 0) + t.amount;
+  });
 
-  // safeDays: mínimo 5 para evitar proyecciones exageradas al inicio del mes
-  const safeDays    = Math.max(today, 5);
-  const gastoDiario = totalGastado / safeDays;
+  const diasConGasto = Object.keys(porDia).length;
+  if (diasConGasto < 4) return null; // menos de 4 días con gastos — no proyectar
+
+  const valoresDias = Object.values(porDia).sort((a, b) => a - b);
+
+  // Usar el percentil 60 (ni el más bajo ni el más alto)
+  // Más robusto que mediana o promedio para datos con outliers
+  const idx60 = Math.floor(valoresDias.length * 0.6);
+  const gastoDiario = valoresDias[Math.min(idx60, valoresDias.length - 1)];
 
   if (gastoDiario <= 0) return null;
 
-  // Gasto restante proyectado a este ritmo
-  const gastoRestante    = gastoDiario * daysLeft;
-  // Saldo al final del mes = lo que tienes hoy - lo que gastarás a este ritmo
-  const saldoFinal       = saldo - gastoRestante;
+  // Proyección desde el saldo actual
+  const gastoRestante = gastoDiario * daysLeft;
+  const saldoFinal    = saldo - gastoRestante;
 
-  const isNeg   = saldoFinal < 0;
-  const isAjust = !isNeg && saldo > 0 && (saldoFinal / saldo) < 0.15;
-  const isBien  = !isNeg && !isAjust;
+  // Solo mostrar si el resultado es positivo y razonable
+  // Si es negativo, no mostrar — el usuario ya sabe que gastó mucho
+  if (saldoFinal < 0) return null;
 
-  const color = isNeg ? C.red : isAjust ? C.amber : C.emerald;
-  const icono = isNeg ? "💪" : isAjust ? "⚡" : "📈";
-
-  // Mensaje: usa el saldo final real
-  let titulo, subtexto;
-  if (isBien) {
-    titulo   = <>A este ritmo terminarás {MONTHS_S[month]} con <span style={{fontWeight:800,color}}>{COP(Math.round(saldoFinal))}</span> disponibles</>;
-    subtexto = `Gasto diario: ${COP(Math.round(gastoDiario))} · ${daysLeft} días restantes`;
-  } else if (isAjust) {
-    titulo   = <>Vas ajustado — terminarás {MONTHS_S[month]} con apenas <span style={{fontWeight:800,color}}>{COP(Math.round(saldoFinal))}</span></>;
-    subtexto = `Intenta reducir gastos los ${daysLeft} días que quedan`;
-  } else {
-    titulo   = <>Este mes estuvo difícil, pero el siguiente lo harás mejor 💪</>;
-    subtexto = `Gasto diario: ${COP(Math.round(gastoDiario))} · Saldo disponible: ${COP(Math.max(saldo, 0))}`;
-  }
+  // "Ajustado" solo si queda menos del 5% del saldo
+  const isAjust = saldo > 0 && (saldoFinal / saldo) < 0.05;
+  const color   = isAjust ? C.amber : C.emerald;
+  const icono   = isAjust ? "⚡" : "📈";
 
   return (
     <div style={{
@@ -52,8 +53,15 @@ export function MonthlyProjection({ gastosTx, saldo, month, C, COP, MONTHS_S }) 
     }}>
       <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{icono}</span>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: C.text.h, lineHeight: 1.5 }}>{titulo}</div>
-        <div style={{ fontSize: 11, color: C.text.b, marginTop: 4 }}>{subtexto}</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.text.h, lineHeight: 1.5 }}>
+          {isAjust
+            ? <>Vas muy ajustado — terminarás {MONTHS_S[month]} con apenas <span style={{fontWeight:800,color}}>{COP(Math.round(saldoFinal))}</span></>
+            : <>A este ritmo terminarás {MONTHS_S[month]} con <span style={{fontWeight:800,color}}>{COP(Math.round(saldoFinal))}</span> disponibles</>
+          }
+        </div>
+        <div style={{ fontSize: 11, color: C.text.b, marginTop: 4 }}>
+          Gasto típico: {COP(Math.round(gastoDiario))}/día · {daysLeft} días restantes
+        </div>
       </div>
     </div>
   );
