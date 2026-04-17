@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { InsightsEngine } from "./InsightsEngine";
 import { FinancialScore } from "./FinancialScore";
 import { MonthlyProjection } from "./MonthlyProjection";
+import { getSuggestedBudgets, BudgetSetupBanner, BudgetHealth } from "./BudgetEngine";
+import { BudgetSetupModal } from "./BudgetSetupModal";
 import { auth, provider, db } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import {
@@ -1593,6 +1595,8 @@ export default function App(){
   const [pagoModal,setPagoModal]=useState(null); // null | "new" | pago
   const [pagoModalDia,setPagoModalDia]=useState(null); // día preseleccionado
   const [presupuestoModal,setPresupuestoModal]=useState(null); // cat obj
+  const [budgetSetupOpen,setBudgetSetupOpen]=useState(false); // modal plan inteligente
+  const [bannerDismissTick,setBannerDismissTick]=useState(0); // re-render al dismiss
   const [exportModal,setExportModal]=useState(false);
   const [catsCustom,setCatsCustom]=useState({}); // {mainId:[{id,label,icon}]}
   const [catPersonalModal,setCatPersonalModal]=useState(null); // main obj | null
@@ -1648,6 +1652,13 @@ export default function App(){
     return onSnapshot(query(collection(db,"usuarios",user.uid,"prestamos"),orderBy("createdAt","desc")),snap=>{
       setPrestamos(snap.docs.map(d=>({id:d.id,...d.data()})));
     });},[user]);
+
+  // Listener del dismiss del banner de presupuesto (desde BudgetEngine)
+  useEffect(()=>{
+    const h=()=>setBannerDismissTick(t=>t+1);
+    window.addEventListener('budget-banner-dismissed',h);
+    return()=>window.removeEventListener('budget-banner-dismissed',h);
+  },[]);
 
   // Cambiar salario: aplica desde el mes SIGUIENTE, guarda historial por mes
   async function handleSalarioChange(nuevoValor){
@@ -2151,6 +2162,15 @@ export default function App(){
       await setDoc(doc(db,"usuarios",user.uid,"presupuestos",catId),{limite});
     }
   },[user]);
+ 
+  // Guardar varios presupuestos de golpe (plan inteligente)
+  const handleBudgetBulkSave=useCallback(async(presupuestosObj)=>{
+    if(!user)return;
+    const tareas=Object.entries(presupuestosObj).map(([catId,limite])=>
+      setDoc(doc(db,"usuarios",user.uid,"presupuestos",catId),{limite})
+    );
+    await Promise.all(tareas);
+  },[user]);
 
   // Guardar subcategorías personalizadas — campo catsCustom en usuarios/{uid}
   const handleCatCustomSave=useCallback(async(mainId,subs)=>{
@@ -2448,7 +2468,7 @@ export default function App(){
   };
 
   const HomeTab=()=>{
-    const byMain=MAIN_CATS.map(m=>({...m,total:gastosTx.filter(t=>m.subs.some(s=>s.id===t.cat)).reduce((s,t)=>s+t.amount,0)})).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
+    const byMain=MAIN_CATS.map(m=>({...m,total:gastosTx.filter(t=>m.subs.some(s=>s.id===t.cat)).reduce((s,t)=>s+t.amount,0)})).filter(c=>c.total>0||(presupuestos[c.id]||0)>0).sort((a,b)=>(b.total-a.total)||((presupuestos[b.id]||0)-(presupuestos[a.id]||0)));
     const sinDatos = monthTx.length===0 && month!==now.getMonth();
     const totalMesesConDatos = new Set(tx.map(t=>{const d=parseDateSafe(t.date);return `${d.getFullYear()}-${d.getMonth()}`;})).size;
     return <div style={{padding:"16px 20px 0"}}>
@@ -2517,8 +2537,25 @@ export default function App(){
               <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",marginTop:6}}>{totalAportes>0?`${Math.round(tasaAhorr*100)}% guardado`:"Sin aportes aún"}</div>
             </div>
           </div>
+          {/* ── 2.5 Banner plan inteligente (si no hay presupuestos) ── */}
+          <BudgetSetupBanner
+            key={bannerDismissTick}
+            salario={salario||0}
+            presupuestos={presupuestos}
+            mesesDatos={totalMesesConDatos||0}
+            C={C} COP={COP}
+            onActivate={()=>setBudgetSetupOpen(true)}/>
           {/* ── 3. Insights ── */}
           <InsightsEngine txAll={tx} monthTx={monthTx} gastosTx={gastosTx} totalGasto={totalGasto} totalIng={totalIngresoMes} totalAhorr={totalAportes} month={month} C={C} COP={COP} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} isSavingsLegacy={isSavingsLegacy} isMonth={isMonth}/>
+          {/* ── 3.5 Salud del plan (si hay desbalance) ── */}
+          <BudgetHealth
+            salario={salario||0}
+            presupuestos={presupuestos}
+            gastosTx={gastosTx}
+            goals={goals}
+            MAIN_CATS={MAIN_CATS}
+            C={C} COP={COP}
+            onFixBudget={()=>setBudgetSetupOpen(true)}/>
           {/* ── 4. Estado financiero ── */}
           <FinancialScore totalIng={totalIngresoMes} totalGasto={totalGasto} totalAhorr={totalAportes} goals={goals} tx={tx} saldo={saldo} month={month} C={C} COP={COP} isMonth={isMonth} isAporteMeta={isAporteMeta} isSavingsLegacy={isSavingsLegacy} MONTHS_S={MONTHS_S} onNavigate={changeTab} onAddTx={()=>setModal("new")} onAportarMeta={()=>setModal("meta_aporte")} totalMesesConDatos={totalMesesConDatos}/>
         </>
@@ -3734,6 +3771,30 @@ export default function App(){
       onToggle={handlePrestamoToggle}
       prestamoForm={prestamoForm}
       setPrestamoForm={setPrestamoForm}/>}
+    {/* Modal plan inteligente (sugerencia inicial + histórico) */}
+    {budgetSetupOpen&&(()=>{
+      const sug=getSuggestedBudgets({
+        salario:salario||0,
+        txAll:tx,
+        MAIN_CATS,
+        isGasto,
+        isAporteMeta,
+        isMonth,
+        presupuestosActuales:presupuestos,
+        currentMonth:now.getMonth(),
+        currentYear:now.getFullYear(),
+      });
+      return <BudgetSetupModal
+        open={budgetSetupOpen}
+        onClose={()=>setBudgetSetupOpen(false)}
+        onSave={handleBudgetBulkSave}
+        salario={salario||0}
+        mode={sug.mode}
+        mesesDatos={sug.mesesDatos}
+        suggestions={sug.suggestions}
+        MAIN_CATS={MAIN_CATS}
+        C={C} COP={COP}/>;
+    })()}
     {presupuestoModal&&<PresupuestoModal
       cat={presupuestoModal}
       gastoActual={gastosTx.filter(t=>presupuestoModal.subs?.some(s=>s.id===t.cat)).reduce((s,t)=>s+t.amount,0)}
