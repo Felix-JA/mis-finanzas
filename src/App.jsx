@@ -363,6 +363,11 @@ function CatSelector({value, onChange, subsCustom={}, onEditCustom}){
   const curMain=MAIN_CATS.find(m=>m.subs.some(s=>s.id===value)||
     (subsCustom[m.id]||[]).some(s=>s.id===value));
   const [sel,setSel]=useState(curMain?.id||null);
+  // Sincronizar cuando value cambia externamente (ej: autocompletado)
+  useEffect(()=>{
+    const main=MAIN_CATS.find(m=>m.subs.some(s=>s.id===value)||(subsCustom[m.id]||[]).some(s=>s.id===value));
+    if(main) setSel(main.id);
+  },[value]);
   function MBtn({m}){
     const active=curMain?.id===m.id&&!sel,open=sel===m.id;
     return <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSel(p=>p===m.id?null:m.id)}
@@ -1027,7 +1032,7 @@ const META_PLACEHOLDERS = [
   "ej: Aporte especial",
 ];
 
-function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponible,catsCustom={},onEditCustom,onOpenPrestamo}){
+function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponible,catsCustom={},onEditCustom,onOpenPrestamo,txHistorial=[]}){
   const isEdit=!!initial;
   const [amount,setAmount]=useState(initial?Number(initial.amount).toLocaleString("es-CO"):"");
   const [desc,setDesc]=useState(initial?.desc||"");
@@ -1037,6 +1042,26 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
   const [conf,setConf]=useState(false);
   const ref=useRef(null);
   const scrollRef=useRef(null); // ref para preservar scroll del modal
+  const [showSug,setShowSug]=useState(false);
+
+  // ── Sugerencias inteligentes basadas en historial ─────────────────────────
+  const sugerencias=useMemo(()=>{
+    if(!desc.trim()||desc.length<2||isEdit) return [];
+    const q=desc.toLowerCase().trim();
+    // Buscar en historial — coincidencia por descripción
+    const vistos=new Map();
+    txHistorial
+      .filter(t=>t.desc&&t.cat&&t.desc.toLowerCase().includes(q)&&t.desc!==desc)
+      .forEach(t=>{
+        const key=`${t.desc}|${t.cat}`;
+        if(!vistos.has(key)) vistos.set(key,{desc:t.desc,cat:t.cat,count:1});
+        else vistos.get(key).count++;
+      });
+    // Ordenar por frecuencia y devolver top 3
+    return [...vistos.values()]
+      .sort((a,b)=>b.count-a.count)
+      .slice(0,3);
+  },[desc,txHistorial,isEdit]);
   useEffect(()=>{const t=setTimeout(()=>ref.current?.focus(),120);return()=>clearTimeout(t);},[]);
   // Preservar posición de scroll al cambiar categoría
   function setCatSinScroll(v){
@@ -1058,6 +1083,12 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
   const changed=isEdit&&(raw!==initial.amount||desc.trim()!==initial.desc||cat!==initial.cat||date!==initial.date||goalId!==(initial.goalId||""));
   const acc=esIngreso?C.emerald:esIngresoExtra?C.amber:isMeta?C.indigo:ci.color||C.emerald;
   function ha(e){const r=e.target.value.replace(/\D/g,"");setAmount(r?Number(r).toLocaleString("es-CO"):"");}
+  function handleDesc(e){setDesc(e.target.value);setShowSug(true);}
+  function aplicarSugerencia(sug){
+    setDesc(sug.desc);
+    setCatSinScroll(sug.cat);
+    setShowSug(false);
+  }
   const esEdicion=!!initial?.id;
   const montoDiff=esEdicion?(raw-initial.amount):raw;
   const sinSaldo=!esIngreso&&!esIngresoExtra&&!esEdicion&&saldoDisponible<raw&&saldoDisponible>=0;
@@ -1125,20 +1156,38 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
             cat==="meta_aporte"?"Descripción (opcional)":
             "¿En qué lo gastaste?"
           }</Lbl>
-          <input
-            placeholder={
-              esIngreso
-                ?INGRESO_PLACEHOLDERS[cat.split("").reduce((a,c)=>a+c.charCodeAt(0),0)%INGRESO_PLACEHOLDERS.length]
-                :esIngresoExtra
-                  ?"ej: Ganancia Betplay, Venta celular, Regalo..."
-                :cat==="emergencias"
-                  ?EMERGENCIA_PLACEHOLDERS[0]
-                :cat==="meta_aporte"
-                  ?META_PLACEHOLDERS[0]
-                :GASTO_PLACEHOLDERS_MAP[cat]||(GASTO_PLACEHOLDERS[cat.split("").reduce((a,c)=>a+c.charCodeAt(0),0)%GASTO_PLACEHOLDERS.length])
-            }
-            value={desc} onChange={e=>setDesc(e.target.value)} enterKeyHint="done"
-            style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box"}}/>
+          <div style={{position:"relative"}}>
+            <input
+              placeholder={
+                esIngreso
+                  ?INGRESO_PLACEHOLDERS[cat.split("").reduce((a,c)=>a+c.charCodeAt(0),0)%INGRESO_PLACEHOLDERS.length]
+                  :esIngresoExtra
+                    ?"ej: Ganancia Betplay, Venta celular, Regalo..."
+                  :cat==="emergencias"
+                    ?EMERGENCIA_PLACEHOLDERS[0]
+                  :cat==="meta_aporte"
+                    ?META_PLACEHOLDERS[0]
+                  :GASTO_PLACEHOLDERS_MAP[cat]||(GASTO_PLACEHOLDERS[cat.split("").reduce((a,c)=>a+c.charCodeAt(0),0)%GASTO_PLACEHOLDERS.length])
+              }
+              value={desc} onChange={handleDesc} onFocus={()=>setShowSug(true)} onBlur={()=>setTimeout(()=>setShowSug(false),150)} enterKeyHint="done"
+              style={{width:"100%",background:C.surface,border:`1px solid ${showSug&&sugerencias.length>0?C.indigo+"55":C.border}`,borderRadius:12,padding:"14px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box",transition:"border-color 0.2s"}}/>
+            {showSug&&sugerencias.length>0&&(
+              <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:C.card||"#0d1117",border:`1px solid ${C.indigo}44`,borderRadius:12,overflow:"hidden",zIndex:10,boxShadow:"0 8px 24px rgba(0,0,0,0.4)"}}>
+                {sugerencias.map((sug,i)=>{
+                  const catInfo=getCatInfo(sug.cat);
+                  return <button key={i} onMouseDown={e=>e.preventDefault()} onClick={()=>aplicarSugerencia(sug)}
+                    style={{width:"100%",padding:"11px 14px",background:"none",border:"none",borderBottom:i<sugerencias.length-1?`1px solid ${C.border}`:"none",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:10}}>
+                    <span style={{fontSize:18,flexShrink:0}}>{catInfo.icon}</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:700,color:C.text.h,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sug.desc}</div>
+                      <div style={{fontSize:11,color:C.text.s,marginTop:1}}>{catInfo.label}</div>
+                    </div>
+                    <span style={{fontSize:10,color:C.indigo,fontWeight:700,flexShrink:0}}>↵ usar</span>
+                  </button>;
+                })}
+              </div>
+            )}
+          </div>
         </div>
         {/* Toggle Gasto / Meta / Ingreso / Extra */}
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5,marginBottom:14}}>
@@ -3670,7 +3719,7 @@ export default function App(){
       zIndex:100,lineHeight:1,
       transition:"all 0.3s ease",
     }}>＋</button>}
-    {modal&&<TxModal initial={modal==="new"||modal==="meta_aporte"?null:modal} initialCat={modal==="meta_aporte"?"meta_aporte":undefined} goals={goals} saldoDisponible={saldo} onClose={()=>setModal(null)} onSave={handleSave} onDelete={handleDelete} catsCustom={catsCustom} onEditCustom={m=>setCatPersonalModal(m)} onOpenPrestamo={()=>{setPrestamosModal(true);setPrestamoForm("new");}}/>}
+    {modal&&<TxModal initial={modal==="new"||modal==="meta_aporte"?null:modal} initialCat={modal==="meta_aporte"?"meta_aporte":undefined} goals={goals} saldoDisponible={saldo} onClose={()=>setModal(null)} onSave={handleSave} onDelete={handleDelete} catsCustom={catsCustom} onEditCustom={m=>setCatPersonalModal(m)} onOpenPrestamo={()=>{setPrestamosModal(true);setPrestamoForm("new");}} txHistorial={tx}/>}
     {goalModal&&<GoalModal initial={goalModal==="new"?null:goalModal} onClose={()=>setGoalModal(null)} onSave={handleGoalSave} onDelete={handleGoalDelete}/>}
     {catPersonalModal&&<CatPersonalModal
       main={catPersonalModal}
