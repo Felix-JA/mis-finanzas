@@ -132,8 +132,8 @@ export function InsightsEngine({
     const pctDelIng = totalIng > 0 ? top.total / totalIng : 0;
     insights.push({
       id: "top_cat", icon: top.icon, color: top.color,
-      title: `${top.label} es donde más estás gastando`,
-      body: `${COP(top.total)} este mes${pctDelIng > 0 ? ` — ${Math.round(pctDelIng * 100)}% de tu ingreso` : ""}`,
+      title: `${top.label} lidera tus gastos este mes`,
+      body: `${COP(top.total)}${pctDelIng > 0 ? ` — ${Math.round(pctDelIng * 100)}% de tu ingreso` : ""}`,
       tipo: "observacional",
       prioridad: PRIORIDAD.observacional,
       bgType: pctDelIng > 0.4 ? "warning" : "info",
@@ -151,11 +151,11 @@ export function InsightsEngine({
         icon: subio ? "📈" : "📉",
         color: subio ? C.amber : C.emerald,
         title: subio
-          ? `Tus gastos subieron ${Math.round(pct)}% vs el mes pasado`
-          : `¡Gastas ${Math.round(pct)}% menos que el mes pasado!`,
+          ? `Este mes se te fue un ${Math.round(pct)}% más que el anterior`
+          : `¡Vas ${Math.round(pct)}% mejor que el mes pasado!`,
         body: subio
-          ? "Revisa en qué categoría puedes ajustar"
-          : "Vas mejor que antes — sigue así 🎉",
+          ? "Puedes equilibrarlo ajustando una categoría los días que quedan"
+          : "Vas por buen camino — sigue así 🎉",
         tipo: subio ? "alerta_suave" : "logro",
         prioridad: subio ? PRIORIDAD.alerta_suave : PRIORIDAD.logro,
         bgType: subio ? "warning" : "success",
@@ -178,8 +178,8 @@ export function InsightsEngine({
     const c = catSubidas[0];
     insights.push({
       id: "cat_subida", icon: c.icon, color: C.amber,
-      title: `${c.label} subió ${Math.round(c.pct)}% vs el mes pasado`,
-      body: "Revisa si hay algo que puedas reducir ahí",
+      title: `${c.label} creció ${Math.round(c.pct)}% vs el mes pasado`,
+      body: "Si quieres, puedes revisar qué movimientos lo llevaron ahí",
       tipo: "alerta_suave",
       prioridad: PRIORIDAD.alerta_suave,
       bgType: "warning",
@@ -192,8 +192,8 @@ export function InsightsEngine({
     const posibleAhorro = Math.round(segundo.total * 0.2);
     insights.push({
       id: "sugerencia_ahorro", icon: "💡", color: C.indigo,
-      title: `Reducir ${segundo.label} un 20% te daría ${COP(posibleAhorro)} extra`,
-      body: "Es el segundo gasto más alto de este mes",
+      title: `Bajando ${segundo.label} un 20% te quedan ${COP(posibleAhorro)} extra`,
+      body: "Es la segunda categoría donde más gastaste",
       tipo: "observacional",
       prioridad: PRIORIDAD.observacional,
       bgType: "tip",
@@ -205,8 +205,8 @@ export function InsightsEngine({
   if (totalIng > 0 && totalAhorr === 0 && hayMetas) {
     insights.push({
       id: "sin_metas", icon: "⭐", color: C.violet,
-      title: "Aún no has aportado a tus metas este mes",
-      body: "Empieza con poco — cualquier monto cuenta",
+      title: "Tus metas te esperan este mes",
+      body: "Empieza con poco — cualquier monto acerca lo que quieres",
       tipo: "sugerencia",
       prioridad: PRIORIDAD.sugerencia,
       bgType: "tip",
@@ -281,8 +281,8 @@ export function InsightsEngine({
       const diasRestantes = daysInCurr - today;
       insights.push({
         id: "presupuesto_cerca_limite", icon: c.icon, color: C.amber,
-        title: `${c.label} va al ${Math.round(c.pct * 100)}% del presupuesto`,
-        body: `Quedan ${diasRestantes} día${diasRestantes !== 1 ? "s" : ""} del mes — cuida los próximos gastos`,
+        title: `${c.label} va en ${Math.round(c.pct * 100)}% de tu plan`,
+        body: `Quedan ${diasRestantes} día${diasRestantes !== 1 ? "s" : ""} — ajustar un poco el ritmo ayuda a cerrar bien el mes`,
         tipo: "alerta_suave",
         prioridad: PRIORIDAD.alerta_suave,
         bgType: "warning",
@@ -350,9 +350,9 @@ export function InsightsEngine({
 
       if (saldo < totalPagos && saldo >= 0) {
         insights.push({
-          id: "pago_proximo_sin_saldo", icon: "🚨", color: C.red,
-          title: `Tienes ${COP(totalPagos)} en pagos en ${diasMin === 0 ? "hoy" : diasMin === 1 ? "1 día" : `${diasMin} días`}`,
-          body: `Te quedan ${COP(saldo)} disponibles — revisa antes de gastar`,
+          id: "pago_proximo_sin_saldo", icon: "🔔", color: C.amber,
+          title: `${COP(totalPagos)} en pagos ${diasMin === 0 ? "hoy" : diasMin === 1 ? "mañana" : `en ${diasMin} días`}`,
+          body: `Tienes ${COP(saldo)} disponibles — organízate antes para que no te sorprenda`,
           tipo: "alerta_critica",
           prioridad: PRIORIDAD.alerta_critica,
           bgType: "warning",
@@ -426,7 +426,7 @@ export function InsightsEngine({
         insights.push({
           id: "dia_gasto_fuerte", icon: "📌", color: C.amber,
           title: `El día ${diaTop} concentraste ${Math.round(pctDia * 100)}% del gasto del mes`,
-          body: `${COP(montoTop)} en un solo día — revisa si fue planeado`,
+          body: `${COP(montoTop)} en un solo día — si fue planeado, todo bien. Si no, revisa`,
           tipo: "alerta_suave",
           prioridad: PRIORIDAD.alerta_suave,
           bgType: "warning",

@@ -274,6 +274,42 @@ function Lbl({children,style={}}){
   }}>{children}</div>;
 }
 
+// ─── Helpers para modales tipo bottom-sheet (× + swipe down) ─────────────────
+// Uso: const sheet = useSheetDismiss(onClose);
+// En el card: style={{ ...sheet.cardStyle }}
+// En el handle: {...sheet.handleProps}
+// En el header: <SheetCloseBtn onClick={onClose}/>
+function useSheetDismiss(onClose){
+  const [dragY,setDragY]=useState(0);
+  const [dragStartY,setDragStartY]=useState(null);
+  const handleProps={
+    onTouchStart:e=>setDragStartY(e.touches[0].clientY),
+    onTouchMove:e=>{
+      if(dragStartY===null)return;
+      const d=e.touches[0].clientY-dragStartY;
+      if(d>0)setDragY(d);
+    },
+    onTouchEnd:()=>{
+      if(dragY>80)onClose();
+      setDragY(0);
+      setDragStartY(null);
+    },
+    style:{cursor:"grab",touchAction:"none"},
+  };
+  const cardStyle={
+    transform:`translateY(${dragY}px)`,
+    transition:dragStartY===null?"transform 0.2s ease":"none",
+  };
+  return {handleProps,cardStyle,dragY,dragStartY};
+}
+
+function SheetCloseBtn({onClose,top=14,right=14}){
+  return <button onClick={onClose} aria-label="Cerrar"
+    style={{position:"absolute",top,right,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,width:32,height:32,cursor:"pointer",color:C.text.b,fontSize:18,fontWeight:700,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",zIndex:2,transition:"all 0.15s"}}
+    onMouseEnter={e=>{e.currentTarget.style.background=`${C.red}22`;e.currentTarget.style.color=C.red;}}
+    onMouseLeave={e=>{e.currentTarget.style.background=C.surface;e.currentTarget.style.color=C.text.b;}}>×</button>;
+}
+
 // ─── MODAL CATEGORÍAS PERSONALIZADAS ─────────────────────────────────────────
 // Función global — tiene sus propios useState internos (regla de hooks OK)
 const CAT_CUSTOM_ICONS = ["⭐","🔥","💎","🎯","🧩","🛠️","📦","🎪","🏷️","💡","🎀","🌀","🧸","🎲","🦄","🏅","🔮","🎭","🌈","🍀"];
@@ -283,6 +319,7 @@ function CatPersonalModal({main, catsCustom, handleCatCustomSave, onClose}){
   const [newLabel, setNewLabel] = useState("");
   const [newIcon, setNewIcon] = useState("⭐");
   const [showIconPicker, setShowIconPicker] = useState(false);
+  const sheet = useSheetDismiss(onClose);
 
   function addSub(){
     const label = newLabel.trim();
@@ -298,18 +335,18 @@ function CatPersonalModal({main, catsCustom, handleCatCustomSave, onClose}){
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:500,animation:"fadeIn 0.18s ease"}}>
     <div onClick={e=>e.stopPropagation()}
       style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
-        border:`1px solid ${C.border}`,padding:"20px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"85vh",overflowY:"auto"}}>
-      <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
+        border:`1px solid ${C.border}`,padding:"20px 20px 36px",animation:sheet.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",maxHeight:"85vh",overflowY:"auto",position:"relative",...sheet.cardStyle}}>
+      <SheetCloseBtn onClose={onClose}/>
+      <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",marginBottom:14,padding:"4px 0 8px"}}>
         <div style={{width:40,height:4,borderRadius:99,background:C.border}}/>
       </div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,paddingRight:40}}>
         <div>
           <div style={{fontSize:17,fontWeight:800,color:C.text.h}}>
             {main.icon} Personalizar {main.label}
           </div>
           <div style={{fontSize:12,color:C.text.s,marginTop:3}}>Hasta 3 subcategorías propias ✦</div>
         </div>
-        <button onClick={onClose} style={{background:"none",border:"none",color:C.text.b,fontSize:28,cursor:"pointer",lineHeight:1,padding:4}}>×</button>
       </div>
 
       {/* Subs existentes */}
@@ -449,6 +486,7 @@ function GoalModal({initial,onClose,onSave,onDelete}){
   const [loadingImg,setLoadingImg]=useState(false);
   const imgInputRef=useRef(null);
   const ref=useRef(null);
+  const sheet=useSheetDismiss(onClose);
   useEffect(()=>{const t=setTimeout(()=>ref.current?.focus(),120);return()=>clearTimeout(t);},[]);
   const val=parseFloat(monto.replace(/\./g,"").replace(",","."))||0;
   const pct=initial&&initial.monto>0?Math.min(((initial._aportado||0)+(initial.saldoInicial||0))/initial.monto,1):0;
@@ -499,12 +537,12 @@ function GoalModal({initial,onClose,onSave,onDelete}){
   }
   return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
-    <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto"}}>
-      <div style={{display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
+    <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:sheet.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",maxHeight:"92vh",overflowY:"auto",position:"relative",...sheet.cardStyle}}>
+      <SheetCloseBtn onClose={onClose}/>
+      <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
       <div style={{padding:"0 20px 28px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,paddingRight:40}}>
           <div style={{fontSize:18,fontWeight:800,color:C.text.h}}>{isEdit?"Editar meta":"Nueva meta"}</div>
-          <button onClick={onClose} style={{background:"none",border:"none",color:C.text.b,fontSize:28,cursor:"pointer",lineHeight:1,padding:4}}>×</button>
         </div>
         {/* Preview con imagen */}
         <div style={{borderRadius:16,marginBottom:18,border:`1px solid ${C.border}`,position:"relative",overflow:"hidden",minHeight:140}}>
@@ -894,10 +932,10 @@ function AlertasAvanzadas({
       color: exacto ? C.amber : C.red,
       title: exacto
         ? `${c.label} llegó al límite del presupuesto`
-        : `${c.label} superó su presupuesto`,
+        : `${c.label} pasó del límite que definiste`,
       body: exacto
-        ? `Llevas ${COP(c.gastoCat)} de ${COP(c.limite)} — cuidado con los gastos restantes del mes`
-        : `Llevas ${COP(c.gastoCat)} de ${COP(c.limite)} — ${Math.round((c.pct-1)*100)}% sobre el límite que definiste`,
+        ? `Llevas ${COP(c.gastoCat)} de ${COP(c.limite)} — puedes ajustar el ritmo los días que quedan`
+        : `Llevas ${COP(c.gastoCat)} de ${COP(c.limite)} — ${Math.round((c.pct-1)*100)}% más de lo que planeaste`,
       type:  "warning",
     });
   }
@@ -963,8 +1001,8 @@ function BudgetAlert({pct,salario,gastado}){
   return <div style={{background:`${c}18`,border:`1px solid ${c}44`,borderRadius:14,padding:"14px 16px",marginBottom:14,display:"flex",alignItems:"center",gap:12,animation:"pulse 2s infinite"}}>
     <span style={{fontSize:26,flexShrink:0}}>{over?"🚨":"⚠️"}</span>
     <div>
-      <div style={{fontSize:14,fontWeight:800,color:c,marginBottom:3}}>{over?"¡Presupuesto superado!":"Cerca del límite mensual"}</div>
-      <div style={{fontSize:13,color:C.text.h,lineHeight:1.5}}>{over?`Llevas ${COP(gastado-salario)} sobre tu sueldo.`:`Llevas el ${Math.round(pct*100)}% del sueldo gastado.`}</div>
+      <div style={{fontSize:14,fontWeight:800,color:c,marginBottom:3}}>{over?"Cuida los próximos gastos":"Cerca del límite mensual"}</div>
+      <div style={{fontSize:13,color:C.text.h,lineHeight:1.5}}>{over?`Llevas ${COP(gastado-salario)} por encima de tu sueldo — un mes tranquilo te ayuda a equilibrar.`:`Llevas el ${Math.round(pct*100)}% de tu sueldo usado este mes.`}</div>
     </div>
   </div>;
 }
@@ -1057,6 +1095,7 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
   const ref=useRef(null);
   const scrollRef=useRef(null); // ref para preservar scroll del modal
   const [showSug,setShowSug]=useState(false);
+  const sheet=useSheetDismiss(onClose);
 
   // ── Sugerencias inteligentes basadas en historial ─────────────────────────
   const sugerencias=useMemo(()=>{
@@ -1143,14 +1182,14 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
   }
   return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:300,animation:"fadeIn 0.18s ease"}}>
-    <div ref={scrollRef} style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto"}}>
-      <div style={{display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
+    <div ref={scrollRef} style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:sheet.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",maxHeight:"92vh",overflowY:"auto",position:"relative",...sheet.cardStyle}}>
+      <SheetCloseBtn onClose={onClose}/>
+      <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
       <div style={{padding:"0 20px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,paddingRight:40}}>
           <div style={{fontSize:17,fontWeight:800,color:C.text.h}}>
             {isEdit?(esIngreso?"Editar ingreso":"Editar movimiento"):(esIngreso?"Nuevo ingreso":"Nuevo movimiento")}
           </div>
-          <button onClick={onClose} style={{background:"none",border:"none",color:C.text.b,fontSize:28,cursor:"pointer",lineHeight:1,padding:4}}>×</button>
         </div>
         <div style={{marginBottom:14}}>
           <Lbl>{esIngreso?"Monto recibido (COP)":"Monto (COP)"}</Lbl>
@@ -1256,15 +1295,15 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
         </div>
         {/* Alerta saldo insuficiente */}
         {sinSaldo&&raw>0&&!esIngreso&&(
-          <div style={{marginBottom:12,padding:"12px 14px",background:`${C.red}15`,border:`1px solid ${C.red}40`,borderRadius:12,display:"flex",gap:10,alignItems:"flex-start",animation:"fadeIn 0.18s ease"}}>
-            <span style={{fontSize:20,flexShrink:0}}>🚫</span>
+          <div style={{marginBottom:12,padding:"12px 14px",background:`${C.amber}15`,border:`1px solid ${C.amber}40`,borderRadius:12,display:"flex",gap:10,alignItems:"flex-start",animation:"fadeIn 0.18s ease"}}>
+            <span style={{fontSize:20,flexShrink:0}}>💭</span>
             <div>
-              <div style={{fontSize:13,fontWeight:800,color:C.red,marginBottom:3}}>
-                {saldoDisponible<=0?"No tienes saldo disponible":"Saldo insuficiente para este gasto"}
+              <div style={{fontSize:13,fontWeight:800,color:C.amber,marginBottom:3}}>
+                {saldoDisponible<=0?"Este mes quedaste sin margen":"Excede tu disponible este mes"}
               </div>
               <div style={{fontSize:12,color:C.text.b,lineHeight:1.6}}>
                 {saldoDisponible<=0
-                  ?`Tu saldo disponible es ${COP(saldoDisponible)}. Registrar este gasto lo aumentaría aún más.`
+                  ?`Tu disponible es ${COP(saldoDisponible)}. Puedes registrarlo igual si es real, solo ten en cuenta el impacto.`
                   :`Disponible: ${COP(saldoDisponible)} · Este gasto: ${COP(raw)}`}
               </div>
             </div>
@@ -1280,7 +1319,7 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
               background:(hayError||sinMetas)?C.surface:sinSaldo?`${C.red}20`:isEdit&&!changed?`${C.sky}18`:`linear-gradient(135deg,${acc},${acc}cc)`,
               color:(hayError||sinMetas)?C.text.s:sinSaldo?C.red:isEdit&&!changed?C.sky:"#fff",
               opacity:(hayError||sinSaldo||sinMetas)?0.65:1}}>
-            {getMensajeError() ?? (sinSaldo?"Saldo insuficiente 🚫":isEdit&&!changed?"Sin cambios":isEdit?"✓ Guardar":esIngreso?`Registrar salario ${COP(raw)} →`:esIngresoExtra?`Registrar extra ${COP(raw)} →`:`Registrar ${COP(raw)} →`)}
+            {getMensajeError() ?? (sinSaldo?"Excede tu disponible":isEdit&&!changed?"Sin cambios":isEdit?"✓ Guardar":esIngreso?`Registrar salario ${COP(raw)} →`:esIngresoExtra?`Registrar extra ${COP(raw)} →`:`Registrar ${COP(raw)} →`)}
           </button>
         </div>
       </div>
@@ -1342,11 +1381,13 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
   const devueltos=prestamos.filter(p=>p.devuelto);
   const totalPendiente=pendientes.reduce((s,p)=>s+p.monto,0);
   const [cobroModal,setCobroModal]=useState(null); // prestamo a cobrar
+  const sheet=useSheetDismiss(onClose);
 
   // Mini-modal para registrar cobro
   function CobroModal({prestamo,onClose3}){
     const [monto,setMonto]=useState(Number(prestamo.monto).toLocaleString("es-CO"));
     const raw=parseFloat(monto.replace(/\./g,"").replace(",","."))||0;
+    const sheet3=useSheetDismiss(onClose3);
     function hm(e){const r=e.target.value.replace(/\D/g,"");setMonto(r?Number(r).toLocaleString("es-CO"):"");}
     function confirmar(){
       if(!raw)return;
@@ -1357,8 +1398,9 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
       style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"flex-end",zIndex:700,animation:"fadeIn 0.15s ease"}}>
       <div onClick={e=>e.stopPropagation()}
         style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
-          border:"1px solid rgba(16,185,129,0.3)",padding:"24px 20px 40px",animation:"slideUp 0.2s cubic-bezier(0.34,1.56,0.64,1)"}}>
-        <div style={{display:"flex",justifyContent:"center",marginBottom:14}}><div style={{width:40,height:4,borderRadius:99,background:"rgba(255,255,255,0.08)"}}/></div>
+          border:"1px solid rgba(16,185,129,0.3)",padding:"24px 20px 40px",animation:sheet3.dragY===0?"slideUp 0.2s cubic-bezier(0.34,1.56,0.64,1)":"none",position:"relative",...sheet3.cardStyle}}>
+        <SheetCloseBtn onClose={onClose3}/>
+        <div {...sheet3.handleProps} style={{...sheet3.handleProps.style,display:"flex",justifyContent:"center",marginBottom:14,padding:"4px 0 8px"}}><div style={{width:40,height:4,borderRadius:99,background:"rgba(255,255,255,0.08)"}}/></div>
         <div style={{textAlign:"center",marginBottom:20}}>
           <div style={{fontSize:32,marginBottom:6}}>🤝</div>
           <div style={{fontSize:17,fontWeight:800,color:"#f1f5f9"}}>{prestamo.nombre} te pagó</div>
@@ -1400,6 +1442,7 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
     const [fecha,setFecha]=useState(initial?.fechaPrestamo||todayStr());
     const [desc,setDesc]=useState(initial?.descripcion||"");
     const [conf,setConf]=useState(false);
+    const sheet2=useSheetDismiss(onClose2);
     const raw=parseFloat(monto.replace(/\./g,"").replace(",","."))||0;
     function hm(e){const r=e.target.value.replace(/\D/g,"");setMonto(r?Number(r).toLocaleString("es-CO"):"");}
     function save(){
@@ -1411,11 +1454,11 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
       style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:600,animation:"fadeIn 0.18s ease"}}>
       <div onClick={e=>e.stopPropagation()}
         style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
-          border:`1px solid rgba(244,63,94,0.3)`,padding:"20px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"90vh",overflowY:"auto"}}>
-        <div style={{display:"flex",justifyContent:"center",marginBottom:14}}><div style={{width:40,height:4,borderRadius:99,background:"rgba(255,255,255,0.08)"}}/></div>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          border:`1px solid rgba(244,63,94,0.3)`,padding:"20px 20px 36px",animation:sheet2.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",maxHeight:"90vh",overflowY:"auto",position:"relative",...sheet2.cardStyle}}>
+        <SheetCloseBtn onClose={onClose2}/>
+        <div {...sheet2.handleProps} style={{...sheet2.handleProps.style,display:"flex",justifyContent:"center",marginBottom:14,padding:"4px 0 8px"}}><div style={{width:40,height:4,borderRadius:99,background:"rgba(255,255,255,0.08)"}}/></div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,paddingRight:40}}>
           <div style={{fontSize:17,fontWeight:800,color:"#f1f5f9"}}>{isEdit?"Editar préstamo":"🤝 Nuevo préstamo"}</div>
-          <button onClick={onClose2} style={{background:"none",border:"none",color:"#a8b8cc",fontSize:28,cursor:"pointer",lineHeight:1,padding:4}}>×</button>
         </div>
         <div style={{fontSize:10,color:"#6b7f96",fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>¿A quién le prestaste?</div>
         <input placeholder="ej: Juan, María, Pedro…" value={nombre} onChange={e=>setNombre(e.target.value)}
@@ -1469,17 +1512,17 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:500,animation:"fadeIn 0.18s ease"}}>
     <div onClick={e=>e.stopPropagation()}
       style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
-        border:"1px solid rgba(255,255,255,0.08)",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",
-        maxHeight:"90vh",overflowY:"auto"}}>
-      <div style={{display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:"rgba(255,255,255,0.08)"}}/></div>
+        border:"1px solid rgba(255,255,255,0.08)",animation:sheet.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",
+        maxHeight:"90vh",overflowY:"auto",position:"relative",...sheet.cardStyle}}>
+      <SheetCloseBtn onClose={onClose}/>
+      <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:"rgba(255,255,255,0.08)"}}/></div>
       <div style={{padding:"0 20px 36px"}}>
         {/* Header */}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,paddingRight:40}}>
           <div>
             <div style={{fontSize:18,fontWeight:800,color:"#f1f5f9"}}>🤝 Préstamos a terceros</div>
             <div style={{fontSize:12,color:"#6b7f96",marginTop:2}}>Registra lo que te deben</div>
           </div>
-          <button onClick={onClose} style={{background:"none",border:"none",color:"#a8b8cc",fontSize:28,cursor:"pointer",lineHeight:1,padding:4}}>×</button>
         </div>
 
         {/* Resumen */}
@@ -2564,7 +2607,7 @@ export default function App(){
               <div style={{fontSize:11,color:C.indigoLight,letterSpacing:1.2,fontWeight:700,marginBottom:8,opacity:0.9}}>EN METAS</div>
               <div style={{fontSize:22,fontWeight:900,color:C.indigoLight,letterSpacing:-1,marginBottom:8}}>{COP(totalAportes)}</div>
               <div style={{background:`${C.indigo}22`,borderRadius:99,height:4,overflow:"hidden"}}><div style={{height:4,borderRadius:99,background:C.indigo,width:`${Math.min(tasaAhorr*100,100)}%`,transition:"width 0.7s"}}/></div>
-              <div style={{fontSize:11,color:C.text.s,marginTop:6}}>{totalAportes>0?`${Math.round(tasaAhorr*100)}% guardado`:"Sin aportes aún"}</div>
+              <div style={{fontSize:11,color:C.text.s,marginTop:6}}>{totalAportes>0?`${Math.round(tasaAhorr*100)}% guardado`:"Empieza cuando quieras"}</div>
             </div>
           </div>
           {/* ── 2.5 Banner plan inteligente (si no hay presupuestos) ── */}
@@ -2598,7 +2641,7 @@ export default function App(){
         {goals.slice(0,3).map(g=><GoalChip key={g.id} goal={g} aportado={getAportado(g.id)} aportadoEsteMes={getAportadoMes(g.id,month,now.getFullYear())} txAll={tx} onClick={()=>changeTab("metas")}/>)}
       </>}
       {!txLoading&&monthTx.length===0&&month===now.getMonth()&&<div style={{textAlign:"center",padding:"40px 0",color:C.text.b,fontSize:14,lineHeight:2.2}}>
-        Sin movimientos aún.<br/><span style={{fontSize:32}}>👆</span><br/>Toca <b style={{color:C.emerald}}>+</b> para registrar.
+        Todo listo para empezar.<br/><span style={{fontSize:32}}>👆</span><br/>Toca <b style={{color:C.emerald}}>+</b> para registrar tu primer movimiento.
       </div>}
     </div>;
   };
@@ -2927,6 +2970,7 @@ export default function App(){
     const [frecuencia,setFrecuencia]=useState(initial?.frecuencia||"mensual");
     const [conf,setConf]=useState(false);
     const ref=useRef(null);
+    const sheet=useSheetDismiss(onClose);
     useEffect(()=>{const t=setTimeout(()=>ref.current?.focus(),120);return()=>clearTimeout(t);},[]);
     const raw=parseFloat(monto.replace(/\./g,"").replace(",","."))||0;
     function hm(e){const r=e.target.value.replace(/\D/g,"");setMonto(r?Number(r).toLocaleString("es-CO"):"");}
@@ -2942,12 +2986,12 @@ export default function App(){
     const ci=getCatInfo(cat);
     return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
       style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:300,animation:"fadeIn 0.18s ease"}}>
-      <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto",scrollBehavior:"auto"}}>
-        <div style={{display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
+      <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:sheet.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",maxHeight:"92vh",overflowY:"auto",scrollBehavior:"auto",position:"relative",...sheet.cardStyle}}>
+        <SheetCloseBtn onClose={onClose}/>
+        <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
         <div style={{padding:"0 20px 28px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,paddingRight:40}}>
             <div style={{fontSize:17,fontWeight:800,color:C.text.h}}>{isEdit?"Editar pago":"Nuevo pago programado"}</div>
-            <button onClick={onClose} style={{background:"none",border:"none",color:C.text.b,fontSize:28,cursor:"pointer"}}>×</button>
           </div>
           <Lbl>Nombre del pago</Lbl>
           <input ref={ref} placeholder="ej: Arriendo, Gym, Netflix, Seguro..." value={nombre} onChange={e=>setNombre(e.target.value)}

@@ -250,9 +250,9 @@ export function BudgetHealth({
   if (deudasReal > 0 && deudasReal / salario > 0.30) {
     alertas.push({
       id: 'deudas_altas',
-      icon: '🚨', color: C.red,
-      title: `Deudas consumen ${Math.round(deudasReal / salario * 100)}% de tu ingreso`,
-      body: 'Por encima del 30% empieza a asfixiar. Intenta bajarlas poco a poco',
+      icon: '💳', color: C.amber,
+      title: `Tus deudas ocupan ${Math.round(deudasReal / salario * 100)}% del ingreso`,
+      body: 'Lo ideal es mantenerlas bajo 30%. Un pago extra este mes puede marcar la diferencia',
       priority: 0,
     });
   }
@@ -269,8 +269,8 @@ export function BudgetHealth({
       alertas.push({
         id: 'ocio_sobre_metas',
         icon: '⚖️', color: C.amber,
-        title: `Gastas más en ocio que lo que aportas a tus metas`,
-        body: `${COP(ocioReal)} en ocio vs ${COP(aportesReales)} en metas — ${COP(diff)} de diferencia`,
+        title: `Tu ocio este mes supera tus aportes a metas`,
+        body: `${COP(ocioReal)} en ocio vs ${COP(aportesReales)} en metas — moviendo un poco del ocio aceleras tus sueños`,
         priority: 1,
       });
     }
@@ -282,9 +282,9 @@ export function BudgetHealth({
     if (totalPresup / salario >= 0.95) {
       alertas.push({
         id: 'sin_margen',
-        icon: '⚠️', color: C.amber,
-        title: 'Tu plan no deja margen para metas',
-        body: `Presupuestaste ${Math.round(totalPresup / salario * 100)}% del ingreso. Idealmente deja 15% libre`,
+        icon: '💡', color: C.amber,
+        title: 'Tu plan casi no deja espacio para metas',
+        body: `Presupuestaste ${Math.round(totalPresup / salario * 100)}% de tu ingreso. Bajar alguna categoría un poco te libera para ahorrar`,
         priority: 1,
       });
     }
