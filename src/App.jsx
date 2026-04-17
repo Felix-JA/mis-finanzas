@@ -49,6 +49,16 @@ const DARK = TEMAS.navy; // alias para compatibilidad
 // C es mutable — se actualiza al cambiar tema
 const C = {...DARK};
 
+// ─── HELPER DE TINTA ADAPTATIVA ───────────────────────────────────────────────
+// Devuelve rgba(blanco) en oscuro o rgba(slate) en claro. Usa C.isLight (lectura
+// dinámica) para responder a cambios de tema sin re-ejecutar nada.
+// Reemplaza `rgba(255,255,255,op)` hardcodeado por `ink(op)` donde sea crítico.
+function ink(opacity=1){
+  return C.isLight
+    ? `rgba(15,23,42,${opacity})`
+    : `rgba(255,255,255,${opacity})`;
+}
+
 // ─── CATEGORÍAS ───────────────────────────────────────────────────────────────
 const MAIN_CATS = [
   { id:"comida",     label:"Comida",   labelFull:"Comida",               icon:"🍽️", color:"#facc15",
@@ -67,8 +77,8 @@ const MAIN_CATS = [
     subs:[{id:"ropa",label:"Ropa",icon:"👔"},{id:"calzado",label:"Calzado",icon:"👟"},{id:"accesorios",label:"Accesorios",icon:"⌚"},{id:"cuidado",label:"Cuidado",icon:"🧴"}]},
   { id:"digital",    label:"Digital",  labelFull:"Digital y Suscripciones", icon:"📱", color:"#38bdf8",
     subs:[{id:"streaming",label:"Streaming",icon:"📺"},{id:"apps",label:"Apps/Suscripc.",icon:"📲"},{id:"compras_online",label:"Compras online",icon:"🛍️"},{id:"tecnologia",label:"Tecnología",icon:"💻"}]},
-  { id:"deudas",     label:"Deudas",   labelFull:"Deudas y Préstamos",   icon:"💳", color:"#f43f5e",
-    subs:[{id:"tarjeta",label:"Tarjeta",icon:"💳"},{id:"cuotas",label:"Cuotas",icon:"📦"},{id:"credito",label:"Crédito",icon:"🏦"},{id:"prestamo_tercero",label:"A terceros",icon:"🤝"}]},
+  { id:"deudas",     label:"Deudas",   labelFull:"Deudas",                icon:"💳", color:"#f43f5e",
+    subs:[{id:"tarjeta",label:"Tarjeta",icon:"💳"},{id:"cuotas",label:"Cuotas",icon:"📦"},{id:"credito",label:"Crédito",icon:"🏦"}]},
   { id:"otros_main", label:"Otros",    labelFull:"Otros",                icon:"📦", color:"#94a3b8",
     subs:[{id:"educacion",label:"Educación",icon:"📚"},{id:"mascotas",label:"Mascotas",icon:"🐾"},{id:"regalos",label:"Regalos",icon:"🎁"},{id:"otros",label:"Otros",icon:"🗂️"}]},
 ];
@@ -80,8 +90,9 @@ const EXTRA_CAT = {id:"ingreso_extra",label:"Ingreso extra",icon:"💫",color:"#
 function isIngreso(cat){ return cat==="ingreso"; }
 function isDevolucion(cat){ return cat==="prestamo_devuelto"; }
 function isIngresoExtra(cat){ return cat==="ingreso_extra"; } // suma al disponible, NO al salario
+function isPrestamoTercero(cat){ return cat==="prestamo_tercero"; } // préstamo a tercero — NO es gasto, es dinero que volverá
 function isAporteMeta(t){ return !!t.goalId; }
-function isGasto(cat){ return !isIngreso(cat) && !isDevolucion(cat) && !isIngresoExtra(cat) && cat!=="meta_aporte"; }
+function isGasto(cat){ return !isIngreso(cat) && !isDevolucion(cat) && !isIngresoExtra(cat) && !isPrestamoTercero(cat) && cat!=="meta_aporte"; }
 // Compatibilidad legacy: emergencias era categoría, ahora es meta especial
 function isSavingsLegacy(cat){ return cat==="emergencias"||cat==="meta_aporte"; }
 const ALL_SUBS = MAIN_CATS.flatMap(m=>m.subs.map(s=>({...s,mainId:m.id,color:m.color})));
@@ -94,6 +105,7 @@ function getCatInfo(id) {
   if(id==="ingreso") return INCOME_CAT;
   if(id==="prestamo_devuelto") return DEVOLUCION_CAT;
   if(id==="ingreso_extra") return EXTRA_CAT;
+  if(id==="prestamo_tercero") return {id:"prestamo_tercero",label:"Préstamo a tercero",icon:"🤝",color:"#f59e0b"};
   if(id==="emergencias") return {id:"emergencias",label:"Fondo Emergencias",icon:"🛡️",color:C.sky};
   if(id==="meta_aporte") return {id:"meta_aporte",label:"Aporte a Meta",icon:"⭐",color:C.indigo};
   // Buscar en subcategorías personalizadas (✦)
@@ -1585,6 +1597,8 @@ export default function App(){
   const [salarioHistory,setSalarioHistory]=useState({}); // {"YYYY-M": monto}
   const [tx,setTx]=useState([]),[goals,setGoals]=useState([]);
   const [month,setMonth]=useState(now.getMonth()),[tab,setTab]=useState("home");
+  const [filtroMainCat,setFiltroMainCat]=useState(null); // id de MAIN_CAT para filtrar en MovTab desde Análisis
+  const [filtroMainCatOrigen,setFiltroMainCatOrigen]=useState(null); // de dónde vino: "analisis" | null
   const monthScrollRef=useRef(null);
   const [modal,setModal]=useState(null),[goalModal,setGoalModal]=useState(null);
   const [txLoading,setTxL]=useState(false);
@@ -1603,12 +1617,18 @@ export default function App(){
   const [prestamos,setPrestamos]=useState([]);
   const [prestamosModal,setPrestamosModal]=useState(false);
   const [prestamoForm,setPrestamoForm]=useState(null);
-  const [tema,setTema]=useState(()=>localStorage.getItem("mf_tema")||"navy");
+  const [tema,setTema]=useState(()=>{
+    // Sanitizar: si el tema guardado ya no existe (ej. se removieron temas claros), volver a navy
+    const saved=localStorage.getItem("mf_tema");
+    return (saved && TEMAS[saved]) ? saved : "navy";
+  });
 
   // Mutar C con el tema activo antes de cada render
   const paleta=TEMAS[tema]||TEMAS.navy;
   Object.assign(C,paleta);
   Object.assign(C.text,paleta.text);
+  // Limpiar isLight si el tema actual no lo declara (evita contaminación entre temas)
+  if(!paleta.isLight) C.isLight=false;
 
   function cambiarTema(nuevoTema){
     setTema(nuevoTema);
@@ -1617,6 +1637,12 @@ export default function App(){
 
   function changeTab(newTab){
     setTab(newTab); // El mes seleccionado se mantiene al cambiar de pestaña
+    // Limpiar filtro por categoría si salimos de Movim (evita quedarse con filtro "invisible")
+    if(newTab!=="mov"){
+      setFiltroMainCat(null);
+      // Solo limpiar el origen si no vamos a Análisis (para que × pueda regresar correctamente)
+      if(newTab!=="anal") setFiltroMainCatOrigen(null);
+    }
   }
 
   useEffect(()=>onAuthStateChanged(auth,u=>{setUser(u);setAL(false);}),[]);
@@ -2306,10 +2332,12 @@ export default function App(){
   const ingresosTx=monthTx.filter(t=>isIngreso(t.cat));
   const devolucionesTx=monthTx.filter(t=>isDevolucion(t.cat));
   const extrasTx=monthTx.filter(t=>isIngresoExtra(t.cat)); // apuestas, ventas, regalos — no cuentan como salario
+  const prestamosTx=monthTx.filter(t=>isPrestamoTercero(t.cat)); // préstamos a terceros — salen del saldo, no son gasto
   const aporteMesAll=monthTx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat));
   const totalGasto=gastosTx.reduce((s,t)=>s+t.amount,0);
   const totalDevoluciones=devolucionesTx.reduce((s,t)=>s+t.amount,0);
   const totalExtras=extrasTx.reduce((s,t)=>s+t.amount,0);
+  const totalPrestamos=prestamosTx.reduce((s,t)=>s+t.amount,0);
   const totalAportes=aporteMesAll.reduce((s,t)=>s+t.amount,0);
   const sal=salario||0;
   const salDelMes=getSalarioDelMes(now.getFullYear(),month);
@@ -2359,10 +2387,11 @@ export default function App(){
     txPasadas.forEach(t => {
       const d = parseDateSafe(t.date);
       const key = `${d.getFullYear()}-${d.getMonth()}`;
-      if (!porMes[key]) porMes[key] = { ingresos: 0, gastos: 0, ahorros: 0, devoluciones: 0, extras: 0 };
+      if (!porMes[key]) porMes[key] = { ingresos: 0, gastos: 0, ahorros: 0, devoluciones: 0, extras: 0, prestamos: 0 };
       if (isIngreso(t.cat)) porMes[key].ingresos += t.amount;
       else if (isDevolucion(t.cat)) porMes[key].devoluciones += t.amount;
       else if (isIngresoExtra(t.cat)) porMes[key].extras += t.amount;
+      else if (isPrestamoTercero(t.cat)) porMes[key].prestamos += t.amount;
       else if (isAporteMeta(t)||isSavingsLegacy(t.cat)) porMes[key].ahorros += t.amount;
       else porMes[key].gastos += t.amount;
     });
@@ -2372,10 +2401,10 @@ export default function App(){
     let y = minYear, m = minMes;
     while (y < limiteYear || (y === limiteYear && m < limiteMes)) {
       const key = `${y}-${m}`;
-      const datos = porMes[key] || { ingresos: 0, gastos: 0, ahorros: 0, devoluciones: 0, extras: 0 };
+      const datos = porMes[key] || { ingresos: 0, gastos: 0, ahorros: 0, devoluciones: 0, extras: 0, prestamos: 0 };
       const salMes = getSalarioDelMes(y, m);
       const ingMes = salMes + datos.ingresos;
-      const disponibleMes = ingMes + saldoAcumulado - datos.gastos - datos.ahorros + datos.devoluciones + datos.extras;
+      const disponibleMes = ingMes + saldoAcumulado - datos.gastos - datos.ahorros - (datos.prestamos||0) + datos.devoluciones + datos.extras;
       saldoAcumulado = Math.max(disponibleMes, 0);
       m++;
       if (m > 11) { m = 0; y++; }
@@ -2384,13 +2413,16 @@ export default function App(){
   }
 
   const saldoAnterior=getSaldoAcumulado();
-  const saldo=totalIngresoMes+saldoAnterior-totalGasto-totalAportes+totalDevoluciones+totalExtras;
+  const saldo=totalIngresoMes+saldoAnterior-totalGasto-totalAportes-totalPrestamos+totalDevoluciones+totalExtras;
   const tasaAhorr=totalIngresoMes>0?totalAportes/totalIngresoMes:0;
   const totalDisponibleBase=totalIngresoMes+saldoAnterior;
   const pctUsado=totalDisponibleBase>0?totalGasto/totalDisponibleBase:0;
   const totalEnMetas=tx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat)).reduce((s,t)=>s+t.amount,0);
   const saldoColor=saldo>sal*0.4?C.emerald:saldo>sal*0.15?C.amber:C.red;
   const animSaldo=useCountUp(Math.max(saldo,0));
+  // Compartidos entre HomeTab y AnalisisTab — subidos al scope de App()
+  const byMain=MAIN_CATS.map(m=>({...m,total:gastosTx.filter(t=>m.subs.some(s=>s.id===t.cat)).reduce((s,t)=>s+t.amount,0)})).filter(c=>c.total>0||(presupuestos[c.id]||0)>0).sort((a,b)=>(b.total-a.total)||((presupuestos[b.id]||0)-(presupuestos[a.id]||0)));
+  const totalMesesConDatos=new Set(tx.map(t=>{const d=parseDateSafe(t.date);return `${d.getFullYear()}-${d.getMonth()}`;})).size;
   function getAportado(gid){
     // Acumulado histórico = saldo inicial (ahorros previos) + aportes registrados en la app
     const meta=goals.find(g=>g.id===gid);
@@ -2468,9 +2500,7 @@ export default function App(){
   };
 
   const HomeTab=()=>{
-    const byMain=MAIN_CATS.map(m=>({...m,total:gastosTx.filter(t=>m.subs.some(s=>s.id===t.cat)).reduce((s,t)=>s+t.amount,0)})).filter(c=>c.total>0||(presupuestos[c.id]||0)>0).sort((a,b)=>(b.total-a.total)||((presupuestos[b.id]||0)-(presupuestos[a.id]||0)));
     const sinDatos = monthTx.length===0 && month!==now.getMonth();
-    const totalMesesConDatos = new Set(tx.map(t=>{const d=parseDateSafe(t.date);return `${d.getFullYear()}-${d.getMonth()}`;})).size;
     return <div style={{padding:"16px 20px 0"}}>
       <MonthSelector/>
       <BudgetAlert pct={pctUsado} salario={sal} gastado={totalGasto}/>
@@ -2490,23 +2520,23 @@ export default function App(){
         MONTHS_S={MONTHS_S}
       />
       {/* ── 1. Disponible ── */}
-      <div style={{borderRadius:22,padding:"22px 22px 20px",marginBottom:16,background:pctUsado>=1?"linear-gradient(135deg,#2d0a0a 0%,#1a0505 100%)":pctUsado>=0.8?"linear-gradient(135deg,#1a1000 0%,#0e0800 100%)":"linear-gradient(135deg,#1a1f4e 0%,#0d1235 50%,#080e1e 100%)",border:`1px solid ${pctUsado>=1?C.red+"55":pctUsado>=0.8?C.amber+"44":"rgba(99,102,241,0.3)"}`,boxShadow:`0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)`,position:"relative",overflow:"hidden",transition:"all 0.5s ease"}}>
-        <div style={{position:"absolute",top:-60,right:-40,width:180,height:180,borderRadius:"50%",background:"rgba(99,102,241,0.08)",pointerEvents:"none"}}/>
-        <div style={{position:"absolute",bottom:-30,left:-20,width:120,height:120,borderRadius:"50%",background:"rgba(16,185,129,0.05)",pointerEvents:"none"}}/>
+      <div style={{borderRadius:22,padding:"22px 22px 20px",marginBottom:16,background:pctUsado>=1?`linear-gradient(135deg,${C.red}28 0%,${C.red}10 100%)`:pctUsado>=0.8?`linear-gradient(135deg,${C.amber}25 0%,${C.amber}0d 100%)`:`linear-gradient(135deg,${C.indigo}28 0%,${C.indigo}10 50%,${C.bg} 100%)`,border:`1px solid ${pctUsado>=1?C.red+"55":pctUsado>=0.8?C.amber+"44":C.indigo+"40"}`,boxShadow:`0 20px 60px ${C.isLight?"rgba(15,23,42,0.08)":"rgba(0,0,0,0.5)"}, inset 0 1px 0 ${ink(0.08)}`,position:"relative",overflow:"hidden",transition:"all 0.5s ease"}}>
+        <div style={{position:"absolute",top:-60,right:-40,width:180,height:180,borderRadius:"50%",background:`${C.indigo}12`,pointerEvents:"none"}}/>
+        <div style={{position:"absolute",bottom:-30,left:-20,width:120,height:120,borderRadius:"50%",background:`${C.emerald}10`,pointerEvents:"none"}}/>
         <div style={{position:"relative"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",letterSpacing:2,fontWeight:700,textTransform:"uppercase"}}>Disponible · {MONTHS_S[month]}</div>
-            {saldoAnterior>0&&<div style={{background:"rgba(16,185,129,0.15)",border:"1px solid rgba(16,185,129,0.3)",borderRadius:99,padding:"3px 10px",fontSize:11,color:C.emeraldLight,fontWeight:700}}>+{COP(saldoAnterior)} anterior</div>}
+            <div style={{fontSize:11,color:C.text.b,letterSpacing:2,fontWeight:700,textTransform:"uppercase"}}>Disponible · {MONTHS_S[month]}</div>
+            {saldoAnterior>0&&<div style={{background:`${C.emerald}22`,border:`1px solid ${C.emerald}44`,borderRadius:99,padding:"3px 10px",fontSize:11,color:C.emeraldLight,fontWeight:700}}>+{COP(saldoAnterior)} anterior</div>}
           </div>
-          <div style={{fontSize:48,fontWeight:900,letterSpacing:-2.5,lineHeight:1,color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.emeraldLight,fontVariantNumeric:"tabular-nums",marginBottom:20,textShadow:pctUsado<0.8?`0 0 40px rgba(52,211,153,0.3)`:"none",transition:"color 0.4s"}}>
+          <div style={{fontSize:48,fontWeight:900,letterSpacing:-2.5,lineHeight:1,color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.emerald,fontVariantNumeric:"tabular-nums",marginBottom:20,textShadow:pctUsado<0.8&&!C.isLight?`0 0 40px ${C.emerald}44`:"none",transition:"color 0.4s"}}>
             {COP(animSaldo)}
           </div>
-          <div style={{background:"rgba(255,255,255,0.08)",borderRadius:99,height:8,overflow:"hidden",marginBottom:10}}>
-            <div style={{height:8,borderRadius:99,background:pctUsado>=1?`linear-gradient(90deg,${C.red},#ff6b6b)`:pctUsado>=0.8?`linear-gradient(90deg,${C.amber},#fbbf24)`:`linear-gradient(90deg,${C.indigo},${C.emerald})`,width:`${Math.min(pctUsado*100,100)}%`,transition:"width 0.8s ease",boxShadow:pctUsado<0.8?`0 0 12px rgba(99,102,241,0.6)`:"none"}}/>
+          <div style={{background:ink(0.08),borderRadius:99,height:8,overflow:"hidden",marginBottom:10}}>
+            <div style={{height:8,borderRadius:99,background:pctUsado>=1?`linear-gradient(90deg,${C.red},#ff6b6b)`:pctUsado>=0.8?`linear-gradient(90deg,${C.amber},#fbbf24)`:`linear-gradient(90deg,${C.indigo},${C.emerald})`,width:`${Math.min(pctUsado*100,100)}%`,transition:"width 0.8s ease",boxShadow:pctUsado<0.8?`0 0 12px ${C.indigo}99`:"none"}}/>
           </div>
           <div style={{display:"flex",justifyContent:"space-between"}}>
-            <span style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{totalDisponibleBase>0?`de ${COP(totalDisponibleBase)}`:"Sin ingresos"}</span>
-            <span style={{fontSize:12,fontWeight:700,color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:"rgba(255,255,255,0.5)"}}>{Math.round(pctUsado*100)}% gastado</span>
+            <span style={{fontSize:12,color:C.text.s}}>{totalDisponibleBase>0?`de ${COP(totalDisponibleBase)}`:"Sin ingresos"}</span>
+            <span style={{fontSize:12,fontWeight:700,color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.text.s}}>{Math.round(pctUsado*100)}% gastado</span>
           </div>
           {!sinDatos&&<MonthlyProjection gastosTx={gastosTx} saldo={saldo} month={month} C={C} COP={COP} MONTHS_S={MONTHS_S}/>}
         </div>
@@ -2524,17 +2554,17 @@ export default function App(){
         <>
           {/* ── 2. Stats ── */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
-            <div style={{borderRadius:18,padding:"16px",background:"linear-gradient(135deg,rgba(239,68,68,0.12) 0%,rgba(239,68,68,0.05) 100%)",border:`1px solid rgba(239,68,68,0.25)`,boxShadow:"0 4px 20px rgba(0,0,0,0.3)"}}>
-              <div style={{fontSize:11,color:"rgba(239,68,68,0.9)",letterSpacing:1.2,fontWeight:700,marginBottom:8}}>GASTOS</div>
+            <div style={{borderRadius:18,padding:"16px",background:`linear-gradient(135deg,${C.red}20 0%,${C.red}08 100%)`,border:`1px solid ${C.red}30`,boxShadow:`0 4px 20px ${C.isLight?"rgba(15,23,42,0.05)":"rgba(0,0,0,0.3)"}`}}>
+              <div style={{fontSize:11,color:C.red,letterSpacing:1.2,fontWeight:700,marginBottom:8,opacity:0.9}}>GASTOS</div>
               <div style={{fontSize:22,fontWeight:900,color:C.red,letterSpacing:-1,marginBottom:8}}>{COP(totalGasto)}</div>
-              <div style={{background:"rgba(239,68,68,0.15)",borderRadius:99,height:4,overflow:"hidden"}}><div style={{height:4,borderRadius:99,background:C.red,width:`${Math.min(pctUsado*100,100)}%`,transition:"width 0.7s"}}/></div>
-              <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",marginTop:6}}>{Math.round(pctUsado*100)}% del ingreso</div>
+              <div style={{background:`${C.red}22`,borderRadius:99,height:4,overflow:"hidden"}}><div style={{height:4,borderRadius:99,background:C.red,width:`${Math.min(pctUsado*100,100)}%`,transition:"width 0.7s"}}/></div>
+              <div style={{fontSize:11,color:C.text.s,marginTop:6}}>{Math.round(pctUsado*100)}% del ingreso</div>
             </div>
-            <div style={{borderRadius:18,padding:"16px",background:"linear-gradient(135deg,rgba(99,102,241,0.15) 0%,rgba(99,102,241,0.05) 100%)",border:`1px solid rgba(99,102,241,0.3)`,boxShadow:"0 4px 20px rgba(0,0,0,0.3)"}}>
-              <div style={{fontSize:11,color:"rgba(129,140,248,0.9)",letterSpacing:1.2,fontWeight:700,marginBottom:8}}>EN METAS</div>
+            <div style={{borderRadius:18,padding:"16px",background:`linear-gradient(135deg,${C.indigo}22 0%,${C.indigo}08 100%)`,border:`1px solid ${C.indigo}38`,boxShadow:`0 4px 20px ${C.isLight?"rgba(15,23,42,0.05)":"rgba(0,0,0,0.3)"}`}}>
+              <div style={{fontSize:11,color:C.indigoLight,letterSpacing:1.2,fontWeight:700,marginBottom:8,opacity:0.9}}>EN METAS</div>
               <div style={{fontSize:22,fontWeight:900,color:C.indigoLight,letterSpacing:-1,marginBottom:8}}>{COP(totalAportes)}</div>
-              <div style={{background:"rgba(99,102,241,0.15)",borderRadius:99,height:4,overflow:"hidden"}}><div style={{height:4,borderRadius:99,background:C.indigo,width:`${Math.min(tasaAhorr*100,100)}%`,transition:"width 0.7s"}}/></div>
-              <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",marginTop:6}}>{totalAportes>0?`${Math.round(tasaAhorr*100)}% guardado`:"Sin aportes aún"}</div>
+              <div style={{background:`${C.indigo}22`,borderRadius:99,height:4,overflow:"hidden"}}><div style={{height:4,borderRadius:99,background:C.indigo,width:`${Math.min(tasaAhorr*100,100)}%`,transition:"width 0.7s"}}/></div>
+              <div style={{fontSize:11,color:C.text.s,marginTop:6}}>{totalAportes>0?`${Math.round(tasaAhorr*100)}% guardado`:"Sin aportes aún"}</div>
             </div>
           </div>
           {/* ── 2.5 Banner plan inteligente (si no hay presupuestos) ── */}
@@ -2546,18 +2576,17 @@ export default function App(){
             C={C} COP={COP}
             onActivate={()=>setBudgetSetupOpen(true)}/>
           {/* ── 3. Insights ── */}
-          <InsightsEngine txAll={tx} monthTx={monthTx} gastosTx={gastosTx} totalGasto={totalGasto} totalIng={totalIngresoMes} totalAhorr={totalAportes} month={month} C={C} COP={COP} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} isSavingsLegacy={isSavingsLegacy} isMonth={isMonth}/>
+          <InsightsEngine txAll={tx} monthTx={monthTx} gastosTx={gastosTx} totalGasto={totalGasto} totalIng={totalIngresoMes} totalAhorr={totalAportes} month={month} C={C} COP={COP} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} isSavingsLegacy={isSavingsLegacy} isMonth={isMonth} presupuestos={presupuestos} goals={goals} pagos={pagos} saldo={saldo}/>
           {/* ── 3.5 Salud del plan (si hay desbalance) ── */}
           <BudgetHealth
             salario={salario||0}
             presupuestos={presupuestos}
             gastosTx={gastosTx}
             goals={goals}
+            aporteMesTx={aporteMesAll}
             MAIN_CATS={MAIN_CATS}
             C={C} COP={COP}
             onFixBudget={()=>setBudgetSetupOpen(true)}/>
-          {/* ── 4. Estado financiero ── */}
-          <FinancialScore totalIng={totalIngresoMes} totalGasto={totalGasto} totalAhorr={totalAportes} goals={goals} tx={tx} saldo={saldo} month={month} C={C} COP={COP} isMonth={isMonth} isAporteMeta={isAporteMeta} isSavingsLegacy={isSavingsLegacy} MONTHS_S={MONTHS_S} onNavigate={changeTab} onAddTx={()=>setModal("new")} onAportarMeta={()=>setModal("meta_aporte")} totalMesesConDatos={totalMesesConDatos}/>
         </>
       )}
       {/* ── 5. Metas chips ── */}
@@ -2567,45 +2596,6 @@ export default function App(){
           <button onClick={()=>changeTab("metas")} style={{background:"none",border:"none",color:C.indigo,fontSize:13,fontWeight:700,cursor:"pointer"}}>Ver todas →</button>
         </div>
         {goals.slice(0,3).map(g=><GoalChip key={g.id} goal={g} aportado={getAportado(g.id)} aportadoEsteMes={getAportadoMes(g.id,month,now.getFullYear())} txAll={tx} onClick={()=>changeTab("metas")}/>)}
-      </>}
-      {/* ── 6. Gastos por cat ── */}
-      {byMain.length>0&&<>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,marginBottom:10}}>
-          <Lbl style={{marginBottom:0}}>Gastos por categoría</Lbl>
-          <span style={{fontSize:11,color:C.text.b,fontWeight:600}}>Toca para definir presupuesto</span>
-        </div>
-        {byMain.map(c=>{
-          const limite=presupuestos[c.id]||0;
-          const pctPres=limite>0?Math.min(c.total/limite,1):0;
-          const sobrePres=limite>0&&c.total>limite;
-          const cercaPres=limite>0&&pctPres>=0.8&&!sobrePres;
-          const colPres=sobrePres?C.red:cercaPres?C.amber:c.color;
-          return <div key={c.id} onClick={()=>setPresupuestoModal(c)}
-            onMouseDown={e=>e.currentTarget.style.transform="scale(0.985)"}
-            onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
-            onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
-            style={{marginBottom:12,borderRadius:18,padding:"16px",cursor:"pointer",background:`linear-gradient(135deg,${sobrePres?C.red+"18":cercaPres?C.amber+"12":c.color+"12"} 0%,rgba(255,255,255,0.03) 100%)`,border:`1px solid ${sobrePres?C.red+"55":cercaPres?C.amber+"44":c.color+"25"}`,boxShadow:"0 2px 8px rgba(0,0,0,0.2)",transition:"transform 0.15s"}}>
-            <div style={{display:"flex",alignItems:"center",gap:12}}>
-              <div style={{width:44,height:44,borderRadius:14,flexShrink:0,background:`linear-gradient(135deg,${c.color}35,${c.color}18)`,border:`1px solid ${c.color}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{c.icon}</div>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                  <span style={{fontSize:14,fontWeight:700,color:"#ffffff"}}>{c.label}</span>
-                  <div style={{textAlign:"right"}}>
-                    <span style={{fontSize:15,fontWeight:900,color:colPres}}>{COP(c.total)}</span>
-                    {limite>0&&<span style={{fontSize:11,color:C.text.b,marginLeft:4}}>/ {COP(limite)}</span>}
-                  </div>
-                </div>
-                <div style={{background:`${c.color}18`,borderRadius:99,height:5,overflow:"hidden"}}>
-                  <div style={{height:5,borderRadius:99,background:limite>0?(sobrePres?`linear-gradient(90deg,${C.red},#ff6b6b)`:cercaPres?`linear-gradient(90deg,${C.amber},#fbbf24)`:c.color):c.color,width:`${limite>0?Math.min(pctPres*100,100):Math.min(c.total/Math.max(totalGasto,1)*100,100)}%`,transition:"width 0.7s"}}/>
-                </div>
-                {limite>0&&<div style={{fontSize:11,marginTop:5,color:sobrePres?C.red:cercaPres?C.amber:C.text.b,fontWeight:sobrePres||cercaPres?700:400}}>
-                  {sobrePres?`🚨 +${COP(c.total-limite)} sobre el límite`:cercaPres?`⚠️ ${Math.round(pctPres*100)}% del presupuesto`:`${Math.round(pctPres*100)}% · quedan ${COP(limite-c.total)}`}
-                </div>}
-                {!limite&&<div style={{fontSize:11,marginTop:5,color:C.text.b}}>Sin presupuesto · toca para definir</div>}
-              </div>
-            </div>
-          </div>;
-        })}
       </>}
       {!txLoading&&monthTx.length===0&&month===now.getMonth()&&<div style={{textAlign:"center",padding:"40px 0",color:C.text.b,fontSize:14,lineHeight:2.2}}>
         Sin movimientos aún.<br/><span style={{fontSize:32}}>👆</span><br/>Toca <b style={{color:C.emerald}}>+</b> para registrar.
@@ -2646,15 +2636,39 @@ export default function App(){
   // ── Modal Presupuesto por Categoría ─────────────────────────────────────
   function PresupuestoModal({cat,gastoActual,limiteActual,onClose,onSave}){
     const [tmp,setTmp]=useState(limiteActual?Number(limiteActual).toLocaleString("es-CO"):"");
+    // Swipe down to dismiss en el handle
+    const [dragY,setDragY]=useState(0);
+    const [dragStartY,setDragStartY]=useState(null);
     const val=parseFloat(tmp.replace(/\./g,"").replace(",","."))||0;
     const pct=val>0?Math.min(gastoActual/val,1):0;
     const col=pct>=1?C.red:pct>=0.8?C.amber:C.emerald;
     function hm(e){const r=e.target.value.replace(/\D/g,"");setTmp(r?Number(r).toLocaleString("es-CO"):"");}
+    // Handlers para swipe down (solo en el handle superior)
+    function onTouchStart(e){setDragStartY(e.touches[0].clientY);}
+    function onTouchMove(e){
+      if(dragStartY===null)return;
+      const delta=e.touches[0].clientY-dragStartY;
+      if(delta>0)setDragY(delta); // solo hacia abajo
+    }
+    function onTouchEnd(){
+      if(dragY>80)onClose(); // umbral para cerrar
+      setDragY(0);
+      setDragStartY(null);
+    }
     return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
       style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
-      <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",padding:"20px 20px 36px"}}>
-        <div style={{display:"flex",justifyContent:"center",marginBottom:16}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
-        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+      <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",padding:"20px 20px 36px",transform:`translateY(${dragY}px)`,transition:dragStartY===null?"transform 0.2s ease":"none",position:"relative"}}>
+        {/* Botón × esquina superior derecha */}
+        <button onClick={onClose} aria-label="Cerrar"
+          style={{position:"absolute",top:14,right:14,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,width:32,height:32,cursor:"pointer",color:C.text.b,fontSize:18,fontWeight:700,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",zIndex:2,transition:"all 0.15s"}}
+          onMouseEnter={e=>{e.currentTarget.style.background=`${C.red}22`;e.currentTarget.style.color=C.red;}}
+          onMouseLeave={e=>{e.currentTarget.style.background=C.surface;e.currentTarget.style.color=C.text.b;}}>×</button>
+        {/* Handle con swipe down */}
+        <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
+          style={{display:"flex",justifyContent:"center",marginBottom:16,padding:"4px 0 8px",cursor:"grab",touchAction:"none"}}>
+          <div style={{width:40,height:4,borderRadius:99,background:C.border}}/>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,paddingRight:36}}>
           <div style={{width:48,height:48,borderRadius:14,background:`${cat.color}22`,border:`1px solid ${cat.color}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>{cat.icon}</div>
           <div>
             <div style={{fontSize:16,fontWeight:800,color:C.text.h}}>Presupuesto · {cat.label}</div>
@@ -2984,44 +2998,12 @@ export default function App(){
     </div>;
   }
 
-  const MovTab=()=>{
-    const [busqueda,setBusqueda]=useState("");
-    const [filtroCat,setFiltroCat]=useState("todos"); // todos | gasto | ingreso | meta
-
-    // Filtrar por búsqueda de texto + tipo
-    const txFiltradas=useMemo(()=>{
-      let base=[...monthTx];
-      // Filtro por tipo
-      if(filtroCat==="gasto")   base=base.filter(t=>isGasto(t.cat)&&!isAporteMeta(t));
-      if(filtroCat==="ingreso") base=base.filter(t=>isIngreso(t.cat)||isIngresoExtra(t.cat)||isDevolucion(t.cat));
-      if(filtroCat==="meta")    base=base.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat));
-      // Filtro por texto — busca en descripción y categoría
-      if(busqueda.trim()){
-        const q=busqueda.toLowerCase().trim();
-        base=base.filter(t=>{
-          const desc=(t.desc||"").toLowerCase();
-          const cat=getCatInfo(t.cat);
-          const catLabel=(cat.label||"").toLowerCase();
-          return desc.includes(q)||catLabel.includes(q);
-        });
-      }
-      return base.sort((a,b)=>parseDateSafe(b.date)-parseDateSafe(a.date));
-    },[monthTx,busqueda,filtroCat]);
-
-    const sorted=txFiltradas;
-    const hayFiltro=busqueda.trim()!=""||filtroCat!=="todos";
-
-    // Scroll al mes activo al montar o al cambiar de mes
-    useEffect(()=>{
-      if(!monthScrollRef.current)return;
-      const btns=monthScrollRef.current.querySelectorAll("button");
-      if(btns[month]) btns[month].scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"});
-    },[]);
+  const AnalisisTab=()=>{
     return <div style={{padding:"16px 20px 0"}}>
       <MonthSelector/>
       <GraficaMeses/>
       <Card style={{marginBottom:14}}>
-        <Lbl>Resumen de movimientos · {MONTHS[month]}</Lbl>
+        <Lbl>Resumen del mes</Lbl>
         {[
           {l:"Ingresos del mes",v:totalIngresoMes,c:C.emerald},
           ...(saldoAnterior>0?[{l:"+ Sobrante meses ant.",v:saldoAnterior,c:C.emerald}]:[]),
@@ -3035,7 +3017,6 @@ export default function App(){
           </div>
         ))}
       </Card>
-      {/* Alerta fin de mes — últimos 3 días */}
       {diasRestantesMes()<=3&&diasRestantesMes()>=0&&(
         <div style={{
           background:"linear-gradient(135deg,rgba(245,158,11,0.12),rgba(245,158,11,0.06))",
@@ -3049,9 +3030,156 @@ export default function App(){
               {diasRestantesMes()===0?"¡Hoy es el último día del mes!":`Quedan ${diasRestantesMes()} día${diasRestantesMes()===1?"":"s"} del mes`}
             </div>
             <div style={{fontSize:12,color:C.text.b,lineHeight:1.6}}>
-              Revisa que tus gastos e ingresos de {MONTHS[now.getMonth()]} estén bien registrados. Al iniciar el nuevo mes no podrás editar estos datos.
+              Revisa que tus movimientos de {MONTHS[now.getMonth()]} estén bien registrados.
             </div>
           </div>
+        </div>
+      )}
+      <FinancialScore totalIng={totalIngresoMes} totalGasto={totalGasto} totalAhorr={totalAportes} goals={goals} tx={tx} saldo={saldo} month={month} C={C} COP={COP} isMonth={isMonth} isAporteMeta={isAporteMeta} isSavingsLegacy={isSavingsLegacy} MONTHS_S={MONTHS_S} onNavigate={changeTab} onAddTx={()=>setModal("new")} onAportarMeta={()=>setModal("meta_aporte")} totalMesesConDatos={totalMesesConDatos}/>
+      {byMain.length>0&&<>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:18,marginBottom:10}}>
+          <Lbl style={{marginBottom:0}}>Gastos por categoría</Lbl>
+          <span style={{fontSize:11,color:C.text.b,fontWeight:600}}>Toca para ver movimientos</span>
+        </div>
+        {byMain.map(c=>{
+          const limite=presupuestos[c.id]||0;
+          const pctPres=limite>0?Math.min(c.total/limite,1):0;
+          const sobrePres=limite>0&&c.total>limite;
+          const cercaPres=limite>0&&pctPres>=0.8&&!sobrePres;
+          const colPres=sobrePres?C.red:cercaPres?C.amber:c.color;
+          return <div key={c.id} onClick={()=>{setFiltroMainCat(c.id);setFiltroMainCatOrigen("analisis");changeTab("mov");}}
+            onMouseDown={e=>e.currentTarget.style.transform="scale(0.985)"}
+            onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
+            onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
+            style={{marginBottom:12,borderRadius:18,padding:"16px",cursor:"pointer",background:`linear-gradient(135deg,${sobrePres?C.red+"18":cercaPres?C.amber+"12":c.color+"12"} 0%,rgba(255,255,255,0.03) 100%)`,border:`1px solid ${sobrePres?C.red+"55":cercaPres?C.amber+"44":c.color+"25"}`,boxShadow:"0 2px 8px rgba(0,0,0,0.2)",transition:"transform 0.15s",position:"relative"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <div style={{width:44,height:44,borderRadius:14,flexShrink:0,background:`linear-gradient(135deg,${c.color}35,${c.color}18)`,border:`1px solid ${c.color}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{c.icon}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,gap:8}}>
+                  <span style={{fontSize:14,fontWeight:700,color:C.text.h}}>{c.label}</span>
+                  <div style={{textAlign:"right",display:"flex",alignItems:"center",gap:8}}>
+                    <div>
+                      <span style={{fontSize:15,fontWeight:900,color:colPres}}>{COP(c.total)}</span>
+                      {limite>0&&<span style={{fontSize:11,color:C.text.b,marginLeft:4}}>/ {COP(limite)}</span>}
+                    </div>
+                    <button
+                      onClick={e=>{e.stopPropagation();setPresupuestoModal(c);}}
+                      aria-label="Ajustar presupuesto"
+                      style={{background:`${C.text.s}18`,border:`1px solid ${C.border}`,borderRadius:8,padding:"4px 6px",cursor:"pointer",color:C.text.b,fontSize:13,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.15s"}}
+                      onMouseEnter={e=>{e.currentTarget.style.background=`${C.indigo}22`;e.currentTarget.style.color=C.indigoLight;}}
+                      onMouseLeave={e=>{e.currentTarget.style.background=`${C.text.s}18`;e.currentTarget.style.color=C.text.b;}}
+                    >⚙</button>
+                  </div>
+                </div>
+                <div style={{background:`${c.color}18`,borderRadius:99,height:5,overflow:"hidden"}}>
+                  <div style={{height:5,borderRadius:99,background:limite>0?(sobrePres?`linear-gradient(90deg,${C.red},#ff6b6b)`:cercaPres?`linear-gradient(90deg,${C.amber},#fbbf24)`:c.color):c.color,width:`${limite>0?Math.min(pctPres*100,100):Math.min(c.total/Math.max(totalGasto,1)*100,100)}%`,transition:"width 0.7s"}}/>
+                </div>
+                {limite>0&&<div style={{fontSize:11,marginTop:5,color:sobrePres?C.red:cercaPres?C.amber:C.text.b,fontWeight:sobrePres||cercaPres?700:400}}>
+                  {sobrePres?`🚨 +${COP(c.total-limite)} sobre el límite`:cercaPres?`⚠️ ${Math.round(pctPres*100)}% del presupuesto`:`${Math.round(pctPres*100)}% · quedan ${COP(limite-c.total)}`}
+                </div>}
+                {!limite&&<div style={{fontSize:11,marginTop:5,color:C.text.b}}>Sin presupuesto · toca ⚙ para definir</div>}
+              </div>
+            </div>
+          </div>;
+        })}
+      </>}
+      {monthTx.length===0&&(
+        <div style={{textAlign:"center",padding:"40px 0",color:C.text.b,fontSize:14,lineHeight:2.2}}>
+          <span style={{fontSize:32}}>📊</span><br/>
+          Sin datos para analizar aún.<br/>
+          <span style={{fontSize:12,color:C.text.s}}>Registra tus movimientos para ver análisis.</span>
+        </div>
+      )}
+    </div>;
+  };
+
+  const MovTab=()=>{
+    const [busqueda,setBusqueda]=useState("");
+    const [filtroCat,setFiltroCat]=useState("todos"); // todos | gasto | ingreso | meta
+
+    // Categoría principal del filtro (viene desde Análisis)
+    const mainCatFiltrada=filtroMainCat?MAIN_CATS.find(m=>m.id===filtroMainCat):null;
+
+    // Filtrar por búsqueda de texto + tipo + categoría main (desde Análisis)
+    const txFiltradas=useMemo(()=>{
+      let base=[...monthTx];
+      // Filtro por categoría principal (seleccionada desde Análisis)
+      if(mainCatFiltrada){
+        base=base.filter(t=>mainCatFiltrada.subs.some(s=>s.id===t.cat));
+      }
+      // Filtro por tipo
+      if(filtroCat==="gasto")   base=base.filter(t=>isGasto(t.cat)&&!isAporteMeta(t));
+      if(filtroCat==="ingreso") base=base.filter(t=>isIngreso(t.cat)||isIngresoExtra(t.cat)||isDevolucion(t.cat));
+      if(filtroCat==="meta")    base=base.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat));
+      // Filtro por texto — busca en descripción, subcategoría y categoría principal
+      if(busqueda.trim()){
+        const q=busqueda.toLowerCase().trim();
+        base=base.filter(t=>{
+          const desc=(t.desc||"").toLowerCase();
+          const subCat=getCatInfo(t.cat);
+          const subLabel=(subCat.label||"").toLowerCase();
+          // Buscar también en la categoría principal (ej: "entretenimiento", "ocio", "deudas")
+          const mainCat=MAIN_CATS.find(m=>m.subs.some(s=>s.id===t.cat));
+          const mainLabel=(mainCat?.label||"").toLowerCase();
+          const mainLabelFull=(mainCat?.labelFull||"").toLowerCase();
+          return desc.includes(q)||subLabel.includes(q)||mainLabel.includes(q)||mainLabelFull.includes(q);
+        });
+      }
+      return base.sort((a,b)=>parseDateSafe(b.date)-parseDateSafe(a.date));
+    },[monthTx,busqueda,filtroCat,mainCatFiltrada]);
+
+    // Total de las tx filtradas (para mostrar en el chip cuando hay filtro de main cat)
+    const totalFiltrado=txFiltradas.filter(t=>isGasto(t.cat)&&!isAporteMeta(t)).reduce((s,t)=>s+t.amount,0);
+
+    const sorted=txFiltradas;
+    const hayFiltro=busqueda.trim()!=""||filtroCat!=="todos"||!!mainCatFiltrada;
+
+    // Scroll al mes activo al montar o al cambiar de mes
+    useEffect(()=>{
+      if(!monthScrollRef.current)return;
+      const btns=monthScrollRef.current.querySelectorAll("button");
+      if(btns[month]) btns[month].scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"});
+    },[]);
+    return <div style={{padding:"16px 20px 0"}}>
+      <MonthSelector/>
+      {/* Chip de filtro por categoría (viene desde Análisis) */}
+      {mainCatFiltrada&&(
+        <div style={{
+          marginBottom:12,borderRadius:16,padding:"14px 16px",
+          background:`linear-gradient(135deg,${mainCatFiltrada.color}18 0%,${mainCatFiltrada.color}08 100%)`,
+          border:`1px solid ${mainCatFiltrada.color}35`,
+          display:"flex",alignItems:"center",gap:12,
+          animation:"fadeIn 0.3s ease",
+        }}>
+          <div style={{
+            width:40,height:40,borderRadius:12,flexShrink:0,
+            background:`${mainCatFiltrada.color}25`,border:`1px solid ${mainCatFiltrada.color}40`,
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
+          }}>{mainCatFiltrada.icon}</div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:10,color:C.text.s,letterSpacing:1.2,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Filtrando</div>
+            <div style={{fontSize:14,fontWeight:800,color:C.text.h,lineHeight:1.2}}>{mainCatFiltrada.labelFull||mainCatFiltrada.label}</div>
+            <div style={{fontSize:11,color:C.text.b,marginTop:2}}>
+              {txFiltradas.length} movimiento{txFiltradas.length!==1?"s":""}{totalFiltrado>0&&` · ${COP(totalFiltrado)}`}
+            </div>
+          </div>
+          <button
+            onClick={()=>{
+              const volverAnalisis=filtroMainCatOrigen==="analisis";
+              setFiltroMainCat(null);
+              setFiltroMainCatOrigen(null);
+              if(volverAnalisis) changeTab("anal");
+            }}
+            aria-label="Quitar filtro"
+            style={{
+              background:`${C.text.s}18`,border:`1px solid ${C.border}`,
+              borderRadius:10,padding:"8px 10px",cursor:"pointer",
+              color:C.text.b,fontSize:14,fontWeight:700,lineHeight:1,flexShrink:0,
+              transition:"all 0.15s",
+            }}
+            onMouseEnter={e=>{e.currentTarget.style.background=`${C.red}22`;e.currentTarget.style.color=C.red;}}
+            onMouseLeave={e=>{e.currentTarget.style.background=`${C.text.s}18`;e.currentTarget.style.color=C.text.b;}}
+          >×</button>
         </div>
       )}
       {sorted.length>0&&monthTx.some(t=>esMesPasado(t.date))&&(
@@ -3583,6 +3711,7 @@ export default function App(){
   const NAV=[
     {id:"home", icon:"⬡", label:"Inicio",  activeColor:C.emerald},
     {id:"mov",  icon:"≡", label:"Movim.",  activeColor:C.emerald},
+    {id:"anal", icon:"▤", label:"Análisis", activeColor:C.indigo},
     {id:"metas",icon:null, label:"Metas",   activeColor:"#f59e0b"},
     {id:"cal",  icon:"📅", label:"Agenda",  activeColor:C.sky},
   ];
@@ -3732,7 +3861,7 @@ export default function App(){
         </button>
       </div>
     </div>}
-    {tab==="home"&&<HomeTab/>}{tab==="metas"&&<MetasTab/>}{tab==="cal"&&<CalendarioTab/>}{tab==="mov"&&<MovTab/>}{tab==="cfg"&&<ConfigTab/>}
+    {tab==="home"&&<HomeTab/>}{tab==="metas"&&<MetasTab/>}{tab==="cal"&&<CalendarioTab/>}{tab==="mov"&&<MovTab/>}{tab==="anal"&&<AnalisisTab/>}{tab==="cfg"&&<ConfigTab/>}
     {/* FAB */}
     {!modal&&!goalModal&&!pagoModal&&<button onClick={()=>{
       if(tab==="metas") setGoalModal("new");
@@ -3904,14 +4033,14 @@ export default function App(){
       position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",
       width:"100%",maxWidth:430,
       background:`${C.bg}ee`,
-      borderTop:"1px solid rgba(255,255,255,0.10)",
+      borderTop:`1px solid ${ink(0.10)}`,
       backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
       display:"flex",justifyContent:"space-around",padding:"12px 0 20px",zIndex:50,
     }}>
       {NAV.map(v=><button key={v.id} onClick={()=>changeTab(v.id)} style={{
         background:"none",border:"none",cursor:"pointer",
         display:"flex",flexDirection:"column",alignItems:"center",gap:3,
-        color:tab===v.id?v.activeColor:"rgba(255,255,255,0.28)",
+        color:tab===v.id?v.activeColor:ink(0.32),
         transition:"color 0.2s",
         padding:"4px 12px",
       }}>

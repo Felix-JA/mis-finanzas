@@ -226,6 +226,7 @@ export function BudgetSetupBanner({
 //
 export function BudgetHealth({
   salario, presupuestos, gastosTx, goals, MAIN_CATS,
+  aporteMesTx = [], // Fase 2C: aportes reales del mes para comparar ocio vs metas
   C, COP, onFixBudget,
 }) {
   if (!salario || salario <= 0) return null;
@@ -233,8 +234,8 @@ export function BudgetHealth({
   // Usamos los límites si existen, si no, el gasto real de este mes
   const tienePresupuestos = Object.values(presupuestos || {}).some(v => v > 0);
 
-  const getMontoCat = (catId) => {
-    if (presupuestos?.[catId] > 0) return presupuestos[catId];
+  // Gasto real de este mes por categoría (no presupuesto)
+  const getGastoReal = (catId) => {
     const cat = MAIN_CATS.find(c => c.id === catId);
     if (!cat) return 0;
     return gastosTx
@@ -244,31 +245,32 @@ export function BudgetHealth({
 
   const alertas = [];
 
-  // 1. Deudas > 30% del ingreso → zona de alarma financiera
-  const deudas = getMontoCat('deudas');
-  if (deudas > 0 && deudas / salario > 0.30) {
+  // 1. Deudas > 30% del ingreso → usar gasto REAL, no presupuesto
+  const deudasReal = getGastoReal('deudas');
+  if (deudasReal > 0 && deudasReal / salario > 0.30) {
     alertas.push({
       id: 'deudas_altas',
       icon: '🚨', color: C.red,
-      title: `Deudas consumen ${Math.round(deudas / salario * 100)}% de tu ingreso`,
+      title: `Deudas consumen ${Math.round(deudasReal / salario * 100)}% de tu ingreso`,
       body: 'Por encima del 30% empieza a asfixiar. Intenta bajarlas poco a poco',
       priority: 0,
     });
   }
 
-  // 2. Ocio > Metas (cuando hay metas activas con saldo pendiente)
+  // 2. Ocio > Metas: ahora compara el gasto REAL de ocio contra los aportes REALES
   const hayMetasActivas = (goals || []).some(g => (g.monto || 0) > 0);
   if (hayMetasActivas) {
-    const ocio = getMontoCat('ocio');
-    // Aportes del mes a metas (desde gastosTx — ya excluye aportes en App.jsx,
-    // así que calculamos desde el presupuesto o 0)
-    // Nota: este cálculo es heurístico — usamos el gasto en ocio vs el "libre" esperado
-    if (ocio > 0 && ocio > salario * 0.15) {
+    const ocioReal = getGastoReal('ocio');
+    const aportesReales = (aporteMesTx || []).reduce((s, t) => s + t.amount, 0);
+    // Solo dispara si AMBOS son > 0 Y el ocio supera a las metas
+    // (si aportas 0 pero gastas en ocio, lo maneja el insight "sin_metas" del InsightsEngine)
+    if (ocioReal > 0 && aportesReales > 0 && ocioReal > aportesReales) {
+      const diff = ocioReal - aportesReales;
       alertas.push({
         id: 'ocio_sobre_metas',
         icon: '⚖️', color: C.amber,
         title: `Gastas más en ocio que lo que aportas a tus metas`,
-        body: 'Intenta equilibrar — un poco menos de ocio acelera tus metas',
+        body: `${COP(ocioReal)} en ocio vs ${COP(aportesReales)} en metas — ${COP(diff)} de diferencia`,
         priority: 1,
       });
     }

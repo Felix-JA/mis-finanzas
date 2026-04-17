@@ -23,6 +23,9 @@ export function BudgetSetupModal({
   // Estado local editable — inicia con las sugerencias, el usuario ajusta
   const [draft, setDraft] = useState(() => ({ ...suggestions }));
   const [saving, setSaving] = useState(false);
+  // Swipe down to dismiss
+  const [dragY, setDragY] = useState(0);
+  const [dragStartY, setDragStartY] = useState(null);
 
   const totalPresup = useMemo(
     () => Object.values(draft).reduce((s, v) => s + (Number(v) || 0), 0),
@@ -33,6 +36,18 @@ export function BudgetSetupModal({
   const overSalario = totalPresup > salario;
 
   if (!open) return null;
+
+  function onTouchStart(e) { setDragStartY(e.touches[0].clientY); }
+  function onTouchMove(e) {
+    if (dragStartY === null) return;
+    const delta = e.touches[0].clientY - dragStartY;
+    if (delta > 0) setDragY(delta);
+  }
+  function onTouchEnd() {
+    if (dragY > 80) onClose();
+    setDragY(0);
+    setDragStartY(null);
+  }
 
   const handleChange = (catId, value) => {
     const raw = String(value).replace(/\D/g, '');
@@ -75,15 +90,36 @@ export function BudgetSetupModal({
         borderRadius: '22px 22px 0 0', border: `1px solid ${C.border}`,
         padding: '20px 20px 28px', maxHeight: '90vh', display: 'flex',
         flexDirection: 'column',
-        animation: 'slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)',
+        animation: dragY === 0 ? 'slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)' : 'none',
+        transform: `translateY(${dragY}px)`,
+        transition: dragStartY === null ? 'transform 0.2s ease' : 'none',
+        position: 'relative',
       }}>
-        {/* Handle */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+        {/* Botón × esquina superior derecha */}
+        <button
+          onClick={onClose}
+          aria-label="Cerrar"
+          style={{
+            position: 'absolute', top: 14, right: 14,
+            background: C.surface, border: `1px solid ${C.border}`,
+            borderRadius: 10, width: 32, height: 32, cursor: 'pointer',
+            color: C.text.b, fontSize: 18, fontWeight: 700, lineHeight: 1,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 2, transition: 'all 0.15s',
+          }}
+        >×</button>
+        {/* Handle con swipe down */}
+        <div
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          style={{ display: 'flex', justifyContent: 'center', marginBottom: 14, padding: '4px 0 8px', cursor: 'grab', touchAction: 'none' }}
+        >
           <div style={{ width: 40, height: 4, borderRadius: 99, background: C.border }}/>
         </div>
 
         {/* Header */}
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 16, paddingRight: 36 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
             <span style={{ fontSize: 22 }}>✨</span>
             <div style={{ fontSize: 18, fontWeight: 800, color: C.text.h }}>
