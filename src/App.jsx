@@ -872,20 +872,20 @@ function GoalCard({goal,aportado,aportadoEsteMes,txAll,onEdit}){
         border:`1px solid ${col}40`,marginTop:6,
       }}>
         <div style={{fontSize:13,fontWeight:800,color:col,marginBottom:3}}>{proy.msg}</div>
-        <div style={{fontSize:12,color:"#cbd5e1",marginBottom:8}}>💡 {proy.tip}</div>
+        <div style={{fontSize:12,color:C.text.b,marginBottom:8}}>💡 {proy.tip}</div>
         <div style={{display:"flex",gap:16}}>
           <div>
-            <div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>PROMEDIO/MES</div>
+            <div style={{fontSize:10,color:C.text.s,fontWeight:600}}>PROMEDIO/MES</div>
             <div style={{fontSize:13,fontWeight:800,color:C.text.h}}>{COP(Math.round(proy.promedio))}</div>
           </div>
           <div>
-            <div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>TIEMPO RESTANTE</div>
+            <div style={{fontSize:10,color:C.text.s,fontWeight:600}}>TIEMPO RESTANTE</div>
             <div style={{fontSize:13,fontWeight:800,color:col}}>{proy.meses} {proy.meses===1?"mes":"meses"}</div>
           </div>
         </div>
       </div>}
       {proy&&proy.promedio===0&&<div style={{
-        padding:"8px 0 2px",fontSize:12,color:"#94a3b8",marginTop:2
+        padding:"8px 0 2px",fontSize:12,color:C.text.s,marginTop:2
       }}>
         💡 Haz tu primer aporte y te digo cuándo lo tienes
       </div>}
@@ -905,20 +905,18 @@ function GoalChip({goal,aportado,aportadoEsteMes,txAll,onClick}){
     onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
     onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
     style={{
-      background:C.surface,
-      borderRadius:16,overflow:"hidden",
-      border:`1px solid rgba(255,255,255,0.1)`,
-      boxShadow:"0 4px 16px rgba(0,0,0,0.3)",
-      cursor:"pointer",display:"flex",alignItems:"stretch",marginBottom:10,transition:"all 0.15s"}}>
+      ...glassCard(),
+      borderRadius:18, overflow:"hidden",
+      border:`1px solid ${stroke("subtle")}`,
+      cursor:"pointer", display:"flex", alignItems:"stretch", marginBottom:10, transition:"all 0.15s"}}>
     <div style={{width:72,flexShrink:0,position:"relative",overflow:"hidden",alignSelf:"stretch"}}>
       {goal.imagen
         ?<img src={goal.imagen} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>
         :<div style={{position:"absolute",inset:0,background:grad}}/>}
       {goal.imagen&&<div style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.45)"}}/>}
-      {/* Emoji con halo oscuro circular */}
       <div style={{
         position:"absolute",bottom:8,left:0,right:0,textAlign:"center",
-        fontSize:goal.imagen?26:26,
+        fontSize:26,
         filter:goal.imagen
           ?"drop-shadow(0 0 6px rgba(0,0,0,1)) drop-shadow(0 0 12px rgba(0,0,0,1)) drop-shadow(0 0 18px rgba(0,0,0,0.9))"
           :"none",
@@ -926,7 +924,7 @@ function GoalChip({goal,aportado,aportadoEsteMes,txAll,onClick}){
         {goal.emoji||"⭐"}
       </div>
     </div>
-    <div style={{flex:1,padding:"12px 14px"}}>
+    <div style={{flex:1,padding:"14px 16px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:5}}>
         <div style={{flex:1,paddingRight:8}}>
           <div style={{fontSize:14,fontWeight:800,color:C.text.h,lineHeight:1.2,marginBottom:3}}>{goal.name}</div>
@@ -935,7 +933,7 @@ function GoalChip({goal,aportado,aportadoEsteMes,txAll,onClick}){
         <div style={{fontSize:20,fontWeight:900,color:col,flexShrink:0}}>{Math.round(pct*100)}%</div>
       </div>
       <Bar pct={pct} color={col} h={4}/>
-      <div style={{fontSize:11,color:C.text.s,marginTop:5,display:"flex",justifyContent:"space-between"}}>
+      <div style={{fontSize:11,color:C.text.b,fontWeight:600,marginTop:5,display:"flex",justifyContent:"space-between"}}>
         <span>Faltan {COP(Math.max(goal.monto-aportado,0))}</span>
         {proy?.fecha
           ?<span style={{color:col,fontWeight:600}}>📈 {proy.fecha}</span>
@@ -1338,7 +1336,7 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
               value={desc} onChange={handleDesc} onFocus={()=>setShowSug(true)} onBlur={()=>setTimeout(()=>setShowSug(false),150)} enterKeyHint="done"
               style={{width:"100%",background:C.surface,border:`1px solid ${showSug&&sugerencias.length>0?C.indigo+"55":C.border}`,borderRadius:12,padding:"14px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box",transition:"border-color 0.2s"}}/>
             {showSug&&sugerencias.length>0&&(
-              <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:C.card||"#0d1117",border:`1px solid ${C.indigo}44`,borderRadius:12,overflow:"hidden",zIndex:10,boxShadow:"0 8px 24px rgba(0,0,0,0.4)"}}>
+              <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:C.card,border:`1px solid ${C.indigo}44`,borderRadius:12,overflow:"hidden",zIndex:10,boxShadow:elev("raised")}}>
                 {sugerencias.map((sug,i)=>{
                   const catInfo=getCatInfo(sug.cat);
                   return <button key={i} onMouseDown={e=>e.preventDefault()} onClick={()=>aplicarSugerencia(sug)}
@@ -1454,13 +1452,12 @@ function TxRow({t,onEdit}){
     onMouseLeave={()=>setP(false)}
     style={{
       display:"flex",alignItems:"center",gap:12,marginBottom:8,
-      background:p?"rgba(255,255,255,0.09)":bloqueado?"rgba(255,255,255,0.025)":"rgba(255,255,255,0.04)",
+      background:p?ink(0.09):bloqueado?ink(0.025):ink(0.04),
       borderRadius:16,padding:"14px 16px",
-      border:`1px solid ${bloqueado?"rgba(255,255,255,0.04)":p?C.borderStrong:C.border}`,
+      border:`1px solid ${bloqueado?ink(0.04):p?C.borderStrong:C.border}`,
       cursor:bloqueado?"default":"pointer",
       transition:"all 0.15s",
       transform:p?"scale(0.985)":"scale(1)",
-      boxShadow:"0 2px 8px rgba(0,0,0,0.2)",
       userSelect:"none",
       opacity:bloqueado?0.6:1,
     }}>
@@ -1533,12 +1530,12 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
         </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={onClose3}
-            style={{flex:1,padding:14,borderRadius:12,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:C.text.b,cursor:"pointer",fontSize:14,fontWeight:700}}>
+            style={{flex:1,padding:14,borderRadius:12,border:`1px solid ${C.border}`,background:"transparent",color:C.text.b,cursor:"pointer",fontSize:14,fontWeight:700}}>
             Cancelar
           </button>
           <button onClick={confirmar} disabled={!raw}
             style={{flex:2,padding:14,borderRadius:12,border:"none",fontSize:14,fontWeight:800,
-              background:raw?"linear-gradient(135deg,#10b981,#059669)":"rgba(255,255,255,0.05)",
+              background:raw?"linear-gradient(135deg,#10b981,#059669)":surface("glass"),
               color:raw?"#000":C.text.s,cursor:raw?"pointer":"not-allowed"}}>
             {raw?`✓ Confirmar ${COP(raw)}`:"Ingresa el monto"}
           </button>
@@ -1575,7 +1572,7 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
         </div>
         <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>¿A quién le prestaste?</div>
         <input placeholder="ej: Juan, María, Pedro…" value={nombre} onChange={e=>setNombre(e.target.value)}
-          style={{width:"100%",background:C.surface,border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,
+          style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,
             padding:"13px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:14}}/>
         <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Monto prestado (COP)</div>
         <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:12,overflow:"hidden",
@@ -1586,11 +1583,11 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
         </div>
         <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Fecha del préstamo</div>
         <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)}
-          style={{width:"100%",background:C.surface,border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,
+          style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,
             padding:"13px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:14}}/>
         <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Motivo / Nota (opcional)</div>
         <input placeholder="ej: Para el arriendo, emergencia médica…" value={desc} onChange={e=>setDesc(e.target.value)}
-          style={{width:"100%",background:C.surface,border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,
+          style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,
             padding:"13px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:20}}/>
         <div style={{background:"rgba(244,63,94,0.08)",border:"1px solid rgba(244,63,94,0.25)",borderRadius:12,padding:"12px 14px",marginBottom:16}}>
           <div style={{fontSize:12,color:"#f87171",fontWeight:700,marginBottom:3}}>
@@ -1610,7 +1607,7 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
           <button onClick={save} disabled={!nombre.trim()||!raw}
             style={{flex:1,padding:16,borderRadius:14,border:"none",fontSize:15,fontWeight:800,
               cursor:(!nombre.trim()||!raw)?"not-allowed":"pointer",
-              background:(!nombre.trim()||!raw)?"rgba(255,255,255,0.05)":"linear-gradient(135deg,#f43f5e,#be123c)",
+              background:(!nombre.trim()||!raw)?surface("glass"):"linear-gradient(135deg,#f43f5e,#be123c)",
               color:(!nombre.trim()||!raw)?C.text.s:"#fff"}}>
             {(!nombre.trim()||!raw)?"Completa los campos":isEdit?"✓ Guardar":"+ Registrar préstamo"}
           </button>
@@ -1625,7 +1622,7 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:500,animation:"fadeIn 0.18s ease"}}>
     <div onClick={e=>e.stopPropagation()}
       style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
-        border:"1px solid rgba(255,255,255,0.08)",animation:sheet.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",
+        border:`1px solid ${C.border}`,animation:sheet.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",
         maxHeight:"90vh",overflowY:"auto",position:"relative",...sheet.cardStyle}}>
       <SheetCloseBtn onClose={onClose}/>
       <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
@@ -1656,7 +1653,7 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
             const urgente=dias>30;
             return <div key={p.id}
               style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,
-                background:urgente?"rgba(244,63,94,0.08)":"rgba(255,255,255,0.04)",
+                background:urgente?"rgba(244,63,94,0.08)":ink(0.04),
                 borderRadius:16,padding:"14px 16px",
                 border:`1px solid ${urgente?"rgba(244,63,94,0.3)":C.border}`}}>
               <div style={{width:44,height:44,borderRadius:13,background:"rgba(244,63,94,0.2)",
@@ -2657,7 +2654,7 @@ export default function App(){
 
   const HomeTab=()=>{
     const sinDatos = monthTx.length===0 && month!==now.getMonth();
-    return <div style={{padding:"16px 20px 0"}}>
+    return <div style={{padding:"16px 20px 80px"}}>
       <MonthSelector/>
       <BudgetAlert pct={pctUsado} salario={sal} gastado={totalGasto}/>
       <AlertasAvanzadas
@@ -2676,26 +2673,33 @@ export default function App(){
         MONTHS_S={MONTHS_S}
       />
       {/* ── 1. Disponible ── */}
-      <div style={{borderRadius:22,padding:"22px 22px 20px",marginBottom:16,background:pctUsado>=1?`linear-gradient(135deg,${C.red}28 0%,${C.red}10 100%)`:pctUsado>=0.8?`linear-gradient(135deg,${C.amber}25 0%,${C.amber}0d 100%)`:`linear-gradient(135deg,${C.indigo}28 0%,${C.indigo}10 50%,${C.bg} 100%)`,border:`1px solid ${pctUsado>=1?C.red+"55":pctUsado>=0.8?C.amber+"44":C.indigo+"40"}`,boxShadow:`0 20px 60px ${C.isLight?"rgba(15,23,42,0.08)":"rgba(0,0,0,0.5)"}, inset 0 1px 0 ${ink(0.08)}`,position:"relative",overflow:"hidden",transition:"all 0.5s ease"}}>
-        <div style={{position:"absolute",top:-60,right:-40,width:180,height:180,borderRadius:"50%",background:`${C.indigo}12`,pointerEvents:"none"}}/>
-        <div style={{position:"absolute",bottom:-30,left:-20,width:120,height:120,borderRadius:"50%",background:`${C.emerald}10`,pointerEvents:"none"}}/>
-        <div style={{position:"relative"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <div style={{fontSize:11,color:C.text.b,letterSpacing:2,fontWeight:700,textTransform:"uppercase"}}>Disponible · {MONTHS_S[month]}</div>
-            {saldoAnterior>0&&<div style={{background:`${C.emerald}22`,border:`1px solid ${C.emerald}44`,borderRadius:99,padding:"3px 10px",fontSize:11,color:C.emeraldLight,fontWeight:700}}>+{COP(saldoAnterior)} anterior</div>}
-          </div>
-          <div style={{fontSize:48,fontWeight:900,letterSpacing:-2.5,lineHeight:1,color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.emerald,fontVariantNumeric:"tabular-nums",marginBottom:20,textShadow:pctUsado<0.8&&!C.isLight?`0 0 40px ${C.emerald}44`:"none",transition:"color 0.4s"}}>
-            {COP(animSaldo)}
-          </div>
-          <div style={{background:ink(0.08),borderRadius:99,height:8,overflow:"hidden",marginBottom:10}}>
-            <div style={{height:8,borderRadius:99,background:pctUsado>=1?`linear-gradient(90deg,${C.red},#ff6b6b)`:pctUsado>=0.8?`linear-gradient(90deg,${C.amber},#fbbf24)`:`linear-gradient(90deg,${C.indigo},${C.emerald})`,width:`${Math.min(pctUsado*100,100)}%`,transition:"width 0.8s ease",boxShadow:pctUsado<0.8?`0 0 12px ${C.indigo}99`:"none"}}/>
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between"}}>
-            <span style={{fontSize:12,color:C.text.s}}>{totalDisponibleBase>0?`de ${COP(totalDisponibleBase)}`:"Sin ingresos"}</span>
-            <span style={{fontSize:12,fontWeight:700,color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.text.s}}>{Math.round(pctUsado*100)}% gastado</span>
-          </div>
-          {!sinDatos&&<MonthlyProjection gastosTx={gastosTx} saldo={saldo} month={month} C={C} COP={COP} MONTHS_S={MONTHS_S}/>}
+      <div style={{
+        borderRadius:22, padding:"24px 22px 22px", marginBottom:16,
+        background: C.isLight
+          ? "rgba(255,255,255,0.92)"
+          : `linear-gradient(145deg,${pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo}18 0%,rgba(255,255,255,0.04) 60%,rgba(255,255,255,0.02) 100%)`,
+        border:`1px solid ${pctUsado>=1?C.red+"55":pctUsado>=0.8?C.amber+"44":C.indigo+"35"}`,
+        boxShadow: C.isLight
+          ? "0 8px 32px rgba(15,23,42,0.10),0 2px 8px rgba(15,23,42,0.06),inset 0 1px 0 rgba(255,255,255,0.9)"
+          : `0 20px 60px rgba(0,0,0,0.5),0 4px 16px ${pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo}22,inset 0 1px 0 rgba(255,255,255,0.07)`,
+        backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)",
+        transition:"box-shadow 0.5s ease,border-color 0.5s ease",
+      }}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <div style={{fontSize:11,color:C.text.b,letterSpacing:1.5,fontWeight:700,textTransform:"uppercase"}}>Disponible · {MONTHS_S[month]}</div>
+          {saldoAnterior>0&&<div style={{background:ink(0.07),border:`1px solid ${ink(0.1)}`,borderRadius:99,padding:"3px 10px",fontSize:11,color:C.emeraldLight,fontWeight:700}}>+{COP(saldoAnterior)} anterior</div>}
         </div>
+        <div style={{fontSize:46,fontWeight:800,letterSpacing:-0.5,lineHeight:1,color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.emerald,fontVariantNumeric:"tabular-nums",marginBottom:20,transition:"color 0.4s"}}>
+          {COP(animSaldo)}
+        </div>
+        <div style={{background:ink(0.08),borderRadius:99,height:6,overflow:"hidden",marginBottom:10}}>
+          <div style={{height:6,borderRadius:99,background:pctUsado>=1?`linear-gradient(90deg,${C.red},#ff6b6b)`:pctUsado>=0.8?`linear-gradient(90deg,${C.amber},#fbbf24)`:`linear-gradient(90deg,${C.indigo},${C.emerald})`,width:`${Math.min(pctUsado*100,100)}%`,transition:"width 0.8s ease"}}/>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between"}}>
+          <span style={{fontSize:12,color:C.text.b,fontWeight:600}}>{totalDisponibleBase>0?`de ${COP(totalDisponibleBase)}`:"Sin ingresos"}</span>
+          <span style={{fontSize:12,fontWeight:700,color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.text.b}}>{Math.round(pctUsado*100)}% gastado</span>
+        </div>
+        {!sinDatos&&<MonthlyProjection gastosTx={gastosTx} saldo={saldo} month={month} C={C} COP={COP} MONTHS_S={MONTHS_S}/>}
       </div>
       {/* ── Mes futuro sin datos ── */}
       {sinDatos?(
@@ -2710,17 +2714,17 @@ export default function App(){
         <>
           {/* ── 2. Stats ── */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
-            <div style={{borderRadius:18,padding:"16px",background:`linear-gradient(135deg,${C.red}20 0%,${C.red}08 100%)`,border:`1px solid ${C.red}30`,boxShadow:`0 4px 20px ${C.isLight?"rgba(15,23,42,0.05)":"rgba(0,0,0,0.3)"}`}}>
-              <div style={{fontSize:11,color:C.red,letterSpacing:1.2,fontWeight:700,marginBottom:8,opacity:0.9}}>GASTOS</div>
-              <div style={{fontSize:22,fontWeight:900,color:C.red,letterSpacing:-1,marginBottom:8}}>{COP(totalGasto)}</div>
+            <div style={{...glassCard({tone:"glassHi"}),borderRadius:18,padding:"16px",border:`1px solid ${C.red}35`}}>
+              <div style={{fontSize:11,color:C.red,letterSpacing:1.2,fontWeight:700,marginBottom:8}}>GASTOS</div>
+              <div style={{fontSize:22,fontWeight:800,color:C.red,marginBottom:8}}>{COP(totalGasto)}</div>
               <div style={{background:`${C.red}22`,borderRadius:99,height:4,overflow:"hidden"}}><div style={{height:4,borderRadius:99,background:C.red,width:`${Math.min(pctUsado*100,100)}%`,transition:"width 0.7s"}}/></div>
-              <div style={{fontSize:11,color:C.text.s,marginTop:6}}>{Math.round(pctUsado*100)}% del ingreso</div>
+              <div style={{fontSize:12,color:C.text.b,fontWeight:600,marginTop:6}}>{Math.round(pctUsado*100)}% del ingreso</div>
             </div>
-            <div style={{borderRadius:18,padding:"16px",background:`linear-gradient(135deg,${C.indigo}22 0%,${C.indigo}08 100%)`,border:`1px solid ${C.indigo}38`,boxShadow:`0 4px 20px ${C.isLight?"rgba(15,23,42,0.05)":"rgba(0,0,0,0.3)"}`}}>
-              <div style={{fontSize:11,color:C.indigoLight,letterSpacing:1.2,fontWeight:700,marginBottom:8,opacity:0.9}}>EN METAS</div>
-              <div style={{fontSize:22,fontWeight:900,color:C.indigoLight,letterSpacing:-1,marginBottom:8}}>{COP(totalAportes)}</div>
+            <div style={{...glassCard({tone:"glassHi"}),borderRadius:18,padding:"16px",border:`1px solid ${C.indigo}35`}}>
+              <div style={{fontSize:11,color:C.indigoLight,letterSpacing:1.2,fontWeight:700,marginBottom:8}}>EN METAS</div>
+              <div style={{fontSize:22,fontWeight:800,color:C.indigoLight,marginBottom:8}}>{COP(totalAportes)}</div>
               <div style={{background:`${C.indigo}22`,borderRadius:99,height:4,overflow:"hidden"}}><div style={{height:4,borderRadius:99,background:C.indigo,width:`${Math.min(tasaAhorr*100,100)}%`,transition:"width 0.7s"}}/></div>
-              <div style={{fontSize:11,color:C.text.s,marginTop:6}}>{totalAportes>0?`${Math.round(tasaAhorr*100)}% guardado`:"Empieza cuando quieras"}</div>
+              <div style={{fontSize:12,color:C.text.b,fontWeight:600,marginTop:6}}>{totalAportes>0?`${Math.round(tasaAhorr*100)}% guardado`:"Empieza cuando quieras"}</div>
             </div>
           </div>
           {/* ── 2.5 Banner plan inteligente (si no hay presupuestos) ── */}
@@ -3208,7 +3212,7 @@ export default function App(){
             onMouseDown={e=>e.currentTarget.style.transform="scale(0.985)"}
             onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
             onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
-            style={{marginBottom:12,borderRadius:18,padding:"16px",cursor:"pointer",background:`linear-gradient(135deg,${sobrePres?C.red+"18":cercaPres?C.amber+"12":c.color+"12"} 0%,rgba(255,255,255,0.03) 100%)`,border:`1px solid ${sobrePres?C.red+"55":cercaPres?C.amber+"44":c.color+"25"}`,boxShadow:"0 2px 8px rgba(0,0,0,0.2)",transition:"transform 0.15s",position:"relative"}}>
+            style={{...glassCard(),marginBottom:12,borderRadius:18,padding:"16px",cursor:"pointer",border:`1px solid ${sobrePres?C.red+"55":cercaPres?C.amber+"44":C.border}`,transition:"transform 0.15s",position:"relative"}}>
             <div style={{display:"flex",alignItems:"center",gap:12}}>
               <div style={{width:44,height:44,borderRadius:14,flexShrink:0,background:`linear-gradient(135deg,${c.color}35,${c.color}18)`,border:`1px solid ${c.color}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{c.icon}</div>
               <div style={{flex:1,minWidth:0}}>
@@ -3303,7 +3307,7 @@ export default function App(){
       {mainCatFiltrada&&(
         <div style={{
           marginBottom:12,borderRadius:16,padding:"14px 16px",
-          background:`linear-gradient(135deg,${mainCatFiltrada.color}18 0%,${mainCatFiltrada.color}08 100%)`,
+          background:surface("glass"),
           border:`1px solid ${mainCatFiltrada.color}35`,
           display:"flex",alignItems:"center",gap:12,
           animation:"fadeIn 0.3s ease",
@@ -3365,7 +3369,7 @@ export default function App(){
             {id:"meta",    label:"⭐ Metas"},
           ].map(f=><button key={f.id} onClick={()=>setFiltroCat(f.id)} style={{
             padding:"6px 12px",borderRadius:99,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,
-            background:filtroCat===f.id?C.indigo:"rgba(255,255,255,0.06)",
+            background:filtroCat===f.id?C.indigo:surface("glass"),
             color:filtroCat===f.id?"#fff":C.text.b,
             transition:"all 0.15s",
           }}>{f.label}</button>)}

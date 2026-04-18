@@ -312,7 +312,7 @@ export function BudgetHealth({
             key={a.id}
             onClick={onFixBudget}
             style={{
-              borderRadius: 14, padding: '12px 14px',
+              borderRadius: 18, padding: '14px 16px',
               background: `${a.color}10`,
               border: `1px solid ${a.color}30`,
               display: 'flex', alignItems: 'center', gap: 12,
@@ -321,14 +321,14 @@ export function BudgetHealth({
             }}
           >
             <div style={{
-              width: 36, height: 36, borderRadius: 11, flexShrink: 0,
+              width: 40, height: 40, borderRadius: 13, flexShrink: 0,
               background: `${a.color}22`, border: `1px solid ${a.color}38`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 16,
+              fontSize: 18,
             }}>{a.icon}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
-                fontSize: 13, fontWeight: 700, color: C.text.h,
+                fontSize: 13, fontWeight: 800, color: C.text.h,
                 marginBottom: 3, lineHeight: 1.3,
               }}>{a.title}</div>
               <div style={{ fontSize: 11, color: C.text.b, lineHeight: 1.4 }}>
