@@ -6,7 +6,7 @@
 //   • Dismiss con × persistente por mes (localStorage)
 //   • Copy orientado a acción, no a observación
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 function parseDateSafe(str) {
   if (!str || typeof str !== 'string') return new Date();
@@ -93,7 +93,8 @@ export function InsightsEngine({
   };
 
   // Si el mes cambia, forzar refresco de la lista de dismisses
-  useEffect(() => { setDismissTick(t => t + 1); }, [month]);
+  const monthRef = useRef(month);
+  if(monthRef.current !== month){ monthRef.current = month; setDismissTick(t => t + 1); }
 
   // ─── Datos base ─────────────────────────────────────────────────────────────
   const prevMonth = month === 0 ? 11 : month - 1;
@@ -475,27 +476,27 @@ export function InsightsEngine({
   };
 
   return (
-    <div style={{ marginBottom: 20 }}>
-      <div style={{ fontSize: 11, color: C.text.b, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 10 }}>
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 11, color: C.text.b, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 }}>
         🧠 Insights del mes
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {top3.map(ins => (
           <div key={ins.id} style={{
-            borderRadius: 18, padding: "14px 16px",
-            background: ins.bgType === "info" ? (C.isLight ? "rgba(15,23,42,0.04)" : "rgba(255,255,255,0.04)") : BG_MAP[ins.bgType],
-            border: "1px solid transparent",
+            borderRadius: 16, padding: "13px 15px",
+            background: BG_MAP[ins.bgType],
+            border: `1px solid ${BORDER_MAP[ins.bgType]}`,
             display: "flex", alignItems: "center", gap: 12,
             animation: "fadeIn 0.3s ease",
             position: "relative",
           }}>
             <div style={{
-              width: 44, height: 44, borderRadius: 14, flexShrink: 0,
-              background: `${ins.color}22`,
-              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20,
+              width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+              background: `${ins.color}20`, border: `1px solid ${ins.color}35`,
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
             }}>{ins.icon}</div>
             <div style={{ flex: 1, minWidth: 0, paddingRight: 18 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: C.text.h, marginBottom: 3, lineHeight: 1.3 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.text.h, marginBottom: 3, lineHeight: 1.3 }}>
                 {ins.title}
               </div>
               <div style={{ fontSize: 12, color: C.text.b, lineHeight: 1.4 }}>

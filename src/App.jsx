@@ -286,7 +286,7 @@ function getCatInfo(id) {
     accesorios:{label:"Accesorios",icon:"⌚",color:"#a78bfa"},
     calzado:{label:"Calzado",icon:"👟",color:"#a78bfa"},
   };
-  return legacy[id] || {label:id,icon:"📦",color:"#94a3b8"};
+  return legacy[id] || (id?.startsWith("custom_") ? {label:"Personalizada",icon:"✦",color:"#94a3b8"} : {label:id,icon:"📦",color:"#94a3b8"});
 }
 // ─── EMOJIS PARA METAS ────────────────────────────────────────────────────────
 const GOAL_EMOJIS = [
@@ -372,21 +372,54 @@ function goalGradient(pct) {
   return "linear-gradient(135deg,#0c1445 0%,#1e3a5f 100%)";
 }
 
-function useCountUp(target,ms=700){
+function useCountUp(target,ms=900){
   const [v,setV]=useState(target),prev=useRef(target),raf=useRef(null);
   useEffect(()=>{
     cancelAnimationFrame(raf.current);
-    const from=prev.current;prev.current=target;
-    if(from===target)return;
+    const from=prev.current; prev.current=target;
+    if(from===target) return;
     const t0=Date.now();
-    const tick=()=>{const p=Math.min((Date.now()-t0)/ms,1);setV(Math.round(from+(target-from)*(1-Math.pow(1-p,3))));if(p<1)raf.current=requestAnimationFrame(tick);};
+    // Easing: easeOutExpo — arranca rápido, termina suave
+    const ease=p=>p===1?1:1-Math.pow(2,-10*p);
+    const tick=()=>{
+      const p=Math.min((Date.now()-t0)/ms,1);
+      setV(Math.round(from+(target-from)*ease(p)));
+      if(p<1) raf.current=requestAnimationFrame(tick);
+      else setV(target);
+    };
     raf.current=requestAnimationFrame(tick);
     return()=>cancelAnimationFrame(raf.current);
   },[target]);
   return v;
 }
 
-// ─── ATOMS ────────────────────────────────────────────────────────────────────
+// ─── RIPPLE EFFECT ────────────────────────────────────────────────────────────
+function useRipple(){
+  const [ripples,setRipples]=useState([]);
+  const trigger=(e)=>{
+    const rect=e.currentTarget.getBoundingClientRect();
+    const x=(e.touches?e.touches[0].clientX:e.clientX)-rect.left;
+    const y=(e.touches?e.touches[0].clientY:e.clientY)-rect.top;
+    const id=Date.now();
+    setRipples(r=>[...r,{id,x,y}]);
+    setTimeout(()=>setRipples(r=>r.filter(r=>r.id!==id)),600);
+  };
+  return {trigger,ripples};
+}
+function Ripple({ripples,color}){
+  return <>{ripples.map(r=>(
+    <div key={r.id} style={{
+      position:"absolute",left:r.x,top:r.y,
+      width:8,height:8,borderRadius:"50%",
+      background:color||ink(0.15),
+      transform:"translate(-50%,-50%) scale(0)",
+      animation:"ripple 0.6s ease-out forwards",
+      pointerEvents:"none",zIndex:0,
+    }}/>
+  ))}</>;
+}
+
+
 function Ring({pct,size=56,stroke=5,color=C.emerald,label}){
   const r=(size-stroke)/2,c2=2*Math.PI*r;
   return <svg width={size} height={size} style={{flexShrink:0}}>
@@ -415,6 +448,39 @@ function Card({children,style={},glow}){
     ...style
   }}>{children}</div>;
 }
+// ─── SHIMMER LOADING ─────────────────────────────────────────────────────────
+function Shimmer({w="100%",h=16,r=8,mb=0}){
+  return <div style={{
+    width:w, height:h, borderRadius:r, marginBottom:mb,
+    background:C.isLight
+      ? "linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%)"
+      : "linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.09) 50%,rgba(255,255,255,0.04) 75%)",
+    backgroundSize:"200% 100%",
+    animation:"shimmer 1.4s ease infinite",
+  }}/>;
+}
+function ShimmerHome(){
+  return <div style={{padding:"16px 20px"}}>
+    <div style={{background:C.card,borderRadius:24,padding:"32px 24px 26px",marginBottom:24,boxShadow:elev("card")}}>
+      <Shimmer h={10} w="45%" r={6} mb={16}/>
+      <Shimmer h={52} w="75%" r={10} mb={24}/>
+      <Shimmer h={3} r={99} mb={12}/>
+      <div style={{display:"flex",justifyContent:"space-between"}}>
+        <Shimmer h={10} w="35%" r={6}/><Shimmer h={10} w="20%" r={6}/>
+      </div>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:24}}>
+      {[0,1].map(i=><div key={i} style={{background:C.card,borderRadius:20,padding:"20px 18px",boxShadow:elev("card")}}>
+        <Shimmer h={10} w="50%" r={6} mb={12}/><Shimmer h={24} w="80%" r={8} mb={6}/><Shimmer h={9} w="60%" r={6}/>
+      </div>)}
+    </div>
+    <Shimmer h={10} w="35%" r={6} mb={12}/>
+    {[0,1,2].map(i=><div key={i} style={{background:C.card,borderRadius:18,padding:"14px 16px",marginBottom:10,display:"flex",gap:12,alignItems:"center",boxShadow:elev("card")}}>
+      <Shimmer w={44} h={44} r={14}/><div style={{flex:1}}><Shimmer h={11} w="80%" r={6} mb={8}/><Shimmer h={9} w="60%" r={6}/></div>
+    </div>)}
+  </div>;
+}
+
 function Lbl({children,style={}}){
   return <div style={{
     fontSize:11,color:C.text.b,letterSpacing:1.2,fontWeight:700,
@@ -460,7 +526,28 @@ function SheetCloseBtn({onClose,top=14,right=14}){
 
 // ─── MODAL CATEGORÍAS PERSONALIZADAS ─────────────────────────────────────────
 // Función global — tiene sus propios useState internos (regla de hooks OK)
-const CAT_CUSTOM_ICONS = ["⭐","🔥","💎","🎯","🧩","🛠️","📦","🎪","🏷️","💡","🎀","🌀","🧸","🎲","🦄","🏅","🔮","🎭","🌈","🍀"];
+const CAT_CUSTOM_ICONS = [
+  // Comida y bebidas
+  "🍕","🍔","🌮","🍜","🍣","🥗","🍱","🧃","☕","🍺",
+  // Transporte y movilidad
+  "🚗","🏍️","🚌","✈️","⛽","🅿️","🚕","🛵","🚲","🛺",
+  // Hogar y servicios
+  "💧","💡","📺","🛒","🧹","🔧","🏠","📦","🛏️","🧺",
+  // Salud y bienestar
+  "💊","🏥","🧴","💆","🏋️","🧘","🦷","👓","💉","🩺",
+  // Ropa y estilo
+  "👔","👟","👗","👜","⌚","💄","🧣","🎒","💍","🕶️",
+  // Ocio y entretenimiento
+  "🎮","🎬","🎵","🏖️","⚽","🎭","🎨","🎸","🎯","🎲",
+  // Digital y suscripciones
+  "📱","💻","📡","🖥️","🎧","📷","🖨️","⌨️","📲","🔋",
+  // Finanzas y pagos
+  "💳","🏦","💰","📊","💵","🏧","📈","🧾","💹","🏷️",
+  // Mascotas y familia
+  "🐕","🐈","👶","🎁","🎂","🌸","🧸","🪴","🐾","❤️",
+  // Otros útiles
+  "📚","✏️","🔑","🧰","⚙️","🪑","🏡","🌿","☀️","🛡️",
+];
 function CatPersonalModal({main, catsCustom, handleCatCustomSave, onClose}){
   const existing = catsCustom[main.id] || [];
   const [extras, setExtras] = useState(existing.slice(0,3));
@@ -523,8 +610,9 @@ function CatPersonalModal({main, catsCustom, handleCatCustomSave, onClose}){
           <span style={{fontSize:13,color:C.text.b,fontWeight:600}}>Ícono</span>
           <span style={{marginLeft:"auto",color:C.text.s,fontSize:14}}>{showIconPicker?"▲":"▼"}</span>
         </button>
-        {showIconPicker && <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:4,marginBottom:8,
-          background:C.surface,borderRadius:12,padding:"8px",border:`1px solid ${C.border}`}}>
+        {showIconPicker && <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:4,marginBottom:8,
+          background:C.surface,borderRadius:12,padding:"8px",border:`1px solid ${C.border}`,
+          maxHeight:200,overflowY:"auto"}}>
           {CAT_CUSTOM_ICONS.map(ic=><button key={ic} onClick={()=>{setNewIcon(ic);setShowIconPicker(false);}}
             style={{fontSize:22,padding:"7px 0",borderRadius:8,border:"none",cursor:"pointer",
               background:newIcon===ic?`${main.color}30`:"transparent",
@@ -548,25 +636,34 @@ function CatPersonalModal({main, catsCustom, handleCatCustomSave, onClose}){
         Agrega tu primera subcategoría personalizada
       </div>}
 
-      <button onClick={save}
-        style={{width:"100%",padding:16,borderRadius:14,border:"none",cursor:"pointer",fontSize:15,fontWeight:800,
-          background:`linear-gradient(135deg,${main.color},${main.color}bb)`,color:"#fff",marginTop:4}}>
-        ✓ Guardar cambios
-      </button>
+      {(() => {
+        const hayСambios = JSON.stringify(extras) !== JSON.stringify(existing);
+        return <button onClick={hayСambios?save:undefined}
+          style={{width:"100%",padding:16,borderRadius:14,border:"none",
+            cursor:hayСambios?"pointer":"not-allowed",fontSize:15,fontWeight:800,marginTop:4,
+            background:hayСambios?`linear-gradient(135deg,${main.color},${main.color}bb)`:C.surface,
+            color:hayСambios?"#fff":C.text.s,
+            opacity:hayСambios?1:0.5,transition:"all 0.2s"}}>
+          {hayСambios?"✓ Guardar cambios":"Sin cambios"}
+        </button>;
+      })()}
     </div>
   </div>;
 }
 
 // ─── SELECTOR CATEGORÍAS ──────────────────────────────────────────────────────
 function CatSelector({value, onChange, subsCustom={}, onEditCustom}){
-  const curMain=MAIN_CATS.find(m=>m.subs.some(s=>s.id===value)||
-    (subsCustom[m.id]||[]).some(s=>s.id===value));
-  const [sel,setSel]=useState(curMain?.id||null);
-  // Sincronizar cuando value cambia externamente (ej: autocompletado)
+  const findMain=(v,custom)=>MAIN_CATS.find(m=>m.subs.some(s=>s.id===v)||(custom[m.id]||[]).some(s=>s.id===v));
+  const curMain=findMain(value,subsCustom);
+  const [sel,setSel]=useState(()=>findMain(value,subsCustom)?.id||null);
+  // Sincronizar sel cuando cambia el value externamente
+  const prevValue=useRef(value);
   useEffect(()=>{
-    const main=MAIN_CATS.find(m=>m.subs.some(s=>s.id===value)||(subsCustom[m.id]||[]).some(s=>s.id===value));
+    if(prevValue.current===value) return;
+    prevValue.current=value;
+    const main=findMain(value,subsCustom);
     if(main) setSel(main.id);
-  },[value]);
+  });
   function MBtn({m}){
     const active=curMain?.id===m.id&&!sel,open=sel===m.id;
     return <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSel(p=>p===m.id?null:m.id)}
@@ -629,7 +726,7 @@ function GoalModal({initial,onClose,onSave,onDelete}){
   const [emoji,setEmoji]=useState(initial?.emoji||"⭐");
   const [showPicker,setShowPicker]=useState(false);
   const [confirmDelMeta,setConfirmDelMeta]=useState(false);
-  const [imagen,setImagen]=useState(initial?.imagen||null); // base64 comprimida
+  const [imagen,setImagen]=useState(initial?.imagen||null);
   const [saldoIni,setSaldoIni]=useState(initial?.saldoInicial?Number(initial.saldoInicial).toLocaleString("es-CO"):"");
   const [loadingImg,setLoadingImg]=useState(false);
   const imgInputRef=useRef(null);
@@ -644,7 +741,11 @@ function GoalModal({initial,onClose,onSave,onDelete}){
   function handleSI(e){const r=e.target.value.replace(/\D/g,"");setSaldoIni(r?Number(r).toLocaleString("es-CO"):"");}
   const valSI=parseFloat(saldoIni.replace(/\./g,"").replace(",","."))||0;
 
-  // Comprimir imagen con canvas a ~100KB máx
+  function save(){
+    if(!name.trim()||!val)return;
+    onSave({id:initial?.id||null,name:name.trim(),monto:val,emoji,...(imagen?{imagen}:{}),...(valSI>0?{saldoInicial:valSI}:{saldoInicial:0})});
+    onClose();
+  }
   function comprimirImagen(file){
     return new Promise(resolve=>{
       const reader=new FileReader();
@@ -929,16 +1030,19 @@ function GoalChip({goal,aportado,aportadoEsteMes,txAll,onClick}){
   const grad=goalGradient(pct);
   const frase=getFrase(pct,goal.name);
   const proy=pct<1&&txAll?getProyeccion(goal,aportado,txAll):null;
+  const rip=useRipple();
   return <div onClick={onClick}
-    onMouseDown={e=>e.currentTarget.style.transform="scale(0.98)"}
+    onMouseDown={e=>{rip.trigger(e);e.currentTarget.style.transform="scale(0.98)";}}
+    onTouchStart={e=>{rip.trigger(e);}}
     onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
     onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
     style={{
       ...cardSurface(),
       borderRadius:20, overflow:"hidden",
-      border:"none",
+      border:"none", position:"relative",
       boxShadow:cardShadow(),
       cursor:"pointer", display:"flex", alignItems:"stretch", marginBottom:10, transition:"all 0.15s"}}>
+    <Ripple ripples={rip.ripples}/>
     <div style={{width:72,flexShrink:0,position:"relative",overflow:"hidden",alignSelf:"stretch"}}>
       {goal.imagen
         ?<img src={goal.imagen} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>
@@ -1293,7 +1397,8 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
   // 2. Para gastos: debe tener subcategoría (no puede quedar en categoría principal)
   //    Las subcategorías válidas son las de ALL_SUBS. Emergencias y meta_aporte son válidas.
   const subCats = ALL_SUBS.map(s=>s.id);
-  const catValida = esIngreso || esIngresoExtra || cat==="emergencias" || cat==="meta_aporte" || cat==="prestamo_devuelto" || subCats.includes(cat);
+  const isCustomSub = cat?.startsWith("custom_");
+  const catValida = esIngreso || esIngresoExtra || cat==="emergencias" || cat==="meta_aporte" || cat==="prestamo_devuelto" || subCats.includes(cat) || isCustomSub;
   const faltaSubcat = !catValida;
   // 3. Para aporte a meta: debe haber seleccionado una meta
   const faltaMeta = isMeta && !goalId && goals.length > 0;
@@ -1314,9 +1419,19 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
 
   function save(){
     if(hayError || sinMetas) return;
+    // Resolver label real para custom cats
+    const catLabel=(()=>{
+      if(cat?.startsWith("custom_")){
+        for(const[,subs] of Object.entries(catsCustom||{})){
+          const found=subs?.find(s=>s.id===cat);
+          if(found) return found.label;
+        }
+      }
+      return ci.label;
+    })();
     onSave({
       id:initial?.id||null,
-      desc:desc.trim()||(isMeta&&goalId?goals.find(g=>g.id===goalId)?.name||"Aporte meta":esIngreso?"Ingreso del mes":esIngresoExtra?"Ingreso extra":ci.label),
+      desc:desc.trim()||(isMeta&&goalId?goals.find(g=>g.id===goalId)?.name||"Aporte meta":esIngreso?"Ingreso del mes":esIngresoExtra?"Ingreso extra":catLabel),
       amount:raw,cat,date,...(isMeta&&goalId?{goalId}:{})
     });
     onClose();
@@ -1335,7 +1450,15 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
         <div style={{marginBottom:14}}>
           <Lbl>{esIngreso?"Monto recibido (COP)":"Monto (COP)"}</Lbl>
           <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:14,overflow:"hidden",border:`2px solid ${raw>0?acc:C.border}`,transition:"border-color 0.2s"}}>
-            <span style={{padding:"0 14px",fontSize:22,lineHeight:"58px"}}>{ci.icon}</span>
+            <span style={{padding:"0 14px",fontSize:22,lineHeight:"58px"}}>{(()=>{
+              if(cat?.startsWith("custom_")){
+                for(const[,subs] of Object.entries(catsCustom||{})){
+                  const found=subs?.find(s=>s.id===cat);
+                  if(found) return found.icon;
+                }
+              }
+              return ci.icon;
+            })()}</span>
             <span style={{color:C.text.s,fontSize:16,lineHeight:"58px"}}>$</span>
             <input ref={ref} inputMode="numeric" placeholder="0" value={amount} onChange={ha} enterKeyHint="next"
               style={{flex:1,background:"none",border:"none",outline:"none",fontSize:28,fontWeight:800,color:C.text.h,padding:"0 10px",height:58,letterSpacing:-0.5}}/>
@@ -1456,7 +1579,7 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
           <button onClick={(hayError||sinSaldo||sinMetas)?undefined:save}
             style={{flex:1,padding:16,borderRadius:14,border:"none",
               cursor:(hayError||sinSaldo||sinMetas)?"not-allowed":"pointer",
-              fontSize:16,fontWeight:800,transition:"all 0.2s",
+              fontSize:raw>=1000000?13:raw>=100000?14:16,fontWeight:800,transition:"all 0.2s",
               background:(hayError||sinMetas)?C.surface:sinSaldo?`${C.red}20`:isEdit&&!changed?`${C.sky}18`:`linear-gradient(135deg,${acc},${acc}cc)`,
               color:(hayError||sinMetas)?C.text.s:sinSaldo?C.red:isEdit&&!changed?C.sky:"#fff",
               opacity:(hayError||sinSaldo||sinMetas)?0.65:1}}>
@@ -1468,16 +1591,30 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
   </div>;
 }
 
-function TxRow({t,onEdit}){
-  const cat=getCatInfo(t.cat);
+function TxRow({t,onEdit,catsCustom={}}){
+  const cat=(()=>{
+    // Buscar primero en catsCustom si es una cat personalizada
+    if(t.cat?.startsWith("custom_")){
+      for(const[mainId,subs] of Object.entries(catsCustom)){
+        const found=subs?.find(s=>s.id===t.cat);
+        if(found){
+          const main=MAIN_CATS.find(m=>m.id===mainId);
+          return {...found, color:main?.color||"#94a3b8"};
+        }
+      }
+    }
+    return getCatInfo(t.cat);
+  })();
   const esMeta=isAporteMeta(t)||isSavingsLegacy(t.cat);
   const esPos=esMeta||isIngreso(t.cat)||isDevolucion(t.cat)||isIngresoExtra(t.cat);
   const esPrestamo=t.cat==="prestamo_tercero"||t.cat==="prestamo_devuelto";
   const bloqueado=esMesPasado(t.date)||esPrestamo;
   const [p,setP]=useState(false);
+  const rip=useRipple();
   return <div
     onClick={bloqueado?undefined:onEdit}
-    onMouseDown={bloqueado?undefined:()=>setP(true)}
+    onMouseDown={bloqueado?undefined:(e)=>{setP(true);rip.trigger(e);}}
+    onTouchStart={bloqueado?undefined:(e)=>rip.trigger(e)}
     onMouseUp={bloqueado?undefined:()=>setP(false)}
     onMouseLeave={()=>setP(false)}
     style={{
@@ -1486,9 +1623,10 @@ function TxRow({t,onEdit}){
       borderBottom:`1px solid ${ink(0.05)}`,
       cursor:bloqueado?"default":"pointer",
       transition:"opacity 0.15s",
-      opacity:bloqueado?0.45:1,
-      userSelect:"none",
+      opacity:bloqueado?0.45:p?0.7:1,
+      userSelect:"none", position:"relative", overflow:"hidden",
     }}>
+    <Ripple ripples={rip.ripples} color={`${cat.color}25`}/>
     <div style={{
       width:44,height:44,borderRadius:14,flexShrink:0,
       background:`${cat.color}18`,
@@ -1497,7 +1635,15 @@ function TxRow({t,onEdit}){
     <div style={{flex:1,minWidth:0}}>
       <div style={{fontSize:14,fontWeight:600,color:bloqueado?C.text.s:C.text.h,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:3}}>{t.desc}</div>
       <div style={{fontSize:12,color:C.text.s,fontWeight:400}}>
-        {t.date?.slice(5).replace("-","/")} · {isIngreso(t.cat)?"Salario":isDevolucion(t.cat)?"Devolución":isIngresoExtra(t.cat)?"Extra":esMeta?"Meta":(()=>{const main=MAIN_CATS.find(m=>m.subs?.some(s=>s.id===t.cat));return main?`${main.label} · ${cat.label}`:cat.label;})()}
+        {t.date?.slice(5).replace("-","/")} · {isIngreso(t.cat)?"Salario":isDevolucion(t.cat)?"Devolución":isIngresoExtra(t.cat)?"Extra":esMeta?"Meta":(()=>{
+          // Buscar categoría principal — primero en subs normales, luego en custom
+          const main=MAIN_CATS.find(m=>
+            m.subs?.some(s=>s.id===t.cat) ||
+            (catsCustom[m.id]||[]).some(s=>s.id===t.cat) ||
+            (_customSubsLookup[m.id]||[]).some(s=>s.id===t.cat)
+          );
+          return main?`${main.label} · ${cat.label}`:cat.label;
+        })()}
       </div>
     </div>
     <div style={{textAlign:"right",flexShrink:0}}>
@@ -1799,6 +1945,8 @@ export default function App(){
     return (saved && TEMAS[saved]) ? saved : "navy";
   });
   const [cardStyle,setCardStyle]=useState(()=>localStorage.getItem("mf_card_style")||"solid");
+  const [compacto,setCompacto]=useState(()=>localStorage.getItem("mf_compacto")==="1");
+  function toggleCompacto(){setCompacto(v=>{const n=!v;localStorage.setItem("mf_compacto",n?"1":"0");return n;});}
 
   // Mutar C con el tema activo antes de cada render
   const paleta=TEMAS[tema]||TEMAS.navy;
@@ -1934,7 +2082,7 @@ export default function App(){
     const pl={
       name:g.name,monto:g.monto||0,emoji:g.emoji||"⭐",
       esEmergencias:g.esEmergencias||false,
-      saldoInicial:g.saldoInicial||0, // dinero ya ahorrado antes de usar la app
+      saldoInicial:g.saldoInicial||0,
       ...(g.imagen?{imagen:g.imagen}:{imagen:null}),
     };
     if(g.id) await updateDoc(doc(db,"usuarios",user.uid,"metas",g.id),pl);
@@ -2602,8 +2750,10 @@ export default function App(){
   const totalEnMetas=tx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat)).reduce((s,t)=>s+t.amount,0);
   const saldoColor=saldo>sal*0.4?C.emerald:saldo>sal*0.15?C.amber:C.red;
   const animSaldo=useCountUp(Math.max(saldo,0));
+  const animGasto=useCountUp(totalGasto,800);
+  const animAportes=useCountUp(totalAportes,850);
   // Compartidos entre HomeTab y AnalisisTab — subidos al scope de App()
-  const byMain=MAIN_CATS.map(m=>({...m,total:gastosTx.filter(t=>m.subs.some(s=>s.id===t.cat)).reduce((s,t)=>s+t.amount,0)})).filter(c=>c.total>0||(presupuestos[c.id]||0)>0).sort((a,b)=>(b.total-a.total)||((presupuestos[b.id]||0)-(presupuestos[a.id]||0)));
+  const byMain=MAIN_CATS.map(m=>({...m,total:gastosTx.filter(t=>m.subs.some(s=>s.id===t.cat)||(catsCustom[m.id]||[]).some(s=>s.id===t.cat)).reduce((s,t)=>s+t.amount,0)})).filter(c=>c.total>0||(presupuestos[c.id]||0)>0).sort((a,b)=>(b.total-a.total)||((presupuestos[b.id]||0)-(presupuestos[a.id]||0)));
   const totalMesesConDatos=new Set(tx.map(t=>{const d=parseDateSafe(t.date);return `${d.getFullYear()}-${d.getMonth()}`;})).size;
   function getAportado(gid){
     // Acumulado histórico = saldo inicial (ahorros previos) + aportes registrados en la app
@@ -2627,6 +2777,8 @@ export default function App(){
     @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.75}}
+    @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+    @keyframes ripple{0%{transform:translate(-50%,-50%) scale(0);opacity:0.4}100%{transform:translate(-50%,-50%) scale(20);opacity:0}}
     input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.6);}
     input::placeholder{color:${paleta.text.s}44;}
     ::-webkit-scrollbar{display:none;}
@@ -2685,11 +2837,230 @@ export default function App(){
     </div>;
   };
 
+  // ── Resumen Semanal — aparece solo los lunes ─────────────────────────────
+  const ResumenSemanal=()=>{
+    const esLunes = now.getDay()===1;
+    if(!esLunes) return null;
+
+    const DISMISS_KEY=`resumen_semanal_${now.getFullYear()}-${now.getMonth()}-${Math.floor(now.getDate()/7)}`;
+    const [visible,setVisible]=useState(()=>{
+      try{ return localStorage.getItem(DISMISS_KEY)!=="1"; }catch{ return true; }
+    });
+    if(!visible) return null;
+
+    // Semana pasada: lunes a domingo anteriores
+    const hoy=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    const lunesPasado=new Date(hoy); lunesPasado.setDate(hoy.getDate()-7);
+    const domingoPasado=new Date(hoy); domingoPasado.setDate(hoy.getDate()-1);
+
+    const txSemana=tx.filter(t=>{
+      const d=parseDateSafe(t.date);
+      return d>=lunesPasado && d<=domingoPasado;
+    });
+
+    const gastoSemana=txSemana.filter(t=>isGasto(t.cat)&&!isAporteMeta(t)).reduce((s,t)=>s+t.amount,0);
+    if(gastoSemana===0) return null;
+
+    // Semana anterior (hace 2 semanas)
+    const lunesAnterior=new Date(lunesPasado); lunesAnterior.setDate(lunesPasado.getDate()-7);
+    const domingoAnterior=new Date(lunesPasado); domingoAnterior.setDate(lunesPasado.getDate()-1);
+    const txSemanaAnterior=tx.filter(t=>{
+      const d=parseDateSafe(t.date);
+      return d>=lunesAnterior && d<=domingoAnterior;
+    });
+    const gastoAnterior=txSemanaAnterior.filter(t=>isGasto(t.cat)&&!isAporteMeta(t)).reduce((s,t)=>s+t.amount,0);
+
+    const diff=gastoAnterior>0?Math.round((gastoSemana-gastoAnterior)/gastoAnterior*100):null;
+    const subio=diff!==null&&diff>0;
+    const igual=diff===null;
+    const color=subio?C.amber:C.emerald;
+    const emoji=subio?"📈":"📉";
+
+    // Top categoría de la semana
+    const porCat={};
+    txSemana.filter(t=>isGasto(t.cat)&&!isAporteMeta(t)).forEach(t=>{
+      const main=MAIN_CATS.find(m=>m.subs.some(s=>s.id===t.cat));
+      if(!main) return;
+      porCat[main.id]=(porCat[main.id]||{cat:main,total:0});
+      porCat[main.id].total+=t.amount;
+    });
+    const topCat=Object.values(porCat).sort((a,b)=>b.total-a.total)[0];
+
+    const dismiss=()=>{
+      try{localStorage.setItem(DISMISS_KEY,"1");}catch{}
+      setVisible(false);
+    };
+
+    return <div style={{
+      background:C.card, borderRadius:20, padding:"18px 18px 16px",
+      marginBottom:16, boxShadow:elev("card"), position:"relative",
+      animation:"fadeIn 0.3s ease",
+    }}>
+      <button onClick={dismiss} style={{position:"absolute",top:10,right:12,background:"none",border:"none",color:C.text.s,fontSize:16,cursor:"pointer",opacity:0.5,padding:4,lineHeight:1}}>×</button>
+      <div style={{fontSize:11,color:C.text.s,fontWeight:600,letterSpacing:1.4,textTransform:"uppercase",marginBottom:10}}>Semana pasada</div>
+      <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:8}}>
+        <div>
+          <div style={{fontSize:11,color:C.text.s,marginBottom:4}}>Total gastado</div>
+          <div style={{fontSize:28,fontWeight:700,color:C.text.h,letterSpacing:-0.5}}>{COP(gastoSemana)}</div>
+        </div>
+        {!igual&&<div style={{
+          background:`${color}15`, borderRadius:10, padding:"6px 12px",
+          fontSize:12, fontWeight:700, color, marginBottom:4,
+        }}>{emoji} {subio?"+":""}{diff}% vs semana anterior</div>}
+      </div>
+      <div style={{fontSize:12,color:C.text.b,marginBottom:12,lineHeight:1.5}}>
+        {igual?"Primera semana con datos — sigue registrando 👍"
+          :diff<=-20?"Excelente semana 🎉 — gastaste mucho menos que la anterior"
+          :diff<=-5?"Buena semana — vas controlando bien los gastos"
+          :diff<=5?"Semana estable — similar a la anterior"
+          :diff<=20?"Semana un poco más activa — normal si hubo algo especial"
+          :"Semana de más gasto — revisa qué categoría subió"}
+      </div>
+      {topCat&&<div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:ink(0.04),borderRadius:12}}>
+        <div style={{width:36,height:36,borderRadius:11,background:`${topCat.cat.color}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{topCat.cat.icon}</div>
+        <div>
+          <div style={{fontSize:12,color:C.text.b,fontWeight:500}}>Mayor gasto</div>
+          <div style={{fontSize:13,fontWeight:700,color:C.text.h}}>{topCat.cat.label} · {COP(topCat.total)}</div>
+        </div>
+      </div>}
+    </div>;
+  };
+
+  // ── Widget de Racha ──────────────────────────────────────────────────────
+  const RachaWidget=()=>{
+    // Calcular meses consecutivos con gasto < ingreso (sin contar mes actual)
+    const currentM=now.getMonth(), currentY=now.getFullYear();
+
+    // Obtener lista de meses con datos (pasados, sin el actual)
+    const mesesSet=new Set(
+      tx.filter(t=>{
+        const[ty,tm]=t.date.split("-").map(Number);
+        return ty<currentY||(ty===currentY&&(tm-1)<currentM);
+      }).map(t=>{const[ty,tm]=t.date.split("-").map(Number);return `${ty}-${tm-1}`;})
+    );
+    if(mesesSet.size<1) return null;
+
+    const meses=[...mesesSet]
+      .map(k=>{const[y,m]=k.split("-").map(Number);return{y,m};})
+      .sort((a,b)=>a.y!==b.y?b.y-a.y:b.m-a.m); // más reciente primero
+
+    // Contar racha — meses consecutivos con gasto<ingreso
+    let racha=0;
+    for(const{y,m} of meses){
+      const mTx=tx.filter(t=>{const[ty,tm]=t.date.split("-").map(Number);return ty===y&&(tm-1)===m;});
+      const gasto=mTx.filter(t=>isGasto(t.cat)&&!isAporteMeta(t)).reduce((s,t)=>s+t.amount,0);
+      const ingreso=mTx.filter(t=>isIngreso(t.cat)).reduce((s,t)=>s+t.amount,0)+(getSalarioDelMes(y,m)||sal);
+      if(gasto<ingreso) racha++;
+      else break;
+    }
+
+    if(racha<1) return null;
+
+    const emoji=racha>=6?"🔥":racha>=3?"⚡":"✨";
+    const msg=racha>=6?`${racha} meses ahorrando — ¡eso es disciplina!`
+      :racha>=3?`${racha} meses seguidos bajo control`
+      :`${racha} mes bajo control — ¡sigue así!`;
+
+    return <div style={{
+      display:"flex",alignItems:"center",gap:12,
+      padding:"14px 16px", marginBottom:16,
+      background:C.card, borderRadius:18, boxShadow:elev("card"),
+    }}>
+      <div style={{
+        width:44,height:44,borderRadius:14,flexShrink:0,
+        background:`${C.emerald}18`,
+        display:"flex",alignItems:"center",justifyContent:"center",
+        fontSize:22,
+      }}>{emoji}</div>
+      <div style={{flex:1}}>
+        <div style={{fontSize:13,fontWeight:700,color:C.text.h}}>{msg}</div>
+        <div style={{fontSize:11,color:C.text.s,marginTop:2,fontWeight:500}}>
+          Gastos menores al ingreso cada mes
+        </div>
+      </div>
+      <div style={{
+        fontSize:24,fontWeight:800,color:C.emerald,
+        letterSpacing:-1,flexShrink:0,
+      }}>{racha}</div>
+    </div>;
+  };
+
   const HomeTab=()=>{
     const sinDatos = monthTx.length===0 && month!==now.getMonth();
+    if(txLoading) return <ShimmerHome/>;
+
+    // ── Vista compacta ──────────────────────────────────────────────────────
+    if(compacto) return <div style={{padding:"16px 20px 80px"}}>
+      <MonthSelector/>
+      {/* Card única tipo Apple Wallet */}
+      <div style={{
+        ...cardSurface(pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo),
+        borderRadius:24, padding:"24px 22px",
+        boxShadow:cardShadow(pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo),
+        marginBottom:16, animation:"fadeIn 0.25s ease",
+        border:`1px solid ${pctUsado>=1?C.red+"44":pctUsado>=0.8?C.amber+"33":"transparent"}`,
+        position:"relative", overflow:"hidden",
+      }}>
+        <GradientOrbs color={pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo}/>
+        <div style={{position:"relative"}}>
+          <div style={{fontSize:11,color:C.text.s,letterSpacing:1.5,fontWeight:600,textTransform:"uppercase",marginBottom:8}}>Disponible · {MONTHS_S[month]}</div>
+          <div style={{fontSize:48,fontWeight:700,letterSpacing:-1,color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.emerald,fontVariantNumeric:"tabular-nums",marginBottom:20,lineHeight:1}}>
+            {COP(animSaldo)}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:1,background:ink(0.08),borderRadius:14,overflow:"hidden"}}>
+            {[
+              {label:"Gastos",value:COP(animGasto),color:C.red},
+              {label:"En metas",value:COP(animAportes),color:C.indigoLight},
+              {label:"Libre",value:`${Math.round(totalDisponibleBase>0?saldo/totalDisponibleBase*100:0)}%`,color:pctUsado>=1?C.red:C.emerald},
+            ].map(item=><div key={item.label} style={{background:C.isLight?"rgba(255,255,255,0.7)":C.card,padding:"12px 10px",textAlign:"center"}}>
+              <div style={{fontSize:10,color:C.text.s,fontWeight:500,marginBottom:4}}>{item.label}</div>
+              <div style={{fontSize:13,fontWeight:700,color:item.color,letterSpacing:-0.3}}>{item.value}</div>
+            </div>)}
+          </div>
+        </div>
+      </div>
+
+      {/* Últimos movimientos — compacto */}
+      {monthTx.length>0&&<>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+          <div style={{fontSize:11,color:C.text.s,letterSpacing:1.5,fontWeight:600,textTransform:"uppercase"}}>Últimos movimientos</div>
+          <button onClick={()=>changeTab("mov")} style={{background:"none",border:"none",color:C.indigo,fontSize:13,fontWeight:600,cursor:"pointer"}}>Ver todos →</button>
+        </div>
+        <div style={{background:C.card,borderRadius:20,padding:"0 16px",boxShadow:elev("card"),marginBottom:16}}>
+          {[...monthTx].sort((a,b)=>parseDateSafe(b.date)-parseDateSafe(a.date)).slice(0,5).map((t,i,arr)=>{
+            const cat=getCatInfo(t.cat);
+            const esPos=isAporteMeta(t)||isIngreso(t.cat)||isDevolucion(t.cat)||isIngresoExtra(t.cat);
+            return <div key={t.id} style={{
+              display:"flex",alignItems:"center",gap:12,
+              padding:"13px 0",
+              borderBottom:i<arr.length-1?`1px solid ${ink(0.05)}`:"none",
+            }}>
+              <div style={{width:38,height:38,borderRadius:12,flexShrink:0,background:`${cat.color}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17}}>{cat.icon}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:600,color:C.text.h,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc}</div>
+                <div style={{fontSize:11,color:C.text.s,marginTop:1}}>{t.date?.slice(5).replace("-","/")} · {cat.label}</div>
+              </div>
+              <div style={{fontSize:13,fontWeight:700,color:esPos?C.emeraldLight:C.text.h,flexShrink:0}}>
+                {esPos?"+":"-"}{COP(t.amount)}
+              </div>
+            </div>;
+          })}
+        </div>
+      </>}
+
+      {/* Metas chips en compacto */}
+      {goals.length>0&&<>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{fontSize:11,color:C.text.s,letterSpacing:1.5,fontWeight:600,textTransform:"uppercase"}}>Mis metas</div>
+          <button onClick={()=>changeTab("metas")} style={{background:"none",border:"none",color:C.indigo,fontSize:13,fontWeight:600,cursor:"pointer"}}>Ver todas →</button>
+        </div>
+        {goals.slice(0,2).map(g=><GoalChip key={g.id} goal={g} aportado={getAportado(g.id)} aportadoEsteMes={getAportadoMes(g.id,month,now.getFullYear())} txAll={tx} onClick={()=>changeTab("metas")}/>)}
+      </>}
+    </div>;
+
     return <div style={{padding:"16px 20px 80px"}}>
       <MonthSelector/>
-      <BudgetAlert pct={pctUsado} salario={sal} gastado={totalGasto}/>
+      <ResumenSemanal/>
       <AlertasAvanzadas
         gastosTx={gastosTx}
         totalGasto={totalGasto}
@@ -2758,7 +3129,7 @@ export default function App(){
                 <div style={{width:6,height:6,borderRadius:99,background:C.red,opacity:0.7}}/>
                 <div style={{fontSize:12,color:C.text.b,fontWeight:500}}>Gastos</div>
               </div>
-              <div style={{fontSize:22,fontWeight:700,color:C.red,marginBottom:4,letterSpacing:-0.3}}>{COP(totalGasto)}</div>
+              <div style={{fontSize:22,fontWeight:700,color:C.red,marginBottom:4,letterSpacing:-0.3}}>{COP(animGasto)}</div>
               <div style={{fontSize:11,color:C.text.s,fontWeight:500}}>{Math.round(pctUsado*100)}% del ingreso</div>
             </div>
             <div style={{...cardSurface(C.indigo),borderRadius:20,padding:"20px 18px",boxShadow:cardShadow(C.indigo)}}>
@@ -2766,7 +3137,7 @@ export default function App(){
                 <div style={{width:6,height:6,borderRadius:99,background:C.indigo,opacity:0.7}}/>
                 <div style={{fontSize:12,color:C.text.b,fontWeight:500}}>En metas</div>
               </div>
-              <div style={{fontSize:22,fontWeight:700,color:C.indigoLight,marginBottom:4,letterSpacing:-0.3}}>{COP(totalAportes)}</div>
+              <div style={{fontSize:22,fontWeight:700,color:C.indigoLight,marginBottom:4,letterSpacing:-0.3}}>{COP(animAportes)}</div>
               <div style={{fontSize:11,color:C.text.s,fontWeight:500}}>{totalAportes>0?`${Math.round(tasaAhorr*100)}% guardado`:"Empieza cuando quieras"}</div>
             </div>
           </div>
@@ -2778,6 +3149,8 @@ export default function App(){
             mesesDatos={totalMesesConDatos||0}
             C={C} COP={COP}
             onActivate={()=>setBudgetSetupOpen(true)}/>
+          {/* ── 2.6 Racha ── */}
+          <RachaWidget/>
           {/* ── 3. Insights ── */}
           <InsightsEngine txAll={tx} monthTx={monthTx} gastosTx={gastosTx} totalGasto={totalGasto} totalIng={totalIngresoMes} totalAhorr={totalAportes} month={month} C={C} COP={COP} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} isSavingsLegacy={isSavingsLegacy} isMonth={isMonth} presupuestos={presupuestos} goals={goals} pagos={pagos} saldo={saldo}/>
           {/* ── 3.5 Salud del plan (si hay desbalance) ── */}
@@ -2982,84 +3355,81 @@ export default function App(){
       const abrevD=v=>v>=1000000?`${(v/1000000).toFixed(1)}M`:v>=1000?`${Math.round(v/1000)}k`:`$${v}`;
       const DIAS_S=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
 
-      return <div style={{marginBottom:14}}>
+      return <div style={{marginBottom:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-          <Lbl style={{marginBottom:0}}>Gastos por día · {MONTHS[lm]} {ly!==currentY?ly:""}</Lbl>
-          <span style={{fontSize:11,color:totalG>0?C.red:C.text.s,fontWeight:700}}>{totalG>0?COP(totalG):"Sin gastos este mes"}</span>
+          <div style={{fontSize:11,color:C.text.s,fontWeight:600,letterSpacing:1.4,textTransform:"uppercase"}}>Gastos por día · {MONTHS[lm]}{ly!==currentY?` ${ly}`:""}</div>
+          <span style={{fontSize:13,fontWeight:700,color:totalG>0?C.red:C.text.s}}>{totalG>0?COP(totalG):"Sin gastos"}</span>
         </div>
-        <div style={{background:"rgba(255,255,255,0.03)",borderRadius:16,padding:"14px 12px 14px",border:`1px solid ${C.border}`}}>
+        <div style={{background:C.card,borderRadius:20,padding:"18px 14px 14px",boxShadow:elev("card")}}>
           {/* Navegación semanas */}
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
             <button onClick={()=>setSemanaIdx(s=>Math.max(s-1,0))}
-              style={{background:semanaIdx>0?C.border:"rgba(255,255,255,0.03)",border:"none",borderRadius:8,
-                padding:"6px 12px",color:semanaIdx>0?C.text.h:C.text.s,cursor:semanaIdx>0?"pointer":"default",fontSize:14,fontWeight:700}}>
+              style={{background:semanaIdx>0?ink(0.06):"transparent",border:"none",borderRadius:10,
+                width:32,height:32,color:semanaIdx>0?C.text.h:C.text.s,cursor:semanaIdx>0?"pointer":"default",
+                fontSize:16,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>
               ←
             </button>
             <div style={{textAlign:"center"}}>
-              <div style={{fontSize:12,fontWeight:800,color:C.text.h}}>
-                {diaInicio === diaFin ? `Día ${diaInicio}` : `Días ${diaInicio} – ${diaFin}`}
+              <div style={{fontSize:13,fontWeight:700,color:C.text.h}}>
+                {diaInicio===diaFin?`Día ${diaInicio}`:`Días ${diaInicio} – ${diaFin}`}
               </div>
-              <div style={{fontSize:10,color:C.text.s,marginTop:2}}>
+              <div style={{fontSize:10,color:C.text.s,marginTop:1,fontWeight:500}}>
                 Semana {semanaIdx+1} de {totalSemanas}
               </div>
             </div>
             <button onClick={()=>setSemanaIdx(s=>Math.min(s+1,totalSemanas-1))}
-              style={{background:semanaIdx<totalSemanas-1?C.border:"rgba(255,255,255,0.03)",border:"none",borderRadius:8,
-                padding:"6px 12px",color:semanaIdx<totalSemanas-1?C.text.h:C.text.s,cursor:semanaIdx<totalSemanas-1?"pointer":"default",fontSize:14,fontWeight:700}}>
+              style={{background:semanaIdx<totalSemanas-1?ink(0.06):"transparent",border:"none",borderRadius:10,
+                width:32,height:32,color:semanaIdx<totalSemanas-1?C.text.h:C.text.s,
+                cursor:semanaIdx<totalSemanas-1?"pointer":"default",
+                fontSize:16,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>
               →
             </button>
           </div>
 
           {/* Gráfica SVG */}
-          <svg width="100%" viewBox={`0 0 ${W} ${H+40}`} style={{overflow:"visible"}}>
+          <svg width="100%" viewBox={`0 0 ${W} ${H+36}`} style={{overflow:"visible"}}>
+            {/* Línea base */}
+            <line x1={0} y1={H} x2={W} y2={H} stroke={ink(0.06)} strokeWidth={1}/>
             {diasData.map(({dia,gasto},i)=>{
               const x=gapUnit+(bW+gapUnit)*i;
-              const h=Math.max(gasto/maxD*H,gasto>0?10:0);
+              const h=Math.max(gasto/maxD*H,gasto>0?8:0);
               const esHoy=dia===hoy;
               const fechaDia=new Date(ly,lm,dia);
               const nombreDia=DIAS_S[fechaDia.getDay()];
-              const col=esHoy?(gasto>0?"#ff4444":C.emerald):gasto>0?"#ef4444bb":"rgba(255,255,255,0.05)";
+              const barColor=esHoy?(gasto>0?C.red:C.emerald):gasto>0?C.red:ink(0.06);
+              const barOpacity=esHoy?1:gasto>0?0.75:1;
 
               return <g key={dia}>
-                {/* Fondo hoy */}
-                {esHoy&&<rect x={x-4} y={0} width={bW+8} height={H+4} rx={8} fill="rgba(52,211,153,0.06)"/>}
-                {/* Barra */}
-                <rect x={x} y={H-Math.max(h,2)} width={bW} height={Math.max(h,2)} rx={4} fill={col}/>
-                {/* Valor GRANDE encima — horizontal, legible */}
+                {/* Highlight hoy sutil */}
+                {esHoy&&<rect x={x-3} y={4} width={bW+6} height={H-4} rx={6} fill={C.emerald} fillOpacity={0.05}/>}
+                {/* Barra redondeada */}
+                <rect x={x} y={H-Math.max(h,2)} width={bW} height={Math.max(h,2)}
+                  rx={Math.min(6,bW/2)} fill={barColor} fillOpacity={barOpacity}/>
+                {/* Valor encima — horizontal, legible */}
                 {gasto>0&&<text
-                  x={x+bW/2} y={H-h-10}
-                  textAnchor="middle"
-                  fontSize={11} fontWeight="800"
-                  fill={esHoy?"#ff4444":"#ef4444"}
+                  x={x+bW/2} y={H-h-7}
+                  textAnchor="middle" fontSize={9} fontWeight="700"
+                  fill={esHoy?C.emerald:C.red} fillOpacity={0.9}
                   fontFamily="DM Sans,sans-serif"
-                  transform={`rotate(-55,${x+bW/2},${H-h-10})`}
                 >{abrevD(gasto)}</text>}
-                {/* Nombre del día */}
+                {/* Nombre día */}
                 <text x={x+bW/2} y={H+14} textAnchor="middle" fontSize={9}
-                  fill={esHoy?C.emerald:ink(0.55)}
-                  fontWeight={esHoy?"800":"700"} fontFamily="DM Sans,sans-serif">{nombreDia}</text>
-                {/* Número del día */}
-                <text x={x+bW/2} y={H+26} textAnchor="middle" fontSize={8}
-                  fill={esHoy?C.emerald:ink(0.4)}
-                  fontWeight={esHoy?"800":"500"} fontFamily="DM Sans,sans-serif">{dia}</text>
+                  fill={esHoy?C.emerald:ink(0.45)}
+                  fontWeight={esHoy?"700":"500"} fontFamily="DM Sans,sans-serif">{nombreDia}</text>
+                {/* Número día */}
+                <text x={x+bW/2} y={H+25} textAnchor="middle" fontSize={8}
+                  fill={esHoy?C.emerald:ink(0.3)}
+                  fontWeight={esHoy?"700":"400"} fontFamily="DM Sans,sans-serif">{dia}</text>
                 {/* Punto hoy */}
-                {esHoy&&<circle cx={x+bW/2} cy={H+35} r={3} fill={C.emerald}/>}
+                {esHoy&&<circle cx={x+bW/2} cy={H+33} r={2.5} fill={C.emerald}/>}
               </g>;
             })}
-            <line x1={0} y1={H} x2={W} y2={H} stroke={ink(0.1)} strokeWidth={1}/>
           </svg>
-
-          {/* Leyenda */}
-          <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:5}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,fontSize:11,color:C.text.s}}>
-              <div style={{width:16,height:4,borderRadius:2,background:"#ef4444",flexShrink:0}}/>
-              <span>Barra roja = total gastado ese día</span>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:8,fontSize:11,color:C.text.s}}>
-              <div style={{width:8,height:8,borderRadius:"50%",background:C.emerald,flexShrink:0,display:"inline-block"}}/>
-              <span style={{color:C.emerald,fontWeight:700}}>Verde = hoy ({DIAS_S[new Date(ly,lm,hoy).getDay()]} {hoy})</span>
-            </div>
-          </div>
+          {/* Leyenda mínima */}
+      <div style={{display:"flex",alignItems:"center",gap:6,marginTop:6,fontSize:10,color:C.text.s}}>
+          <div style={{width:6,height:6,borderRadius:"50%",background:C.emerald,flexShrink:0}}/>
+          <span style={{color:C.emerald,fontWeight:600}}>Hoy · {DIAS_S[new Date(ly,lm,hoy).getDay()]} {hoy}</span>
+        </div>
         </div>
       </div>;
     }
@@ -3071,50 +3441,39 @@ export default function App(){
     const gap=Math.floor((W-barW*lista.length)/(lista.length+1));
     const abrev=v=>v>=1000000?`${(v/1000000).toFixed(1)}M`:v>=1000?`${Math.round(v/1000)}k`:`${v}`;
 
-    return <div style={{marginBottom:14}}>
+    return <div style={{marginBottom:20}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-        <Lbl style={{marginBottom:0}}>Resumen por mes</Lbl>
-        <div style={{display:"flex",gap:12,fontSize:10,color:C.text.s}}>
-          <span><span style={{color:C.red}}>▬</span> Gastos</span>
-          <span><span style={{color:C.emerald}}>▬</span> Ingresos</span>
+        <div style={{fontSize:11,color:C.text.s,fontWeight:600,letterSpacing:1.4,textTransform:"uppercase"}}>Resumen por mes</div>
+        <div style={{display:"flex",gap:14,fontSize:10,color:C.text.s}}>
+          <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{display:"inline-block",width:8,height:8,borderRadius:2,background:C.red,opacity:0.7}}/> Gastos</span>
+          <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{display:"inline-block",width:8,height:8,borderRadius:2,background:C.emerald,opacity:0.7}}/> Ingresos</span>
         </div>
       </div>
-      <div style={{background:"rgba(255,255,255,0.03)",borderRadius:16,padding:"16px 10px 8px",border:`1px solid ${C.border}`}}>
+      <div style={{background:C.card,borderRadius:20,padding:"18px 12px 12px",boxShadow:elev("card")}}>
         <svg width="100%" viewBox={`0 0 ${W} ${H+36}`} style={{overflow:"visible"}}>
           {datos.map(({y,m,gastos,ingresos,esSel,esActual},i)=>{
             const x=gap+(barW+gap)*i;
             const hG=Math.max(gastos/maxVal*H,gastos>0?4:0);
             const hI=Math.max(ingresos/maxVal*H,ingresos>0?4:0);
             const bW=Math.floor(barW*0.44);
-            const colG=esSel?"#ff6b6b":C.red+"cc";
-            const colI=esSel?"#34d399":C.emerald+"99";
             const label=MONTHS_S[m];
             return <g key={`${y}-${m}`} onClick={()=>setMonth(m)} style={{cursor:"pointer"}}>
-              {/* Fondo activo */}
-              {esSel&&<rect x={x-4} y={0} width={barW+8} height={H+4} rx={8} fill="rgba(255,255,255,0.05)"/>}
-              {/* Barra ingresos (fondo, más clara) */}
-              <rect x={x} y={H-hI} width={bW} height={hI} rx={3} fill={colI}/>
-              {/* Barra gastos (frente, más oscura) */}
-              <rect x={x+bW+2} y={H-hG} width={bW} height={hG} rx={3} fill={colG}/>
-              {/* Línea base */}
-              <line x1={x} y1={H} x2={x+barW} y2={H} stroke={C.border} strokeWidth={1}/>
-              {/* Label mes */}
-              <text x={x+barW/2} y={H+14} textAnchor="middle" fontSize={9} fontWeight={esSel?"800":"600"}
-                fill={esSel?C.emerald:esActual?ink(0.6):ink(0.35)}
-                fontFamily="DM Sans,sans-serif">{label}</text>
-              {/* Año si cambia */}
-              {(i===0||(i>0&&datos[i-1].y!==y))&&<text x={x+barW/2} y={H+26} textAnchor="middle" fontSize={8}
-                fill="rgba(255,255,255,0.2)" fontFamily="DM Sans,sans-serif">{y}</text>}
-              {/* Valor del mes seleccionado */}
-              {esSel&&gastos>0&&<text x={x+bW+2+bW/2} y={H-hG-5} textAnchor="middle" fontSize={8} fontWeight="800"
-                fill={C.red} fontFamily="DM Sans,sans-serif">{COP(gastos).replace("$ ","$").replace(/\.000$/,"k")}</text>}
+              {esSel&&<rect x={x-4} y={2} width={barW+8} height={H-2} rx={8} fill={ink(0.04)}/>}
+              <rect x={x} y={H-Math.max(hI,2)} width={bW} height={Math.max(hI,2)} rx={Math.min(5,bW/2)} fill={C.emerald} fillOpacity={esSel?0.8:0.35}/>
+              <rect x={x+bW+2} y={H-Math.max(hG,2)} width={bW} height={Math.max(hG,2)} rx={Math.min(5,bW/2)} fill={C.red} fillOpacity={esSel?1:0.5}/>
+              <text x={x+barW/2} y={H+14} textAnchor="middle" fontSize={9} fontWeight={esSel?"700":"500"}
+                fill={esSel?C.text.h:esActual?ink(0.5):ink(0.3)} fontFamily="DM Sans,sans-serif">{label}</text>
+              {(i===0||(i>0&&datos[i-1].y!==y))&&<text x={x+barW/2} y={H+26} textAnchor="middle" fontSize={7}
+                fill={ink(0.2)} fontFamily="DM Sans,sans-serif">{y}</text>}
+              {esSel&&gastos>0&&<text x={x+bW+2+bW/2} y={H-hG-6} textAnchor="middle" fontSize={8} fontWeight="700"
+                fill={C.red} fillOpacity={0.9} fontFamily="DM Sans,sans-serif">{abrev(gastos)}</text>}
+              {esActual&&<circle cx={x+barW/2} cy={H+32} r={2.5} fill={C.emerald} fillOpacity={0.8}/>}
             </g>;
           })}
-          {/* Línea base total */}
-          <line x1={0} y1={H} x2={W} y2={H} stroke="rgba(255,255,255,0.06)" strokeWidth={1}/>
+          <line x1={0} y1={H} x2={W} y2={H} stroke={ink(0.05)} strokeWidth={1}/>
         </svg>
-        <div style={{fontSize:11,color:C.text.s,textAlign:"center",marginTop:2}}>
-          Toca una barra para ver ese mes
+        <div style={{fontSize:11,color:C.text.s,textAlign:"center",marginTop:4,opacity:0.6}}>
+          Toca para ver ese mes
         </div>
       </div>
     </div>;
@@ -3309,7 +3668,7 @@ export default function App(){
       let base=[...monthTx];
       // Filtro por categoría principal (seleccionada desde Análisis)
       if(mainCatFiltrada){
-        base=base.filter(t=>mainCatFiltrada.subs.some(s=>s.id===t.cat));
+        base=base.filter(t=>mainCatFiltrada.subs.some(s=>s.id===t.cat)||(catsCustom[mainCatFiltrada.id]||[]).some(s=>s.id===t.cat));
       }
       // Filtro por tipo
       if(filtroCat==="gasto")   base=base.filter(t=>isGasto(t.cat)&&!isAporteMeta(t));
@@ -3320,10 +3679,12 @@ export default function App(){
         const q=busqueda.toLowerCase().trim();
         base=base.filter(t=>{
           const desc=(t.desc||"").toLowerCase();
-          const subCat=getCatInfo(t.cat);
+          // Resolver label real para custom cats
+          const subCat=t.cat?.startsWith("custom_")
+            ? (()=>{for(const[,subs] of Object.entries(catsCustom||{})){const f=subs?.find(s=>s.id===t.cat);if(f)return f;}return getCatInfo(t.cat);})()
+            : getCatInfo(t.cat);
           const subLabel=(subCat.label||"").toLowerCase();
-          // Buscar también en la categoría principal (ej: "entretenimiento", "ocio", "deudas")
-          const mainCat=MAIN_CATS.find(m=>m.subs.some(s=>s.id===t.cat));
+          const mainCat=MAIN_CATS.find(m=>m.subs.some(s=>s.id===t.cat)||(catsCustom[m.id]||[]).some(s=>s.id===t.cat));
           const mainLabel=(mainCat?.label||"").toLowerCase();
           const mainLabelFull=(mainCat?.labelFull||"").toLowerCase();
           return desc.includes(q)||subLabel.includes(q)||mainLabel.includes(q)||mainLabelFull.includes(q);
@@ -3426,7 +3787,7 @@ export default function App(){
           :<>Sin movimientos en {MONTHS[month]}.<br/><span style={{fontSize:11,color:C.text.s}}>Los registros de otros meses están disponibles<br/>seleccionando el mes arriba.</span></>
         }
       </div>}
-      {sorted.map(t=><TxRow key={t.id} t={t} onEdit={()=>setModal(t)}/>)}
+      {sorted.map(t=><TxRow key={t.id} t={t} onEdit={()=>setModal(t)} catsCustom={catsCustom}/>)}
     </div>;
   };
 
@@ -3992,6 +4353,15 @@ export default function App(){
         <div style={{fontSize:21,fontWeight:700,letterSpacing:-0.5,color:C.text.h}}>{user.displayName?.split(" ")[0]} 👋</div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
+        {tab==="home"&&<button onClick={toggleCompacto} style={{
+          background:compacto?`${C.indigo}22`:C.card, border:"none",
+          borderRadius:10, padding:"8px 10px", cursor:"pointer",
+          boxShadow:elev("card"), transition:"all 0.2s",
+          display:"flex",alignItems:"center",justifyContent:"center",
+          color:compacto?C.indigo:C.text.s, fontSize:16, lineHeight:1,
+        }} title={compacto?"Vista completa":"Vista compacta"}>
+          {compacto?"⊞":"⊟"}
+        </button>}
         <div style={{background:C.card,borderRadius:10,padding:"6px 14px",fontSize:12,color:C.text.b,fontWeight:600,boxShadow:elev("card")}}>{MONTHS_S[now.getMonth()]} {now.getFullYear()}</div>
         {prestamos.filter(p=>!p.devuelto).length>0&&(
           <button onClick={()=>setPrestamosModal(true)}
