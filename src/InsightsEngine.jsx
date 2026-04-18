@@ -467,11 +467,11 @@ export function InsightsEngine({
   // ─── RENDER ───────────────────────────────────────────────────────────────
   const BG_MAP = {
     warning: `${C.amber}10`, success: `${C.emerald}10`,
-    tip: `${C.indigo}10`, info: "rgba(255,255,255,0.04)",
+    tip: `${C.indigo}10`, info: C.surface,
   };
   const BORDER_MAP = {
     warning: `${C.amber}30`, success: `${C.emerald}30`,
-    tip: `${C.indigo}30`, info: "rgba(255,255,255,0.08)",
+    tip: `${C.indigo}30`, info: C.border,
   };
 
   return (

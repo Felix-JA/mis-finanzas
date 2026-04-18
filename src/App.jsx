@@ -44,6 +44,40 @@ const TEMAS = {
     text:{ h:"#ecfdf5", b:"#a7c4bc", s:"#5f8a82", m:"#5f8a82" },
     label:"🌿 Bosque", desc:"Verde oscuro relajante",
   },
+  // ─── TEMAS CLAROS ────────────────────────────────────────────────────────
+  // Perla — blanco puro con acentos índigo (tipo Apple Wallet / Linear)
+  pearl: {
+    isLight: true,
+    bg:"#f7f8fa", card:"#ffffff",
+    surface:"rgba(15,23,42,0.03)", border:"rgba(15,23,42,0.06)", borderStrong:"rgba(15,23,42,0.14)",
+    indigo:"#4f46e5", indigoLight:"#6366f1",
+    emerald:"#059669", emeraldLight:"#10b981",
+    amber:"#d97706", red:"#dc2626", violet:"#7c3aed", sky:"#0284c7",
+    text:{ h:"#0f172a", b:"#475569", s:"#94a3b8", m:"#94a3b8" },
+    label:"🤍 Perla", desc:"Blanco limpio y minimalista",
+  },
+  // Arena — beige cálido (estilo Notion claro)
+  sand: {
+    isLight: true,
+    bg:"#faf7f2", card:"#ffffff",
+    surface:"rgba(87,45,10,0.03)", border:"rgba(87,45,10,0.08)", borderStrong:"rgba(87,45,10,0.18)",
+    indigo:"#b45309", indigoLight:"#d97706",
+    emerald:"#059669", emeraldLight:"#10b981",
+    amber:"#c2410c", red:"#b91c1c", violet:"#7c3aed", sky:"#0369a1",
+    text:{ h:"#422006", b:"#78350f", s:"#a16207", m:"#a16207" },
+    label:"🌸 Arena", desc:"Cálido y acogedor",
+  },
+  // Bruma — gris azulado suave (estilo Revolut Light)
+  mist: {
+    isLight: true,
+    bg:"#eef2f6", card:"#ffffff",
+    surface:"rgba(30,58,95,0.03)", border:"rgba(30,58,95,0.08)", borderStrong:"rgba(30,58,95,0.18)",
+    indigo:"#3730a3", indigoLight:"#4f46e5",
+    emerald:"#047857", emeraldLight:"#059669",
+    amber:"#b45309", red:"#b91c1c", violet:"#6d28d9", sky:"#0369a1",
+    text:{ h:"#0f172a", b:"#334155", s:"#64748b", m:"#64748b" },
+    label:"🌫️ Bruma", desc:"Gris azulado elegante",
+  },
 };
 const DARK = TEMAS.navy; // alias para compatibilidad
 // C es mutable — se actualiza al cambiar tema
@@ -59,6 +93,85 @@ function ink(opacity=1){
     : `rgba(255,255,255,${opacity})`;
 }
 
+// ─── DESIGN SYSTEM (Fase 2D) ──────────────────────────────────────────────────
+// Sistema centralizado de elevación, superficies y tipografía.
+// Todas las funciones leen C.isLight dinámicamente — responden al cambio de tema.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Niveles de elevación (sombras) — 3 niveles controlados
+// flat  → sin sombra (listas, insights, items planos)
+// card  → flotación sutil (cards normales)
+// raised → hero, saldo, alertas críticas (único lugar con 3D notable)
+function elev(level="card"){
+  if(C.isLight){
+    if(level==="flat")   return "none";
+    if(level==="card")   return "0 1px 3px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04)";
+    if(level==="raised") return "0 10px 40px rgba(15,23,42,0.12), 0 2px 8px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.6)";
+  } else {
+    if(level==="flat")   return "none";
+    if(level==="card")   return "0 2px 8px rgba(0,0,0,0.25)";
+    if(level==="raised") return "0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)";
+  }
+  return "none";
+}
+
+// Superficies de fondo — glass adaptativo
+// glass     → card base, fondo semi-transparente
+// glassHi   → card con un poco más de presencia
+// glassLow  → fondo más sutil, para contenedores anidados
+function surface(tone="glass"){
+  if(C.isLight){
+    if(tone==="glass")    return "rgba(255,255,255,0.75)";
+    if(tone==="glassHi")  return "rgba(255,255,255,0.9)";
+    if(tone==="glassLow") return "rgba(15,23,42,0.02)";
+  } else {
+    if(tone==="glass")    return "rgba(255,255,255,0.03)";
+    if(tone==="glassHi")  return "rgba(255,255,255,0.05)";
+    if(tone==="glassLow") return "rgba(255,255,255,0.02)";
+  }
+  return "transparent";
+}
+
+// Borde adaptativo — consistente en claro/oscuro
+// subtle → bordes casi invisibles (cards glass)
+// normal → bordes visibles (inputs, botones)
+function stroke(weight="subtle"){
+  if(C.isLight){
+    if(weight==="subtle") return "rgba(15,23,42,0.06)";
+    if(weight==="normal") return "rgba(15,23,42,0.10)";
+    if(weight==="strong") return "rgba(15,23,42,0.18)";
+  } else {
+    if(weight==="subtle") return "rgba(255,255,255,0.06)";
+    if(weight==="normal") return "rgba(255,255,255,0.10)";
+    if(weight==="strong") return "rgba(255,255,255,0.18)";
+  }
+}
+
+// Escala tipográfica — 6 niveles consistentes
+// Nota: devuelven objetos de estilo para hacer `style={{...T.title, color: ...}}`
+const T = {
+  display:  {fontSize:46, fontWeight:900, letterSpacing:-2.5, lineHeight:1},
+  title:    {fontSize:22, fontWeight:800, letterSpacing:-0.5, lineHeight:1.2},
+  heading:  {fontSize:16, fontWeight:700, letterSpacing:-0.2, lineHeight:1.3},
+  body:     {fontSize:14, fontWeight:500, letterSpacing:0, lineHeight:1.5},
+  caption:  {fontSize:12, fontWeight:500, letterSpacing:0.1, lineHeight:1.4},
+  micro:    {fontSize:10, fontWeight:700, letterSpacing:1.2, lineHeight:1.2, textTransform:"uppercase"},
+};
+
+// Helper para cards glass estándar — simplifica la creación de cards consistentes
+// Uso: style={{...glassCard(), padding: 20}} o style={{...glassCard({raised:true})}}
+function glassCard({raised=false, tone="glass", borderWeight="subtle"}={}){
+  return {
+    background: surface(tone),
+    border: `1px solid ${stroke(borderWeight)}`,
+    borderRadius: 20,
+    boxShadow: elev(raised ? "raised" : "card"),
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+  };
+}
+
+
 // ─── CATEGORÍAS ───────────────────────────────────────────────────────────────
 const MAIN_CATS = [
   { id:"comida",     label:"Comida",   labelFull:"Comida",               icon:"🍽️", color:"#facc15",
@@ -70,13 +183,13 @@ const MAIN_CATS = [
   { id:"vehiculo",   label:"Vehículo", labelFull:"Vehículo",             icon:"🏍️", color:"#fb923c",
     subs:[{id:"repuestos",label:"Repuestos",icon:"🔩"},{id:"mantenimiento",label:"Mantenimiento",icon:"🛠️"},{id:"soat",label:"SOAT/Seguro",icon:"📋"},{id:"revision",label:"Rev. Técnica",icon:"🔍"}]},
   { id:"salud",      label:"Salud",    labelFull:"Salud y Bienestar",    icon:"🩺", color:"#f87171",
-    subs:[{id:"medico",label:"Médico",icon:"🏥"},{id:"medicamentos",label:"Medicamentos",icon:"💊"},{id:"gym",label:"Fitness",icon:"🏃"},{id:"barberia",label:"Barbería/Estética",icon:"✂️"}]},
+    subs:[{id:"medico",label:"Médico",icon:"🏥"},{id:"medicamentos",label:"Medicinas",icon:"💊"},{id:"gym",label:"Fitness",icon:"🏃"},{id:"barberia",label:"Peluquería",icon:"✂️"}]},
   { id:"ocio",       label:"Ocio",     labelFull:"Entretenimiento",      icon:"🎭", color:"#e879f9",
     subs:[{id:"salidas",label:"Salidas",icon:"🥂"},{id:"eventos",label:"Eventos",icon:"🎟️"},{id:"viajes",label:"Viajes",icon:"✈️"},{id:"hobbies",label:"Hobbies",icon:"🎨"}]},
   { id:"estilo",     label:"Estilo",   labelFull:"Ropa y Estilo",        icon:"👔", color:"#a78bfa",
     subs:[{id:"ropa",label:"Ropa",icon:"👔"},{id:"calzado",label:"Calzado",icon:"👟"},{id:"accesorios",label:"Accesorios",icon:"⌚"},{id:"cuidado",label:"Cuidado",icon:"🧴"}]},
   { id:"digital",    label:"Digital",  labelFull:"Digital y Suscripciones", icon:"📱", color:"#38bdf8",
-    subs:[{id:"streaming",label:"Streaming",icon:"📺"},{id:"apps",label:"Apps/Suscripc.",icon:"📲"},{id:"compras_online",label:"Compras online",icon:"🛍️"},{id:"tecnologia",label:"Tecnología",icon:"💻"}]},
+    subs:[{id:"streaming",label:"Streaming",icon:"📺"},{id:"apps",label:"App/Suscrip.",icon:"📲"},{id:"compras_online",label:"Compras online",icon:"🛍️"},{id:"tecnologia",label:"Tecnología",icon:"💻"}]},
   { id:"deudas",     label:"Deudas",   labelFull:"Deudas",                icon:"💳", color:"#f43f5e",
     subs:[{id:"tarjeta",label:"Tarjeta",icon:"💳"},{id:"cuotas",label:"Cuotas",icon:"📦"},{id:"credito",label:"Crédito",icon:"🏦"}]},
   { id:"otros_main", label:"Otros",    labelFull:"Otros",                icon:"📦", color:"#94a3b8",
@@ -252,7 +365,7 @@ function Ring({pct,size=56,stroke=5,color=C.emerald,label}){
 }
 
 function Bar({pct,color,h=5}){
-  return <div style={{background:"rgba(255,255,255,0.08)",borderRadius:99,height:h,overflow:"hidden"}}>
+  return <div style={{background:C.border,borderRadius:99,height:h,overflow:"hidden"}}>
     <div style={{height:h,borderRadius:99,background:color,width:`${Math.min(pct*100,100)}%`,transition:"width 0.7s ease"}}/>
   </div>;
 }
@@ -426,7 +539,7 @@ function CatSelector({value, onChange, subsCustom={}, onEditCustom}){
         background:open?`${m.color}35`:active?`${m.color}22`:C.surface,
         outline:(active||open)?`2px solid ${m.color}`:"2px solid transparent",transition:"all 0.15s"}}>
       <span style={{fontSize:20}}>{m.icon}</span>
-      <span style={{fontSize:9,fontWeight:700,color:(active||open)?m.color:C.text.s,textAlign:"center",lineHeight:1.2}}>{m.label}</span>
+      <span style={{fontSize:10,fontWeight:800,color:(active||open)?m.color:C.text.b,textAlign:"center",lineHeight:1.2}}>{m.label}</span>
     </button>;
   }
   return <div>
@@ -451,19 +564,19 @@ function CatSelector({value, onChange, subsCustom={}, onEditCustom}){
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
           {main.subs.map(s=>{const a=value===s.id;return <button key={s.id} onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(s.id);setSel(null);}}
             style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,padding:"8px 4px",borderRadius:12,border:"none",cursor:"pointer",
-              height:72,overflow:"hidden",
+              minHeight:72,overflow:"hidden",
               background:a?`${main.color}35`:C.surface,outline:a?`2px solid ${main.color}`:"2px solid transparent",transition:"all 0.12s"}}>
             <span style={{fontSize:20,flexShrink:0}}>{s.icon}</span>
-            <span style={{fontSize:10,fontWeight:700,color:a?main.color:C.text.b,textAlign:"center",lineHeight:1.2,width:"100%",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{s.label}</span>
+            <span style={{fontSize:10,fontWeight:800,color:a?main.color:C.text.b,textAlign:"center",lineHeight:1.25,width:"100%",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",wordBreak:"break-word",hyphens:"auto"}}>{s.label}</span>
           </button>;})}
           {/* Subcategorías personalizadas ✦ */}
           {customSubs.map(s=>{const a=value===s.id;return <button key={s.id} onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(s.id);setSel(null);}}
             style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,padding:"8px 4px",borderRadius:12,border:"none",cursor:"pointer",
-              height:72,overflow:"hidden",
+              minHeight:72,overflow:"hidden",
               background:a?`${main.color}35`:C.surface,outline:a?`2px solid ${main.color}`:"2px solid transparent",
               position:"relative",transition:"all 0.12s"}}>
             <span style={{fontSize:20,flexShrink:0}}>{s.icon}</span>
-            <span style={{fontSize:10,fontWeight:700,color:a?main.color:C.text.b,textAlign:"center",lineHeight:1.2,width:"100%",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{s.label}</span>
+            <span style={{fontSize:10,fontWeight:800,color:a?main.color:C.text.b,textAlign:"center",lineHeight:1.25,width:"100%",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",wordBreak:"break-word",hyphens:"auto"}}>{s.label}</span>
             <span style={{position:"absolute",top:4,right:4,fontSize:8,color:main.color,fontWeight:900}}>✦</span>
           </button>;})}
         </div>
@@ -555,16 +668,16 @@ function GoalModal({initial,onClose,onSave,onDelete}){
           {/* Contenido */}
           <div style={{position:"relative",padding:"20px 18px"}}>
             <div style={{fontSize:52,marginBottom:10,filter:"drop-shadow(0 4px 16px rgba(0,0,0,0.5))"}}>{emoji}</div>
-            <div style={{fontSize:17,fontWeight:800,color:"#fff",marginBottom:isEdit?6:4,textShadow:"0 2px 8px rgba(0,0,0,0.5)"}}>{name||"Nombre de tu meta"}</div>
+            <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:isEdit?6:4,textShadow:"0 2px 12px rgba(0,0,0,0.7)"}}>{name||"Nombre de tu meta"}</div>
             {isEdit&&<>
-              <div style={{fontSize:13,color:col,fontWeight:600,marginBottom:8}}>{getFrase(pct,name||"tu meta")}</div>
+              <div style={{fontSize:13,color:"#fff",fontWeight:700,marginBottom:8,textShadow:"0 1px 4px rgba(0,0,0,0.5)"}}>{getFrase(pct,name||"tu meta")}</div>
               <Bar pct={pct} color={col} h={6}/>
-              <div style={{fontSize:12,color:"rgba(255,255,255,0.8)",marginTop:6,display:"flex",justifyContent:"space-between"}}>
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.9)",marginTop:6,display:"flex",justifyContent:"space-between",fontWeight:600}}>
                 <span>{Math.round(pct*100)}% · {COP((initial._aportado||0)+(initial.saldoInicial||0))} acumulados</span>
                 <span>Faltan {COP(Math.max((initial.monto||0)-(initial._aportado||0)-(initial.saldoInicial||0),0))}</span>
               </div>
             </>}
-            {!isEdit&&<div style={{fontSize:13,color:"rgba(255,255,255,0.75)"}}>{getFrase(0,name||"tu meta")}</div>}
+            {!isEdit&&<div style={{fontSize:13,color:"#fff",fontWeight:700,textShadow:"0 1px 4px rgba(0,0,0,0.5)"}}>{getFrase(0,name||"tu meta")}</div>}
           </div>
           {/* Botón cambiar foto — esquina superior derecha */}
           <button onClick={()=>imgInputRef.current?.click()}
@@ -728,12 +841,12 @@ function GoalCard({goal,aportado,aportadoEsteMes,txAll,onEdit}){
           bottom:goal.imagen?0:undefined,left:goal.imagen?0:undefined,right:goal.imagen?0:undefined,
           padding:goal.imagen?"16px 18px":"0",
         }}>
-          <div style={{fontSize:18,fontWeight:800,color:"#fff",marginBottom:4,textShadow:goal.imagen?"0 2px 10px rgba(0,0,0,0.9)":"none"}}>{goal.name}</div>
-          <div style={{fontSize:13,color:goal.imagen?"rgba(255,255,255,0.95)":col,fontWeight:600,textShadow:goal.imagen?"0 1px 6px rgba(0,0,0,0.9)":"none"}}>{frase}</div>
+          <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:4,textShadow:"0 2px 10px rgba(0,0,0,0.6)"}}>{goal.name}</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,0.95)",fontWeight:700,textShadow:"0 1px 6px rgba(0,0,0,0.6)"}}>{frase}</div>
         </div>
       </div>
     </div>
-    <div style={{background:"rgba(255,255,255,0.03)",padding:"14px 18px 16px",borderTop:`1px solid ${C.border}`}}>
+    <div style={{background:C.surface,padding:"14px 18px 16px",borderTop:`1px solid ${C.border}`}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <div>
           <div style={{fontSize:22,fontWeight:900,color:col,letterSpacing:-1}}>{Math.round(pct*100)}%</div>
@@ -763,7 +876,7 @@ function GoalCard({goal,aportado,aportadoEsteMes,txAll,onEdit}){
         <div style={{display:"flex",gap:16}}>
           <div>
             <div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>PROMEDIO/MES</div>
-            <div style={{fontSize:13,fontWeight:800,color:"#f1f5f9"}}>{COP(Math.round(proy.promedio))}</div>
+            <div style={{fontSize:13,fontWeight:800,color:C.text.h}}>{COP(Math.round(proy.promedio))}</div>
           </div>
           <div>
             <div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>TIEMPO RESTANTE</div>
@@ -792,7 +905,7 @@ function GoalChip({goal,aportado,aportadoEsteMes,txAll,onClick}){
     onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
     onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
     style={{
-      background:"rgba(255,255,255,0.05)",
+      background:C.surface,
       borderRadius:16,overflow:"hidden",
       border:`1px solid rgba(255,255,255,0.1)`,
       boxShadow:"0 4px 16px rgba(0,0,0,0.3)",
@@ -1251,10 +1364,10 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
             {id:"extra",  label:"💫 Extra",    color:C.amber,  active:esIngresoExtra,                                   onClick:()=>setCatSinScroll("ingreso_extra")},
           ].map(t=>(
             <button key={t.id} onMouseDown={e=>e.preventDefault()} onClick={t.onClick}
-              style={{padding:"9px 0",borderRadius:12,border:"none",cursor:"pointer",fontSize:11,fontWeight:700,
+              style={{padding:"9px 0",borderRadius:12,border:"none",cursor:"pointer",fontSize:11,fontWeight:800,
                 background:t.active?`${t.color}22`:C.surface,
                 outline:t.active?`2px solid ${t.color}`:"2px solid transparent",
-                color:t.active?t.color:C.text.s,transition:"all 0.15s"}}>
+                color:t.active?t.color:C.text.b,transition:"all 0.15s"}}>
               {t.label}
             </button>
           ))}
@@ -1359,7 +1472,7 @@ function TxRow({t,onEdit}){
       display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
     }}>{cat.icon}</div>
     <div style={{flex:1,minWidth:0}}>
-      <div style={{fontSize:14,fontWeight:700,color:bloqueado?"#8899aa":"#ffffff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc}</div>
+      <div style={{fontSize:14,fontWeight:800,color:bloqueado?C.text.s:C.text.h,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc}</div>
       <div style={{fontSize:12,color:C.text.b,marginTop:3}}>
         {t.date?.slice(5).replace("-","/")} · {isIngreso(t.cat)?"💵 Salario":isDevolucion(t.cat)?"🤝 Devolución":isIngresoExtra(t.cat)?"💫 Extra":esMeta?"⭐ Meta":(()=>{const main=MAIN_CATS.find(m=>m.subs?.some(s=>s.id===t.cat));return main?`${main.labelFull||main.label} · ${cat.label}`:cat.label;})()}
       </div>
@@ -1400,33 +1513,33 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
         style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
           border:"1px solid rgba(16,185,129,0.3)",padding:"24px 20px 40px",animation:sheet3.dragY===0?"slideUp 0.2s cubic-bezier(0.34,1.56,0.64,1)":"none",position:"relative",...sheet3.cardStyle}}>
         <SheetCloseBtn onClose={onClose3}/>
-        <div {...sheet3.handleProps} style={{...sheet3.handleProps.style,display:"flex",justifyContent:"center",marginBottom:14,padding:"4px 0 8px"}}><div style={{width:40,height:4,borderRadius:99,background:"rgba(255,255,255,0.08)"}}/></div>
+        <div {...sheet3.handleProps} style={{...sheet3.handleProps.style,display:"flex",justifyContent:"center",marginBottom:14,padding:"4px 0 8px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
         <div style={{textAlign:"center",marginBottom:20}}>
           <div style={{fontSize:32,marginBottom:6}}>🤝</div>
-          <div style={{fontSize:17,fontWeight:800,color:"#f1f5f9"}}>{prestamo.nombre} te pagó</div>
-          <div style={{fontSize:12,color:"#6b7f96",marginTop:4}}>Prestaste {COP(prestamo.monto)} · ¿Cuánto te devolvió?</div>
+          <div style={{fontSize:17,fontWeight:800,color:C.text.h}}>{prestamo.nombre} te pagó</div>
+          <div style={{fontSize:12,color:C.text.s,marginTop:4}}>Prestaste {COP(prestamo.monto)} · ¿Cuánto te devolvió?</div>
         </div>
-        <div style={{display:"flex",alignItems:"center",background:"rgba(255,255,255,0.05)",borderRadius:12,overflow:"hidden",
-          border:`2px solid ${raw>0?"#10b981":"rgba(255,255,255,0.08)"}`,transition:"border-color 0.2s",marginBottom:10}}>
-          <span style={{padding:"0 14px",color:"#6b7f96",fontSize:18,lineHeight:"54px"}}>$</span>
+        <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:12,overflow:"hidden",
+          border:`2px solid ${raw>0?"#10b981":C.border}`,transition:"border-color 0.2s",marginBottom:10}}>
+          <span style={{padding:"0 14px",color:C.text.s,fontSize:18,lineHeight:"54px"}}>$</span>
           <input inputMode="numeric" placeholder="0" value={monto} onChange={hm} autoFocus
-            style={{flex:1,background:"none",border:"none",outline:"none",fontSize:24,fontWeight:800,color:"#f1f5f9",padding:"0 8px",height:54}}/>
+            style={{flex:1,background:"none",border:"none",outline:"none",fontSize:24,fontWeight:800,color:C.text.h,padding:"0 8px",height:54}}/>
         </div>
         {raw!==prestamo.monto&&raw>0&&<div style={{fontSize:11,color:raw>prestamo.monto?"#10b981":"#f59e0b",marginBottom:12,textAlign:"center",fontWeight:600}}>
           {raw>prestamo.monto?`✓ Te devolvió ${COP(raw-prestamo.monto)} extra (intereses)`:`⚠️ Te devolvió ${COP(prestamo.monto-raw)} menos de lo prestado`}
         </div>}
-        <div style={{background:"rgba(16,185,129,0.08)",border:"1px solid rgba(16,185,129,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:11,color:"#a8b8cc",lineHeight:1.6}}>
+        <div style={{background:"rgba(16,185,129,0.08)",border:"1px solid rgba(16,185,129,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:11,color:C.text.b,lineHeight:1.6}}>
           💡 Se sumará a tu disponible como <b style={{color:"#10b981"}}>devolución de préstamo</b>, sin afectar tus ingresos del mes.
         </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={onClose3}
-            style={{flex:1,padding:14,borderRadius:12,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"#a8b8cc",cursor:"pointer",fontSize:14,fontWeight:700}}>
+            style={{flex:1,padding:14,borderRadius:12,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:C.text.b,cursor:"pointer",fontSize:14,fontWeight:700}}>
             Cancelar
           </button>
           <button onClick={confirmar} disabled={!raw}
             style={{flex:2,padding:14,borderRadius:12,border:"none",fontSize:14,fontWeight:800,
               background:raw?"linear-gradient(135deg,#10b981,#059669)":"rgba(255,255,255,0.05)",
-              color:raw?"#000":"#6b7f96",cursor:raw?"pointer":"not-allowed"}}>
+              color:raw?"#000":C.text.s,cursor:raw?"pointer":"not-allowed"}}>
             {raw?`✓ Confirmar ${COP(raw)}`:"Ingresa el monto"}
           </button>
         </div>
@@ -1456,34 +1569,34 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
         style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
           border:`1px solid rgba(244,63,94,0.3)`,padding:"20px 20px 36px",animation:sheet2.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",maxHeight:"90vh",overflowY:"auto",position:"relative",...sheet2.cardStyle}}>
         <SheetCloseBtn onClose={onClose2}/>
-        <div {...sheet2.handleProps} style={{...sheet2.handleProps.style,display:"flex",justifyContent:"center",marginBottom:14,padding:"4px 0 8px"}}><div style={{width:40,height:4,borderRadius:99,background:"rgba(255,255,255,0.08)"}}/></div>
+        <div {...sheet2.handleProps} style={{...sheet2.handleProps.style,display:"flex",justifyContent:"center",marginBottom:14,padding:"4px 0 8px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,paddingRight:40}}>
-          <div style={{fontSize:17,fontWeight:800,color:"#f1f5f9"}}>{isEdit?"Editar préstamo":"🤝 Nuevo préstamo"}</div>
+          <div style={{fontSize:17,fontWeight:800,color:C.text.h}}>{isEdit?"Editar préstamo":"🤝 Nuevo préstamo"}</div>
         </div>
-        <div style={{fontSize:10,color:"#6b7f96",fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>¿A quién le prestaste?</div>
+        <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>¿A quién le prestaste?</div>
         <input placeholder="ej: Juan, María, Pedro…" value={nombre} onChange={e=>setNombre(e.target.value)}
-          style={{width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,
-            padding:"13px 16px",color:"#f1f5f9",fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:14}}/>
-        <div style={{fontSize:10,color:"#6b7f96",fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Monto prestado (COP)</div>
-        <div style={{display:"flex",alignItems:"center",background:"rgba(255,255,255,0.05)",borderRadius:12,overflow:"hidden",
-          border:`2px solid ${raw>0?"#f43f5e":"rgba(255,255,255,0.08)"}`,transition:"border-color 0.2s",marginBottom:14}}>
-          <span style={{padding:"0 14px",color:"#6b7f96",fontSize:18,lineHeight:"54px"}}>$</span>
+          style={{width:"100%",background:C.surface,border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,
+            padding:"13px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:14}}/>
+        <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Monto prestado (COP)</div>
+        <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:12,overflow:"hidden",
+          border:`2px solid ${raw>0?"#f43f5e":C.border}`,transition:"border-color 0.2s",marginBottom:14}}>
+          <span style={{padding:"0 14px",color:C.text.s,fontSize:18,lineHeight:"54px"}}>$</span>
           <input inputMode="numeric" placeholder="0" value={monto} onChange={hm}
-            style={{flex:1,background:"none",border:"none",outline:"none",fontSize:24,fontWeight:800,color:"#f1f5f9",padding:"0 8px",height:54}}/>
+            style={{flex:1,background:"none",border:"none",outline:"none",fontSize:24,fontWeight:800,color:C.text.h,padding:"0 8px",height:54}}/>
         </div>
-        <div style={{fontSize:10,color:"#6b7f96",fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Fecha del préstamo</div>
+        <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Fecha del préstamo</div>
         <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)}
-          style={{width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,
-            padding:"13px 16px",color:"#f1f5f9",fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:14}}/>
-        <div style={{fontSize:10,color:"#6b7f96",fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Motivo / Nota (opcional)</div>
+          style={{width:"100%",background:C.surface,border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,
+            padding:"13px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:14}}/>
+        <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Motivo / Nota (opcional)</div>
         <input placeholder="ej: Para el arriendo, emergencia médica…" value={desc} onChange={e=>setDesc(e.target.value)}
-          style={{width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,
-            padding:"13px 16px",color:"#f1f5f9",fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:20}}/>
+          style={{width:"100%",background:C.surface,border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,
+            padding:"13px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:20}}/>
         <div style={{background:"rgba(244,63,94,0.08)",border:"1px solid rgba(244,63,94,0.25)",borderRadius:12,padding:"12px 14px",marginBottom:16}}>
           <div style={{fontSize:12,color:"#f87171",fontWeight:700,marginBottom:3}}>
             {isEdit?"ℹ️ Edición de datos":"💸 Se descontará de tu disponible"}
           </div>
-          <div style={{fontSize:11,color:"#a8b8cc",lineHeight:1.6}}>
+          <div style={{fontSize:11,color:C.text.b,lineHeight:1.6}}>
             {isEdit
               ?"Editar no modifica el movimiento original en tu historial. Si cambió el monto, elimina y crea uno nuevo."
               :"Al guardar se registra un gasto automático en 'Deudas · A terceros'. Cuando te paguen, registra el ingreso tú mismo con el monto que recibas."}
@@ -1498,7 +1611,7 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
             style={{flex:1,padding:16,borderRadius:14,border:"none",fontSize:15,fontWeight:800,
               cursor:(!nombre.trim()||!raw)?"not-allowed":"pointer",
               background:(!nombre.trim()||!raw)?"rgba(255,255,255,0.05)":"linear-gradient(135deg,#f43f5e,#be123c)",
-              color:(!nombre.trim()||!raw)?"#6b7f96":"#fff"}}>
+              color:(!nombre.trim()||!raw)?C.text.s:"#fff"}}>
             {(!nombre.trim()||!raw)?"Completa los campos":isEdit?"✓ Guardar":"+ Registrar préstamo"}
           </button>
         </div>
@@ -1515,13 +1628,13 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
         border:"1px solid rgba(255,255,255,0.08)",animation:sheet.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",
         maxHeight:"90vh",overflowY:"auto",position:"relative",...sheet.cardStyle}}>
       <SheetCloseBtn onClose={onClose}/>
-      <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:"rgba(255,255,255,0.08)"}}/></div>
+      <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
       <div style={{padding:"0 20px 36px"}}>
         {/* Header */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,paddingRight:40}}>
           <div>
-            <div style={{fontSize:18,fontWeight:800,color:"#f1f5f9"}}>🤝 Préstamos a terceros</div>
-            <div style={{fontSize:12,color:"#6b7f96",marginTop:2}}>Registra lo que te deben</div>
+            <div style={{fontSize:18,fontWeight:800,color:C.text.h}}>🤝 Préstamos a terceros</div>
+            <div style={{fontSize:12,color:C.text.s,marginTop:2}}>Registra lo que te deben</div>
           </div>
         </div>
 
@@ -1532,12 +1645,12 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
         }}>
           <div style={{fontSize:11,color:"rgba(244,63,94,0.8)",fontWeight:700,letterSpacing:1,marginBottom:4}}>PENDIENTE DE COBRO</div>
           <div style={{fontSize:28,fontWeight:900,color:RED,letterSpacing:-1}}>{COP(totalPendiente)}</div>
-          <div style={{fontSize:12,color:"#a8b8cc",marginTop:4}}>{pendientes.length} préstamo{pendientes.length!==1?"s":""} activo{pendientes.length!==1?"s":""}</div>
+          <div style={{fontSize:12,color:C.text.b,marginTop:4}}>{pendientes.length} préstamo{pendientes.length!==1?"s":""} activo{pendientes.length!==1?"s":""}</div>
         </div>}
 
         {/* Lista pendientes */}
         {pendientes.length>0&&<>
-          <div style={{fontSize:10,color:"#6b7f96",fontWeight:700,letterSpacing:1.2,marginBottom:10,textTransform:"uppercase"}}>Pendientes</div>
+          <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:10,textTransform:"uppercase"}}>Pendientes</div>
           {pendientes.map(p=>{
             const dias=Math.floor((Date.now()-new Date(p.fechaPrestamo).getTime())/(1000*60*60*24));
             const urgente=dias>30;
@@ -1545,14 +1658,14 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
               style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,
                 background:urgente?"rgba(244,63,94,0.08)":"rgba(255,255,255,0.04)",
                 borderRadius:16,padding:"14px 16px",
-                border:`1px solid ${urgente?"rgba(244,63,94,0.3)":"rgba(255,255,255,0.08)"}`}}>
+                border:`1px solid ${urgente?"rgba(244,63,94,0.3)":C.border}`}}>
               <div style={{width:44,height:44,borderRadius:13,background:"rgba(244,63,94,0.2)",
                 display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>
                 🤝
               </div>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:14,fontWeight:800,color:"#f1f5f9"}}>{p.nombre}</div>
-                {p.descripcion&&<div style={{fontSize:11,color:"#6b7f96",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.descripcion}</div>}
+                <div style={{fontSize:14,fontWeight:800,color:C.text.h}}>{p.nombre}</div>
+                {p.descripcion&&<div style={{fontSize:11,color:C.text.s,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.descripcion}</div>}
                 <div style={{fontSize:11,color:urgente?RED:AMBER,marginTop:2,fontWeight:600}}>
                   {dias===0?"Hoy":dias===1?"Hace 1 día":`Hace ${dias} días`}{urgente?" · ⚠️ Más de un mes":""}
                 </div>
@@ -1561,7 +1674,7 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
                 <div style={{fontSize:15,fontWeight:800,color:RED}}>{COP(p.monto)}</div>
                 <div style={{display:"flex",gap:6,marginTop:6,justifyContent:"flex-end"}}>
                   <button onClick={()=>setPrestamoForm(p)}
-                    style={{background:"rgba(255,255,255,0.08)",border:"none",borderRadius:8,padding:"5px 10px",color:"#a8b8cc",cursor:"pointer",fontSize:11,fontWeight:700}}>
+                    style={{background:C.border,border:"none",borderRadius:8,padding:"5px 10px",color:C.text.b,cursor:"pointer",fontSize:11,fontWeight:700}}>
                     Editar
                   </button>
                   <button onClick={()=>setCobroModal(p)}
@@ -1583,7 +1696,7 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
 
         {/* Devueltos */}
         {devueltos.length>0&&<>
-          <div style={{fontSize:10,color:"#6b7f96",fontWeight:700,letterSpacing:1.2,marginBottom:10,textTransform:"uppercase"}}>Devueltos ✓</div>
+          <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:10,textTransform:"uppercase"}}>Devueltos ✓</div>
           {devueltos.map(p=><div key={p.id}
             style={{display:"flex",alignItems:"center",gap:12,marginBottom:8,
               background:"rgba(16,185,129,0.05)",borderRadius:14,padding:"12px 16px",
@@ -1591,26 +1704,26 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
             <div style={{width:38,height:38,borderRadius:10,background:"rgba(16,185,129,0.15)",
               display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>✓</div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#f1f5f9"}}>{p.nombre}</div>
-              {p.fechaDevolucion&&<div style={{fontSize:11,color:"#6b7f96"}}>Devuelto el {p.fechaDevolucion?.slice(8,10)}/{p.fechaDevolucion?.slice(5,7)}</div>}
+              <div style={{fontSize:13,fontWeight:700,color:C.text.h}}>{p.nombre}</div>
+              {p.fechaDevolucion&&<div style={{fontSize:11,color:C.text.s}}>Devuelto el {p.fechaDevolucion?.slice(8,10)}/{p.fechaDevolucion?.slice(5,7)}</div>}
             </div>
             <div style={{textAlign:"right",flexShrink:0}}>
               <div style={{fontSize:13,fontWeight:700,color:EMERALD}}>{COP(p.monto)}</div>
               <button onClick={()=>onToggle(p.id,false)}
-                style={{background:"none",border:"none",color:"#6b7f96",cursor:"pointer",fontSize:10,fontWeight:600,marginTop:2}}>
+                style={{background:"none",border:"none",color:C.text.s,cursor:"pointer",fontSize:10,fontWeight:600,marginTop:2}}>
                 Deshacer
               </button>
             </div>
           </div>)}
         </>}
 
-        {prestamos.length===0&&<div style={{textAlign:"center",padding:"28px 0 8px",color:"#6b7f96",fontSize:14,lineHeight:2.2}}>
+        {prestamos.length===0&&<div style={{textAlign:"center",padding:"28px 0 8px",color:C.text.s,fontSize:14,lineHeight:2.2}}>
           <div style={{fontSize:40,marginBottom:8}}>🤝</div>
           Sin préstamos registrados.<br/>
           <span style={{fontSize:12}}>Desde ahora, cuando prestas dinero<br/>úsalo aquí para hacer seguimiento.</span>
           <div style={{marginTop:14,padding:"12px 14px",background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:12,textAlign:"left"}}>
             <div style={{fontSize:11,color:"#f59e0b",fontWeight:700,marginBottom:4}}>⚠️ Préstamos anteriores</div>
-            <div style={{fontSize:11,color:"#a8b8cc",lineHeight:1.6}}>Los gastos en "A terceros" que registraste antes no aparecen aquí porque no tienen seguimiento. Puedes agregarlos manualmente con + Nuevo préstamo.</div>
+            <div style={{fontSize:11,color:C.text.b,lineHeight:1.6}}>Los gastos en "A terceros" que registraste antes no aparecen aquí porque no tienen seguimiento. Puedes agregarlos manualmente con + Nuevo préstamo.</div>
           </div>
         </div>}
       </div>
@@ -2648,13 +2761,13 @@ export default function App(){
   const MetasTab=()=>{
     const tot=goals.reduce((s,g)=>s+g.monto,0), ap=goals.reduce((s,g)=>s+getAportado(g.id),0);
     return <div style={{padding:"16px 20px 0"}}>
-      {goals.length>0&&<Card style={{marginBottom:14,background:"linear-gradient(135deg,rgba(30,27,75,0.6),rgba(15,23,42,0.8))",borderColor:`${C.indigo}25`}}>
+      {goals.length>0&&<Card style={{marginBottom:14,background:`linear-gradient(135deg,${C.indigo}12,${C.indigo}06)`,borderColor:`${C.indigo}35`}}>
         <div style={{display:"flex",alignItems:"center",gap:16}}>
           <Ring pct={tot>0?ap/tot:0} size={56} stroke={5} color={C.indigo} label={`${Math.round(Math.min(tot>0?ap/tot:0,1)*100)}%`}/>
           <div>
-            <div style={{fontSize:12,color:C.indigo,fontWeight:700,marginBottom:3}}>⭐ Progreso total</div>
-            <div style={{fontSize:22,fontWeight:900,color:C.indigo,letterSpacing:-1}}>{COP(ap)}</div>
-            <div style={{fontSize:12,color:C.text.b}}>de {COP(tot)} en {goals.length} meta{goals.length!==1?"s":""}</div>
+            <div style={{fontSize:12,color:C.indigo,fontWeight:800,marginBottom:3,letterSpacing:0.3}}>⭐ Progreso total</div>
+            <div style={{fontSize:24,fontWeight:900,color:C.indigo,letterSpacing:-1}}>{COP(ap)}</div>
+            <div style={{fontSize:12,color:C.text.b,fontWeight:500}}>de {COP(tot)} en {goals.length} meta{goals.length!==1?"s":""}</div>
           </div>
         </div>
       </Card>}
@@ -2831,7 +2944,7 @@ export default function App(){
           {/* Navegación semanas */}
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
             <button onClick={()=>setSemanaIdx(s=>Math.max(s-1,0))}
-              style={{background:semanaIdx>0?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.03)",border:"none",borderRadius:8,
+              style={{background:semanaIdx>0?C.border:"rgba(255,255,255,0.03)",border:"none",borderRadius:8,
                 padding:"6px 12px",color:semanaIdx>0?C.text.h:C.text.s,cursor:semanaIdx>0?"pointer":"default",fontSize:14,fontWeight:700}}>
               ←
             </button>
@@ -2844,7 +2957,7 @@ export default function App(){
               </div>
             </div>
             <button onClick={()=>setSemanaIdx(s=>Math.min(s+1,totalSemanas-1))}
-              style={{background:semanaIdx<totalSemanas-1?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.03)",border:"none",borderRadius:8,
+              style={{background:semanaIdx<totalSemanas-1?C.border:"rgba(255,255,255,0.03)",border:"none",borderRadius:8,
                 padding:"6px 12px",color:semanaIdx<totalSemanas-1?C.text.h:C.text.s,cursor:semanaIdx<totalSemanas-1?"pointer":"default",fontSize:14,fontWeight:700}}>
               →
             </button>
@@ -2876,17 +2989,17 @@ export default function App(){
                 >{abrevD(gasto)}</text>}
                 {/* Nombre del día */}
                 <text x={x+bW/2} y={H+14} textAnchor="middle" fontSize={9}
-                  fill={esHoy?C.emerald:"rgba(255,255,255,0.35)"}
-                  fontWeight={esHoy?"800":"600"} fontFamily="DM Sans,sans-serif">{nombreDia}</text>
+                  fill={esHoy?C.emerald:ink(0.55)}
+                  fontWeight={esHoy?"800":"700"} fontFamily="DM Sans,sans-serif">{nombreDia}</text>
                 {/* Número del día */}
                 <text x={x+bW/2} y={H+26} textAnchor="middle" fontSize={8}
-                  fill={esHoy?C.emerald:"rgba(255,255,255,0.22)"}
-                  fontWeight={esHoy?"800":"400"} fontFamily="DM Sans,sans-serif">{dia}</text>
+                  fill={esHoy?C.emerald:ink(0.4)}
+                  fontWeight={esHoy?"800":"500"} fontFamily="DM Sans,sans-serif">{dia}</text>
                 {/* Punto hoy */}
                 {esHoy&&<circle cx={x+bW/2} cy={H+35} r={3} fill={C.emerald}/>}
               </g>;
             })}
-            <line x1={0} y1={H} x2={W} y2={H} stroke="rgba(255,255,255,0.08)" strokeWidth={1}/>
+            <line x1={0} y1={H} x2={W} y2={H} stroke={ink(0.1)} strokeWidth={1}/>
           </svg>
 
           {/* Leyenda */}
@@ -2937,10 +3050,10 @@ export default function App(){
               {/* Barra gastos (frente, más oscura) */}
               <rect x={x+bW+2} y={H-hG} width={bW} height={hG} rx={3} fill={colG}/>
               {/* Línea base */}
-              <line x1={x} y1={H} x2={x+barW} y2={H} stroke="rgba(255,255,255,0.08)" strokeWidth={1}/>
+              <line x1={x} y1={H} x2={x+barW} y2={H} stroke={C.border} strokeWidth={1}/>
               {/* Label mes */}
               <text x={x+barW/2} y={H+14} textAnchor="middle" fontSize={9} fontWeight={esSel?"800":"600"}
-                fill={esSel?C.emerald:esActual?"rgba(255,255,255,0.6)":"rgba(255,255,255,0.3)"}
+                fill={esSel?C.emerald:esActual?ink(0.6):ink(0.35)}
                 fontFamily="DM Sans,sans-serif">{label}</text>
               {/* Año si cambia */}
               {(i===0||(i>0&&datos[i-1].y!==y))&&<text x={x+barW/2} y={H+26} textAnchor="middle" fontSize={8}
@@ -3234,7 +3347,7 @@ export default function App(){
       {sorted.length>0&&!monthTx.some(t=>esMesPasado(t.date))&&<div style={{fontSize:12,color:C.text.s,textAlign:"center",marginBottom:12}}>✏️ Toca cualquier movimiento para editarlo</div>}
       {/* ── Buscador ── */}
       {monthTx.length>0&&<div style={{marginBottom:12}}>
-        <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:14,border:`1px solid ${busqueda?C.indigo+"55":C.border}`,padding:"0 14px",gap:10,transition:"border-color 0.2s",marginBottom:8}}>
+        <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:14,border:`1px solid ${busqueda?C.indigo+"55":C.borderStrong||C.border}`,padding:"0 14px",gap:10,transition:"border-color 0.2s",marginBottom:8}}>
           <span style={{fontSize:16,color:C.text.s}}>🔍</span>
           <input
             placeholder="Buscar movimiento o categoría..."
@@ -3326,13 +3439,13 @@ export default function App(){
       {/* Navegación mes/año */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
         <button onClick={()=>{let m=calMes-1,y=calAnio;if(m<0){m=11;y--;}setCalMes(m);setCalAnio(y);setDiaSelec(1);}}
-          style={{background:"rgba(255,255,255,0.08)",border:"none",borderRadius:10,padding:"8px 14px",color:C.text.h,cursor:"pointer",fontSize:16,fontWeight:700}}>←</button>
+          style={{background:C.border,border:"none",borderRadius:10,padding:"8px 14px",color:C.text.h,cursor:"pointer",fontSize:16,fontWeight:700}}>←</button>
         <div style={{textAlign:"center"}}>
           <div style={{fontSize:17,fontWeight:900,color:C.text.h}}>{MONTHS[calMes]}</div>
           <div style={{fontSize:11,color:C.text.s}}>{calAnio}</div>
         </div>
         <button onClick={()=>{let m=calMes+1,y=calAnio;if(m>11){m=0;y++;}setCalMes(m);setCalAnio(y);setDiaSelec(1);}}
-          style={{background:"rgba(255,255,255,0.08)",border:"none",borderRadius:10,padding:"8px 14px",color:C.text.h,cursor:"pointer",fontSize:16,fontWeight:700}}>→</button>
+          style={{background:C.border,border:"none",borderRadius:10,padding:"8px 14px",color:C.text.h,cursor:"pointer",fontSize:16,fontWeight:700}}>→</button>
       </div>
 
       {/* Cuadrícula calendario */}
@@ -3371,8 +3484,8 @@ export default function App(){
                 outline:hoyDia&&!selec?`2px solid ${C.emerald}44`:"none",
                 transition:"all 0.15s",
               }}>
-              <span style={{fontSize:12,fontWeight:selec||hoyDia?"800":"500",
-                color:selec?"#000":hoyDia?C.emerald:pasado?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.75)"}}>{d}</span>
+              <span style={{fontSize:12,fontWeight:selec||hoyDia?"800":"600",
+                color:selec?"#000":hoyDia?C.emerald:pasado?ink(0.35):C.text.h}}>{d}</span>
               {/* Indicadores */}
               <div style={{display:"flex",gap:2,height:4,alignItems:"center"}}>
                 {tieneGasto&&<div style={{width:4,height:4,borderRadius:"50%",background:selec?"rgba(0,0,0,0.5)":C.red}}/>}
@@ -3692,19 +3805,19 @@ export default function App(){
           <span style={{color:C.text.b}}>→ {COP(Math.round((parseFloat(tmp)||sal)*0.85))} Gastos libres</span>
         </div>
       </Card>
-      <Card style={{marginBottom:12,background:"linear-gradient(135deg,rgba(2,44,34,0.5),rgba(15,23,42,0.8))",borderColor:`${C.emerald}22`}}>
-        <Lbl style={{color:"#34d399"}}>Total guardado en metas</Lbl>
-        <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
-          <span style={{fontSize:14,color:C.text.h}}>⭐ En todas las metas</span>
-          <span style={{fontSize:14,fontWeight:800,color:C.indigo}}>{COP(totalEnMetas)}</span>
+      <Card style={{marginBottom:12,background:"linear-gradient(135deg,rgba(2,44,34,0.75),rgba(6,95,70,0.85))",borderColor:`${C.emerald}55`}}>
+        <div style={{fontSize:11,color:"#6ee7b7",letterSpacing:1.2,fontWeight:800,textTransform:"uppercase",marginBottom:8}}>Total guardado en metas</div>
+        <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid rgba(255,255,255,0.15)`}}>
+          <span style={{fontSize:14,color:"#fff",fontWeight:700}}>⭐ En todas las metas</span>
+          <span style={{fontSize:15,fontWeight:900,color:"#fff"}}>{COP(totalEnMetas)}</span>
         </div>
-        <div style={{fontSize:11,color:C.text.s,marginTop:8,lineHeight:1.6}}>
+        <div style={{fontSize:11,color:"rgba(255,255,255,0.85)",marginTop:8,lineHeight:1.6,fontWeight:500}}>
           Cada meta tiene su propio progreso. Ve a la pestaña ⭐ Metas para ver el detalle.
         </div>
       </Card>
-      <Card style={{marginBottom:12,background:"linear-gradient(135deg,rgba(30,27,75,0.5),rgba(15,23,42,0.8))",borderColor:`${C.indigo}28`}}>
-        <div style={{fontSize:12,color:C.indigo,fontWeight:700,marginBottom:8,letterSpacing:1}}>📐 REGLA DE ORO</div>
-        <div style={{fontSize:14,color:C.text.b,lineHeight:1.9}}><b style={{color:C.text.h}}>Págate primero.</b> Al recibir el sueldo, transfiere el ahorro <i>antes</i> de gastar.</div>
+      <Card style={{marginBottom:12,background:"linear-gradient(135deg,rgba(30,27,75,0.75),rgba(67,56,202,0.75))",borderColor:`${C.indigo}55`}}>
+        <div style={{fontSize:12,color:"#c7d2fe",fontWeight:800,marginBottom:8,letterSpacing:1.2,textTransform:"uppercase"}}>📐 Regla de oro</div>
+        <div style={{fontSize:14,color:"rgba(255,255,255,0.95)",lineHeight:1.8,fontWeight:500}}><b style={{color:"#fff",fontWeight:900}}>Págate primero.</b> Al recibir el sueldo, transfiere el ahorro <i>antes</i> de gastar.</div>
       </Card>
       <Card style={{marginBottom:12}}>
         <Lbl>Tema de color</Lbl>
@@ -3731,7 +3844,7 @@ export default function App(){
         </div>
       </Card>
       {/* ── Zona de peligro ── */}
-      <Card style={{marginBottom:12,borderColor:`${C.red}30`,background:"linear-gradient(135deg,rgba(239,68,68,0.06),rgba(15,23,42,0.8))"}}>
+      <Card style={{marginBottom:12,borderColor:`${C.red}30`,background:`linear-gradient(135deg,${C.red}08,${C.red}04)`}}>
         <Lbl style={{color:C.red}}>⚠️ Zona de peligro</Lbl>
         <EliminarMesSection tx={tx} MONTHS={MONTHS} MONTHS_S={MONTHS_S} user={user} db={db} isMonth={isMonth}/>
         <div style={{height:1,background:C.border,margin:"16px 0"}}/>
@@ -3746,7 +3859,7 @@ export default function App(){
   function StarIcon({active}){
     const pts="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26";
     return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-      stroke={active?"#f59e0b":"rgba(255,255,255,0.22)"} strokeWidth={active?"1.8":"1.5"}
+      stroke={active?"#f59e0b":ink(0.32)} strokeWidth={active?"1.8":"1.5"}
       strokeLinecap="round" strokeLinejoin="round">
       <polygon points={pts}/>
     </svg>;
