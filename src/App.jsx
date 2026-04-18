@@ -172,7 +172,42 @@ function glassCard({raised=false, tone="glass", borderWeight="subtle"}={}){
 }
 
 
-// ─── CATEGORÍAS ───────────────────────────────────────────────────────────────
+// ─── ESTILO DE CARD GLOBAL ───────────────────────────────────────────────────
+// "solid"    → C.card sólido + sombra (default premium)
+// "glass"    → glass sutil + blur
+// "gradient" → gradient suave con tinte de color
+// "classic"  → gradient saturado + orbs 3D (estilo original)
+const CS = { style: "solid" };
+
+function cardSurface(accentColor){
+  const acc = accentColor || C.indigo;
+  if(CS.style==="glass") return { background:surface("glassHi"), backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)" };
+  if(CS.style==="gradient") return { background:`linear-gradient(145deg,${acc}14 0%,${C.card} 70%)` };
+  if(CS.style==="classic") return { background:`linear-gradient(135deg,${acc}20 0%,${acc}08 55%,${C.bg} 100%)` };
+  return { background:C.card };
+}
+function cardShadow(accentColor){
+  const acc = accentColor || C.indigo;
+  if(CS.style==="glass") return elev("card");
+  if(CS.style==="gradient") return `0 8px 24px ${acc}20`;
+  if(CS.style==="classic") return `0 20px 60px rgba(0,0,0,0.4), 0 4px 16px ${acc}44, inset 0 1px 0 rgba(255,255,255,0.08)`;
+  return elev("card");
+}
+function cardBorder(accentColor){
+  const acc = accentColor || C.indigo;
+  if(CS.style==="classic") return `1px solid ${acc}44`;
+  if(CS.style==="gradient") return `1px solid ${acc}28`;
+  return "1px solid transparent";
+}
+function GradientOrbs({color}){
+  if(CS.style!=="classic") return null;
+  const acc = color || C.indigo;
+  return <>
+    <div style={{position:"absolute",top:-60,right:-40,width:180,height:180,borderRadius:"50%",background:`${acc}14`,pointerEvents:"none"}}/>
+    <div style={{position:"absolute",bottom:-30,left:-20,width:120,height:120,borderRadius:"50%",background:`${acc}10`,pointerEvents:"none"}}/>
+  </>;
+}
+
 const MAIN_CATS = [
   { id:"comida",     label:"Comida",   labelFull:"Comida",               icon:"🍽️", color:"#facc15",
     subs:[{id:"restaurantes",label:"Restaurantes",icon:"🍽️"},{id:"mercado",label:"Mercado",icon:"🛒"},{id:"domicilios",label:"Domicilios",icon:"🛵"},{id:"cafeteria",label:"Cafetería",icon:"☕"}]},
@@ -823,71 +858,65 @@ function GoalCard({goal,aportado,aportadoEsteMes,txAll,onEdit}){
     onMouseDown={e=>e.currentTarget.style.transform="scale(0.985)"}
     onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
     onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
-    style={{borderRadius:18,overflow:"hidden",border:`1px solid ${done?"rgba(16,185,129,0.35)":C.border}`,marginBottom:14,cursor:"pointer",transition:"transform 0.15s"}}>
+    style={{borderRadius:20,overflow:"hidden",border:"none",boxShadow:elev("card"),marginBottom:14,cursor:"pointer",transition:"transform 0.15s",background:C.card}}>
     <div style={{position:"relative",minHeight:130,overflow:"hidden"}}>
-      {/* Fondo: imagen o gradiente */}
       {goal.imagen
         ?<img src={goal.imagen} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>
         :<div style={{position:"absolute",inset:0,background:grad}}/>}
-      {goal.imagen&&<div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(0,0,0,0.1) 0%,rgba(0,0,0,0.7) 100%)"}}/>}
-      {/* Contenido sobre la imagen */}
+      {goal.imagen&&<div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(0,0,0,0.05) 0%,rgba(0,0,0,0.65) 100%)"}}/>}
       <div style={{position:"relative",padding:"22px 18px 16px",minHeight:goal.imagen?120:0}}>
-        {done&&<div style={{position:"absolute",top:12,right:12,background:C.emerald,borderRadius:99,padding:"4px 12px",fontSize:11,fontWeight:800,color:"#000"}}>✓ META LOGRADA</div>}
-        {/* Emoji solo si no hay foto */}
-        {!goal.imagen&&<div style={{fontSize:50,marginBottom:10,filter:"drop-shadow(0 4px 20px rgba(0,0,0,0.6))"}}>{goal.emoji||"⭐"}</div>}
-        {/* Con foto: nombre y frase en la parte inferior de la imagen */}
+        {done&&<div style={{position:"absolute",top:12,right:12,background:C.emerald,borderRadius:99,padding:"4px 12px",fontSize:11,fontWeight:700,color:"#000"}}>✓ Lograda</div>}
+        {!goal.imagen&&<div style={{fontSize:48,marginBottom:10}}>{goal.emoji||"⭐"}</div>}
         <div style={{
           position:goal.imagen?"absolute":"relative",
           bottom:goal.imagen?0:undefined,left:goal.imagen?0:undefined,right:goal.imagen?0:undefined,
           padding:goal.imagen?"16px 18px":"0",
         }}>
-          <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:4,textShadow:"0 2px 10px rgba(0,0,0,0.6)"}}>{goal.name}</div>
-          <div style={{fontSize:13,color:"rgba(255,255,255,0.95)",fontWeight:700,textShadow:"0 1px 6px rgba(0,0,0,0.6)"}}>{frase}</div>
+          <div style={{fontSize:18,fontWeight:700,color:"#fff",marginBottom:4,textShadow:"0 2px 8px rgba(0,0,0,0.5)"}}>{goal.name}</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,0.85)",fontWeight:500}}>{frase}</div>
         </div>
       </div>
     </div>
-    <div style={{background:C.surface,padding:"14px 18px 16px",borderTop:`1px solid ${C.border}`}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+    <div style={{padding:"16px 18px 18px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
         <div>
-          <div style={{fontSize:22,fontWeight:900,color:col,letterSpacing:-1}}>{Math.round(pct*100)}%</div>
-          <div style={{fontSize:11,color:C.text.b}}>completado</div>
+          <div style={{fontSize:22,fontWeight:700,color:col,letterSpacing:-0.5}}>{Math.round(pct*100)}%</div>
+          <div style={{fontSize:11,color:C.text.s,fontWeight:400}}>completado</div>
         </div>
         <div style={{textAlign:"right"}}>
-          <div style={{fontSize:15,fontWeight:700,color:C.text.h}}>{COP(aportado)}</div>
-          <div style={{fontSize:11,color:C.text.b}}>acumulado de {COP(goal.monto)}</div>
+          <div style={{fontSize:15,fontWeight:600,color:C.text.h}}>{COP(aportado)}</div>
+          <div style={{fontSize:11,color:C.text.s,fontWeight:400}}>de {COP(goal.monto)}</div>
         </div>
       </div>
-      <Bar pct={pct} color={col} h={8}/>
-      <div style={{display:"flex",justifyContent:"space-between",marginTop:8,marginBottom:proy?.msg?8:0}}>
+      <div style={{background:ink(0.05),borderRadius:99,height:3,overflow:"hidden",marginBottom:10}}>
+        <div style={{height:3,borderRadius:99,background:col,width:`${Math.min(pct*100,100)}%`,transition:"width 0.7s",opacity:0.8}}/>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:proy?.msg?10:0}}>
         <div style={{fontSize:11,color:C.text.s}}>
           {aportadoEsteMes>0
-            ?<span style={{color:col}}>+{COP(aportadoEsteMes)} este mes</span>
+            ?<span style={{color:col,fontWeight:500}}>+{COP(aportadoEsteMes)} este mes</span>
             :<span>Sin aportes este mes</span>}
         </div>
-        <div style={{fontSize:12,color:C.text.s}}>Faltan {COP(Math.max(goal.monto-aportado,0))}</div>
+        <div style={{fontSize:11,color:C.text.s}}>Faltan {COP(Math.max(goal.monto-aportado,0))}</div>
       </div>
-      {/* Proyección */}
       {proy&&proy.promedio>0&&<div style={{
-        background:`${col}15`,borderRadius:12,padding:"10px 12px",
-        border:`1px solid ${col}40`,marginTop:6,
+        background:ink(0.04),borderRadius:12,padding:"12px 14px",marginTop:4,
       }}>
-        <div style={{fontSize:13,fontWeight:800,color:col,marginBottom:3}}>{proy.msg}</div>
-        <div style={{fontSize:12,color:C.text.b,marginBottom:8}}>💡 {proy.tip}</div>
-        <div style={{display:"flex",gap:16}}>
+        <div style={{fontSize:13,fontWeight:600,color:col,marginBottom:3}}>{proy.msg}</div>
+        <div style={{fontSize:11,color:C.text.s,marginBottom:10}}>{proy.tip}</div>
+        <div style={{display:"flex",gap:20}}>
           <div>
-            <div style={{fontSize:10,color:C.text.s,fontWeight:600}}>PROMEDIO/MES</div>
-            <div style={{fontSize:13,fontWeight:800,color:C.text.h}}>{COP(Math.round(proy.promedio))}</div>
+            <div style={{fontSize:10,color:C.text.s,fontWeight:500,letterSpacing:0.8,textTransform:"uppercase",marginBottom:2}}>Promedio/mes</div>
+            <div style={{fontSize:13,fontWeight:600,color:C.text.h}}>{COP(Math.round(proy.promedio))}</div>
           </div>
           <div>
-            <div style={{fontSize:10,color:C.text.s,fontWeight:600}}>TIEMPO RESTANTE</div>
-            <div style={{fontSize:13,fontWeight:800,color:col}}>{proy.meses} {proy.meses===1?"mes":"meses"}</div>
+            <div style={{fontSize:10,color:C.text.s,fontWeight:500,letterSpacing:0.8,textTransform:"uppercase",marginBottom:2}}>Tiempo restante</div>
+            <div style={{fontSize:13,fontWeight:600,color:col}}>{proy.meses} {proy.meses===1?"mes":"meses"}</div>
           </div>
         </div>
       </div>}
-      {proy&&proy.promedio===0&&<div style={{
-        padding:"8px 0 2px",fontSize:12,color:C.text.s,marginTop:2
-      }}>
-        💡 Haz tu primer aporte y te digo cuándo lo tienes
+      {proy&&proy.promedio===0&&<div style={{padding:"8px 0 2px",fontSize:12,color:C.text.s,marginTop:4}}>
+        Haz tu primer aporte y te digo cuándo lo tienes
       </div>}
     </div>
   </div>;
@@ -905,9 +934,10 @@ function GoalChip({goal,aportado,aportadoEsteMes,txAll,onClick}){
     onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
     onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
     style={{
-      ...glassCard(),
-      borderRadius:18, overflow:"hidden",
-      border:`1px solid ${stroke("subtle")}`,
+      ...cardSurface(),
+      borderRadius:20, overflow:"hidden",
+      border:"none",
+      boxShadow:cardShadow(),
       cursor:"pointer", display:"flex", alignItems:"stretch", marginBottom:10, transition:"all 0.15s"}}>
     <div style={{width:72,flexShrink:0,position:"relative",overflow:"hidden",alignSelf:"stretch"}}>
       {goal.imagen
@@ -1443,7 +1473,7 @@ function TxRow({t,onEdit}){
   const esMeta=isAporteMeta(t)||isSavingsLegacy(t.cat);
   const esPos=esMeta||isIngreso(t.cat)||isDevolucion(t.cat)||isIngresoExtra(t.cat);
   const esPrestamo=t.cat==="prestamo_tercero"||t.cat==="prestamo_devuelto";
-  const bloqueado=esMesPasado(t.date)||esPrestamo; // meses pasados + préstamos = solo lectura
+  const bloqueado=esMesPasado(t.date)||esPrestamo;
   const [p,setP]=useState(false);
   return <div
     onClick={bloqueado?undefined:onEdit}
@@ -1451,36 +1481,30 @@ function TxRow({t,onEdit}){
     onMouseUp={bloqueado?undefined:()=>setP(false)}
     onMouseLeave={()=>setP(false)}
     style={{
-      display:"flex",alignItems:"center",gap:12,marginBottom:8,
-      background:p?ink(0.09):bloqueado?ink(0.025):ink(0.04),
-      borderRadius:16,padding:"14px 16px",
-      border:`1px solid ${bloqueado?ink(0.04):p?C.borderStrong:C.border}`,
+      display:"flex",alignItems:"center",gap:14,
+      padding:"16px 0",
+      borderBottom:`1px solid ${ink(0.05)}`,
       cursor:bloqueado?"default":"pointer",
-      transition:"all 0.15s",
-      transform:p?"scale(0.985)":"scale(1)",
+      transition:"opacity 0.15s",
+      opacity:bloqueado?0.45:1,
       userSelect:"none",
-      opacity:bloqueado?0.6:1,
     }}>
-    {/* Ícono con fondo de color */}
     <div style={{
-      width:44,height:44,borderRadius:13,flexShrink:0,
-      background:`linear-gradient(135deg,${cat.color}${bloqueado?"18":"30"},${cat.color}${bloqueado?"08":"15"})`,
-      border:`1px solid ${cat.color}${bloqueado?"18":"30"}`,
+      width:44,height:44,borderRadius:14,flexShrink:0,
+      background:`${cat.color}18`,
       display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
     }}>{cat.icon}</div>
     <div style={{flex:1,minWidth:0}}>
-      <div style={{fontSize:14,fontWeight:800,color:bloqueado?C.text.s:C.text.h,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc}</div>
-      <div style={{fontSize:12,color:C.text.b,marginTop:3}}>
-        {t.date?.slice(5).replace("-","/")} · {isIngreso(t.cat)?"💵 Salario":isDevolucion(t.cat)?"🤝 Devolución":isIngresoExtra(t.cat)?"💫 Extra":esMeta?"⭐ Meta":(()=>{const main=MAIN_CATS.find(m=>m.subs?.some(s=>s.id===t.cat));return main?`${main.labelFull||main.label} · ${cat.label}`:cat.label;})()}
+      <div style={{fontSize:14,fontWeight:600,color:bloqueado?C.text.s:C.text.h,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:3}}>{t.desc}</div>
+      <div style={{fontSize:12,color:C.text.s,fontWeight:400}}>
+        {t.date?.slice(5).replace("-","/")} · {isIngreso(t.cat)?"Salario":isDevolucion(t.cat)?"Devolución":isIngresoExtra(t.cat)?"Extra":esMeta?"Meta":(()=>{const main=MAIN_CATS.find(m=>m.subs?.some(s=>s.id===t.cat));return main?`${main.label} · ${cat.label}`:cat.label;})()}
       </div>
     </div>
     <div style={{textAlign:"right",flexShrink:0}}>
-      <div style={{fontSize:16,fontWeight:800,color:esPos?C.emeraldLight:C.red,letterSpacing:-0.5}}>
+      <div style={{fontSize:15,fontWeight:600,color:esPos?C.emeraldLight:C.text.h,letterSpacing:-0.3}}>
         {esPos?"+":"-"}{COP(t.amount)}
       </div>
-      <div style={{fontSize:10,color:C.text.s,marginTop:2}}>
-        {esMesPasado(t.date)?"🔒 bloqueado":esPrestamo?"🤝 ver préstamos":"editar"}
-      </div>
+      {!bloqueado&&<div style={{fontSize:10,color:C.text.s,marginTop:2,opacity:0.6}}>editar</div>}
     </div>
   </div>;
 }
@@ -1771,22 +1795,27 @@ export default function App(){
   const [prestamosModal,setPrestamosModal]=useState(false);
   const [prestamoForm,setPrestamoForm]=useState(null);
   const [tema,setTema]=useState(()=>{
-    // Sanitizar: si el tema guardado ya no existe (ej. se removieron temas claros), volver a navy
     const saved=localStorage.getItem("mf_tema");
     return (saved && TEMAS[saved]) ? saved : "navy";
   });
+  const [cardStyle,setCardStyle]=useState(()=>localStorage.getItem("mf_card_style")||"solid");
 
   // Mutar C con el tema activo antes de cada render
   const paleta=TEMAS[tema]||TEMAS.navy;
   Object.assign(C,paleta);
   Object.assign(C.text,paleta.text);
-  // Limpiar isLight si el tema actual no lo declara (evita contaminación entre temas)
   if(!paleta.isLight) C.isLight=false;
+  // Mutar CS con el estilo activo
+  CS.style=cardStyle;
 
   function cambiarTema(nuevoTema){
     setTema(nuevoTema);
     localStorage.setItem("mf_tema",nuevoTema);
-  } // null | "new" | prestamo obj
+  }
+  function cambiarCardStyle(s){
+    setCardStyle(s);
+    localStorage.setItem("mf_card_style",s);
+  }
 
   function changeTab(newTab){
     setTab(newTab); // El mes seleccionado se mantiene al cambiar de pestaña
@@ -2635,17 +2664,21 @@ export default function App(){
       if(active) active.scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"});
     },[]);
 
-    return <div ref={monthScrollRef} style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:12,scrollbarWidth:"none",WebkitOverflowScrolling:"touch",alignItems:"center"}}>
+    return <div ref={monthScrollRef} style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:14,paddingTop:2,scrollbarWidth:"none",WebkitOverflowScrolling:"touch",alignItems:"center"}}>
       {years.map(y=><div key={y} style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
-        {years.length>1&&<span style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1,padding:"0 4px",flexShrink:0}}>{y}</span>}
+        {years.length>1&&<span style={{fontSize:10,color:C.text.s,fontWeight:500,letterSpacing:0.8,padding:"0 4px",flexShrink:0,opacity:0.6}}>{y}</span>}
         {porAnio[y].map(i=>{
           const isNext=y===currentY&&i===currentM+1;
-          const isActive=month===i&&now.getFullYear()===y; // simplificado: año actual
+          const isActive=month===i&&now.getFullYear()===y;
           return <button key={i} data-active={isActive?"true":"false"}
             onClick={()=>{setMonth(i);}}
-            style={{flexShrink:0,padding:"7px 15px",borderRadius:99,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,
-              background:isActive?C.emerald:isNext?"rgba(99,102,241,0.25)":C.surface,
-              color:isActive?"#000":isNext?C.indigo:C.text.b,
+            style={{
+              flexShrink:0, padding:"8px 18px", borderRadius:99, border:"none", cursor:"pointer",
+              fontSize:12, fontWeight:isActive?700:500,
+              background:isActive?C.emerald:isNext?`${C.indigo}18`:C.card,
+              color:isActive?"#000":isNext?C.indigoLight:C.text.s,
+              boxShadow:isActive?"none":elev("card"),
+              transition:"all 0.2s",
             }}>{MONTHS_S[i]}</button>;
         })}
       </div>)}
@@ -2674,32 +2707,38 @@ export default function App(){
       />
       {/* ── 1. Disponible ── */}
       <div style={{
-        borderRadius:22, padding:"24px 22px 22px", marginBottom:16,
-        background: C.isLight
-          ? "rgba(255,255,255,0.92)"
-          : `linear-gradient(145deg,${pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo}18 0%,rgba(255,255,255,0.04) 60%,rgba(255,255,255,0.02) 100%)`,
-        border:`1px solid ${pctUsado>=1?C.red+"55":pctUsado>=0.8?C.amber+"44":C.indigo+"35"}`,
-        boxShadow: C.isLight
-          ? "0 8px 32px rgba(15,23,42,0.10),0 2px 8px rgba(15,23,42,0.06),inset 0 1px 0 rgba(255,255,255,0.9)"
-          : `0 20px 60px rgba(0,0,0,0.5),0 4px 16px ${pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo}22,inset 0 1px 0 rgba(255,255,255,0.07)`,
-        backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)",
+        borderRadius:24, padding:"32px 24px 26px", marginBottom:24,
+        background: CS.style==="glass"
+          ? surface("glassHi")
+          : CS.style==="gradient"
+            ? `linear-gradient(145deg,${pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo}28 0%,${C.card} 55%)`
+            : CS.style==="classic"
+              ? `linear-gradient(135deg,${pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo}32 0%,${pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo}12 50%,${C.bg} 100%)`
+              : C.card,
+        ...(CS.style==="glass"?{backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)"}:{}),
+        border:CS.style==="solid"?`1px solid ${pctUsado>=1?C.red+"44":pctUsado>=0.8?C.amber+"33":"transparent"}`:cardBorder(pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo),
+        boxShadow: cardShadow(pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo),
         transition:"box-shadow 0.5s ease,border-color 0.5s ease",
+        position:"relative", overflow:"hidden",
       }}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-          <div style={{fontSize:11,color:C.text.b,letterSpacing:1.5,fontWeight:700,textTransform:"uppercase"}}>Disponible · {MONTHS_S[month]}</div>
-          {saldoAnterior>0&&<div style={{background:ink(0.07),border:`1px solid ${ink(0.1)}`,borderRadius:99,padding:"3px 10px",fontSize:11,color:C.emeraldLight,fontWeight:700}}>+{COP(saldoAnterior)} anterior</div>}
+        <GradientOrbs color={pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo}/>
+        <div style={{position:"relative"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div style={{fontSize:11,color:C.text.s,letterSpacing:1.8,fontWeight:600,textTransform:"uppercase"}}>Disponible · {MONTHS_S[month]}</div>
+          {saldoAnterior>0&&<div style={{background:ink(0.06),borderRadius:99,padding:"3px 10px",fontSize:11,color:C.emeraldLight,fontWeight:600}}>+{COP(saldoAnterior)}</div>}
         </div>
-        <div style={{fontSize:46,fontWeight:800,letterSpacing:-0.5,lineHeight:1,color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.emerald,fontVariantNumeric:"tabular-nums",marginBottom:20,transition:"color 0.4s"}}>
+        <div style={{fontSize:56,fontWeight:700,letterSpacing:-1,lineHeight:1,color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.emerald,fontVariantNumeric:"tabular-nums",marginBottom:28,transition:"color 0.4s"}}>
           {COP(animSaldo)}
         </div>
-        <div style={{background:ink(0.08),borderRadius:99,height:6,overflow:"hidden",marginBottom:10}}>
-          <div style={{height:6,borderRadius:99,background:pctUsado>=1?`linear-gradient(90deg,${C.red},#ff6b6b)`:pctUsado>=0.8?`linear-gradient(90deg,${C.amber},#fbbf24)`:`linear-gradient(90deg,${C.indigo},${C.emerald})`,width:`${Math.min(pctUsado*100,100)}%`,transition:"width 0.8s ease"}}/>
+        <div style={{background:ink(0.06),borderRadius:99,height:3,overflow:"hidden",marginBottom:12}}>
+          <div style={{height:3,borderRadius:99,background:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.emerald,width:`${Math.min(pctUsado*100,100)}%`,transition:"width 0.8s ease",opacity:0.7}}/>
         </div>
         <div style={{display:"flex",justifyContent:"space-between"}}>
-          <span style={{fontSize:12,color:C.text.b,fontWeight:600}}>{totalDisponibleBase>0?`de ${COP(totalDisponibleBase)}`:"Sin ingresos"}</span>
-          <span style={{fontSize:12,fontWeight:700,color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.text.b}}>{Math.round(pctUsado*100)}% gastado</span>
+          <span style={{fontSize:12,color:C.text.b,fontWeight:500}}>{totalDisponibleBase>0?`de ${COP(totalDisponibleBase)}`:"Sin ingresos"}</span>
+          <span style={{fontSize:12,fontWeight:600,color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.text.s}}>{Math.round(pctUsado*100)}% gastado</span>
         </div>
         {!sinDatos&&<MonthlyProjection gastosTx={gastosTx} saldo={saldo} month={month} C={C} COP={COP} MONTHS_S={MONTHS_S}/>}
+        </div>
       </div>
       {/* ── Mes futuro sin datos ── */}
       {sinDatos?(
@@ -2713,18 +2752,22 @@ export default function App(){
       ):(
         <>
           {/* ── 2. Stats ── */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
-            <div style={{...glassCard({tone:"glassHi"}),borderRadius:18,padding:"16px",border:`1px solid ${C.red}35`}}>
-              <div style={{fontSize:11,color:C.red,letterSpacing:1.2,fontWeight:700,marginBottom:8}}>GASTOS</div>
-              <div style={{fontSize:22,fontWeight:800,color:C.red,marginBottom:8}}>{COP(totalGasto)}</div>
-              <div style={{background:`${C.red}22`,borderRadius:99,height:4,overflow:"hidden"}}><div style={{height:4,borderRadius:99,background:C.red,width:`${Math.min(pctUsado*100,100)}%`,transition:"width 0.7s"}}/></div>
-              <div style={{fontSize:12,color:C.text.b,fontWeight:600,marginTop:6}}>{Math.round(pctUsado*100)}% del ingreso</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:24}}>
+            <div style={{...cardSurface(C.red),borderRadius:20,padding:"20px 18px",boxShadow:cardShadow(C.red)}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}>
+                <div style={{width:6,height:6,borderRadius:99,background:C.red,opacity:0.7}}/>
+                <div style={{fontSize:12,color:C.text.b,fontWeight:500}}>Gastos</div>
+              </div>
+              <div style={{fontSize:22,fontWeight:700,color:C.red,marginBottom:4,letterSpacing:-0.3}}>{COP(totalGasto)}</div>
+              <div style={{fontSize:11,color:C.text.s,fontWeight:500}}>{Math.round(pctUsado*100)}% del ingreso</div>
             </div>
-            <div style={{...glassCard({tone:"glassHi"}),borderRadius:18,padding:"16px",border:`1px solid ${C.indigo}35`}}>
-              <div style={{fontSize:11,color:C.indigoLight,letterSpacing:1.2,fontWeight:700,marginBottom:8}}>EN METAS</div>
-              <div style={{fontSize:22,fontWeight:800,color:C.indigoLight,marginBottom:8}}>{COP(totalAportes)}</div>
-              <div style={{background:`${C.indigo}22`,borderRadius:99,height:4,overflow:"hidden"}}><div style={{height:4,borderRadius:99,background:C.indigo,width:`${Math.min(tasaAhorr*100,100)}%`,transition:"width 0.7s"}}/></div>
-              <div style={{fontSize:12,color:C.text.b,fontWeight:600,marginTop:6}}>{totalAportes>0?`${Math.round(tasaAhorr*100)}% guardado`:"Empieza cuando quieras"}</div>
+            <div style={{...cardSurface(C.indigo),borderRadius:20,padding:"20px 18px",boxShadow:cardShadow(C.indigo)}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}>
+                <div style={{width:6,height:6,borderRadius:99,background:C.indigo,opacity:0.7}}/>
+                <div style={{fontSize:12,color:C.text.b,fontWeight:500}}>En metas</div>
+              </div>
+              <div style={{fontSize:22,fontWeight:700,color:C.indigoLight,marginBottom:4,letterSpacing:-0.3}}>{COP(totalAportes)}</div>
+              <div style={{fontSize:11,color:C.text.s,fontWeight:500}}>{totalAportes>0?`${Math.round(tasaAhorr*100)}% guardado`:"Empieza cuando quieras"}</div>
             </div>
           </div>
           {/* ── 2.5 Banner plan inteligente (si no hay presupuestos) ── */}
@@ -2751,9 +2794,9 @@ export default function App(){
       )}
       {/* ── 5. Metas chips ── */}
       {goals.length>0&&<>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,marginTop:4}}>
-          <Lbl style={{marginBottom:0}}>Mis metas</Lbl>
-          <button onClick={()=>changeTab("metas")} style={{background:"none",border:"none",color:C.indigo,fontSize:13,fontWeight:700,cursor:"pointer"}}>Ver todas →</button>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,marginTop:8}}>
+          <div style={{fontSize:11,color:C.text.s,letterSpacing:1.5,fontWeight:600,textTransform:"uppercase"}}>Mis metas</div>
+          <button onClick={()=>changeTab("metas")} style={{background:"none",border:"none",color:C.indigo,fontSize:13,fontWeight:600,cursor:"pointer"}}>Ver todas →</button>
         </div>
         {goals.slice(0,3).map(g=><GoalChip key={g.id} goal={g} aportado={getAportado(g.id)} aportadoEsteMes={getAportadoMes(g.id,month,now.getFullYear())} txAll={tx} onClick={()=>changeTab("metas")}/>)}
       </>}
@@ -2764,24 +2807,24 @@ export default function App(){
   };
   const MetasTab=()=>{
     const tot=goals.reduce((s,g)=>s+g.monto,0), ap=goals.reduce((s,g)=>s+getAportado(g.id),0);
-    return <div style={{padding:"16px 20px 0"}}>
-      {goals.length>0&&<Card style={{marginBottom:14,background:`linear-gradient(135deg,${C.indigo}12,${C.indigo}06)`,borderColor:`${C.indigo}35`}}>
+    return <div style={{padding:"16px 20px 80px"}}>
+      {goals.length>0&&<div style={{background:C.card,borderRadius:20,padding:"20px",marginBottom:16,boxShadow:elev("card")}}>
         <div style={{display:"flex",alignItems:"center",gap:16}}>
-          <Ring pct={tot>0?ap/tot:0} size={56} stroke={5} color={C.indigo} label={`${Math.round(Math.min(tot>0?ap/tot:0,1)*100)}%`}/>
+          <Ring pct={tot>0?ap/tot:0} size={52} stroke={4} color={C.indigo} label={`${Math.round(Math.min(tot>0?ap/tot:0,1)*100)}%`}/>
           <div>
-            <div style={{fontSize:12,color:C.indigo,fontWeight:800,marginBottom:3,letterSpacing:0.3}}>⭐ Progreso total</div>
-            <div style={{fontSize:24,fontWeight:900,color:C.indigo,letterSpacing:-1}}>{COP(ap)}</div>
-            <div style={{fontSize:12,color:C.text.b,fontWeight:500}}>de {COP(tot)} en {goals.length} meta{goals.length!==1?"s":""}</div>
+            <div style={{fontSize:11,color:C.text.s,fontWeight:600,letterSpacing:1.4,textTransform:"uppercase",marginBottom:6}}>Progreso total</div>
+            <div style={{fontSize:24,fontWeight:700,color:C.text.h,letterSpacing:-0.5}}>{COP(ap)}</div>
+            <div style={{fontSize:12,color:C.text.s,fontWeight:400,marginTop:2}}>de {COP(tot)} en {goals.length} meta{goals.length!==1?"s":""}</div>
           </div>
         </div>
-      </Card>}
+      </div>}
       {goals.map(g=><GoalCard key={g.id} goal={g}
           aportado={getAportado(g.id)}
           aportadoEsteMes={getAportadoMes(g.id,month,now.getFullYear())}
           txAll={tx}
           onEdit={()=>setGoalModal({
             ...g,
-            _aportado:getAportado(g.id)-(g.saldoInicial||0), // solo aportes app, saldoInicial se maneja aparte
+            _aportado:getAportado(g.id)-(g.saldoInicial||0),
             _aporteCount:tx.filter(t=>t.cat==="meta_aporte"&&t.goalId===g.id).length
           })}/>)}
       {goals.length===0&&<div style={{textAlign:"center",padding:"48px 20px",color:C.text.s,fontSize:14,lineHeight:2.4}}>
@@ -2789,7 +2832,7 @@ export default function App(){
         Aún no tienes metas.<br/>¡Crea una y empieza a ahorrar<br/>para lo que siempre quisiste!<br/>
         <button onClick={()=>setGoalModal("new")} style={{marginTop:18,padding:"12px 28px",borderRadius:12,border:"none",background:`linear-gradient(135deg,${C.indigo},#4338ca)`,color:"#fff",fontWeight:800,fontSize:14,cursor:"pointer"}}>+ Crear mi primera meta</button>
       </div>}
-      {goals.length>0&&<button onClick={()=>setGoalModal("new")} style={{width:"100%",padding:14,borderRadius:14,border:`1px dashed ${C.border}`,background:"transparent",color:C.text.b,cursor:"pointer",fontSize:14,fontWeight:700,marginBottom:8}}>+ Nueva meta</button>}
+      {goals.length>0&&<button onClick={()=>setGoalModal("new")} style={{width:"100%",padding:16,borderRadius:16,border:"none",background:C.card,boxShadow:elev("card"),color:C.text.b,cursor:"pointer",fontSize:14,fontWeight:500,marginBottom:8}}>+ Nueva meta</button>}
     </div>;
   };
 
@@ -3212,33 +3255,33 @@ export default function App(){
             onMouseDown={e=>e.currentTarget.style.transform="scale(0.985)"}
             onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
             onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
-            style={{...glassCard(),marginBottom:12,borderRadius:18,padding:"16px",cursor:"pointer",border:`1px solid ${sobrePres?C.red+"55":cercaPres?C.amber+"44":C.border}`,transition:"transform 0.15s",position:"relative"}}>
-            <div style={{display:"flex",alignItems:"center",gap:12}}>
-              <div style={{width:44,height:44,borderRadius:14,flexShrink:0,background:`linear-gradient(135deg,${c.color}35,${c.color}18)`,border:`1px solid ${c.color}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{c.icon}</div>
+            style={{...cardSurface(c.color),boxShadow:cardShadow(c.color),marginBottom:14,borderRadius:20,padding:"18px 18px 16px",cursor:"pointer",border:`1px solid ${sobrePres?C.red+"44":cercaPres?C.amber+"33":"transparent"}`,transition:"transform 0.15s",position:"relative"}}>
+            <div style={{display:"flex",alignItems:"center",gap:14}}>
+              <div style={{width:44,height:44,borderRadius:14,flexShrink:0,background:`${c.color}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{c.icon}</div>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,gap:8}}>
-                  <span style={{fontSize:14,fontWeight:700,color:C.text.h}}>{c.label}</span>
-                  <div style={{textAlign:"right",display:"flex",alignItems:"center",gap:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,gap:8}}>
+                  <span style={{fontSize:14,fontWeight:600,color:C.text.h}}>{c.label}</span>
+                  <div style={{textAlign:"right",display:"flex",alignItems:"center",gap:10}}>
                     <div>
-                      <span style={{fontSize:15,fontWeight:900,color:colPres}}>{COP(c.total)}</span>
-                      {limite>0&&<span style={{fontSize:11,color:C.text.b,marginLeft:4}}>/ {COP(limite)}</span>}
+                      <span style={{fontSize:15,fontWeight:700,color:sobrePres?C.red:cercaPres?C.amber:C.text.h}}>{COP(c.total)}</span>
+                      {limite>0&&<span style={{fontSize:11,color:C.text.s,marginLeft:4}}>/ {COP(limite)}</span>}
                     </div>
                     <button
                       onClick={e=>{e.stopPropagation();setPresupuestoModal(c);}}
                       aria-label="Ajustar presupuesto"
-                      style={{background:`${C.text.s}18`,border:`1px solid ${C.border}`,borderRadius:8,padding:"4px 6px",cursor:"pointer",color:C.text.b,fontSize:13,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.15s"}}
-                      onMouseEnter={e=>{e.currentTarget.style.background=`${C.indigo}22`;e.currentTarget.style.color=C.indigoLight;}}
-                      onMouseLeave={e=>{e.currentTarget.style.background=`${C.text.s}18`;e.currentTarget.style.color=C.text.b;}}
+                      style={{background:"none",border:"none",padding:"4px",cursor:"pointer",color:C.text.s,fontSize:14,lineHeight:1,opacity:0.5,transition:"opacity 0.15s"}}
+                      onMouseEnter={e=>e.currentTarget.style.opacity=1}
+                      onMouseLeave={e=>e.currentTarget.style.opacity=0.5}
                     >⚙</button>
                   </div>
                 </div>
-                <div style={{background:`${c.color}18`,borderRadius:99,height:5,overflow:"hidden"}}>
-                  <div style={{height:5,borderRadius:99,background:limite>0?(sobrePres?`linear-gradient(90deg,${C.red},#ff6b6b)`:cercaPres?`linear-gradient(90deg,${C.amber},#fbbf24)`:c.color):c.color,width:`${limite>0?Math.min(pctPres*100,100):Math.min(c.total/Math.max(totalGasto,1)*100,100)}%`,transition:"width 0.7s"}}/>
+                <div style={{background:ink(0.05),borderRadius:99,height:3,overflow:"hidden"}}>
+                  <div style={{height:3,borderRadius:99,background:sobrePres?C.red:cercaPres?C.amber:c.color,width:`${limite>0?Math.min(pctPres*100,100):Math.min(c.total/Math.max(totalGasto,1)*100,100)}%`,transition:"width 0.7s",opacity:0.8}}/>
                 </div>
-                {limite>0&&<div style={{fontSize:11,marginTop:5,color:sobrePres?C.red:cercaPres?C.amber:C.text.b,fontWeight:sobrePres||cercaPres?700:400}}>
-                  {sobrePres?`🚨 +${COP(c.total-limite)} sobre el límite`:cercaPres?`⚠️ ${Math.round(pctPres*100)}% del presupuesto`:`${Math.round(pctPres*100)}% · quedan ${COP(limite-c.total)}`}
+                {limite>0&&<div style={{fontSize:11,marginTop:6,color:sobrePres?C.red:cercaPres?C.amber:C.text.s,fontWeight:sobrePres||cercaPres?600:400}}>
+                  {sobrePres?`▲ +${COP(c.total-limite)} sobre el límite`:cercaPres?`⚠ ${Math.round(pctPres*100)}% del presupuesto`:`${Math.round(pctPres*100)}% · quedan ${COP(limite-c.total)}`}
                 </div>}
-                {!limite&&<div style={{fontSize:11,marginTop:5,color:C.text.b}}>Sin presupuesto · toca ⚙ para definir</div>}
+                {!limite&&<div style={{fontSize:11,marginTop:6,color:C.text.s,opacity:0.6}}>Sin presupuesto · ⚙ para definir</div>}
               </div>
             </div>
           </div>;
@@ -3344,20 +3387,19 @@ export default function App(){
         </div>
       )}
       {sorted.length>0&&monthTx.some(t=>esMesPasado(t.date))&&(
-        <div style={{fontSize:11,color:C.text.s,textAlign:"center",marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-          <span>🔒</span><span>Los movimientos de meses anteriores son de solo lectura</span>
+        <div style={{fontSize:11,color:C.text.s,textAlign:"center",marginBottom:12,opacity:0.7}}>
+          🔒 Mes anterior — solo lectura
         </div>
       )}
-      {sorted.length>0&&!monthTx.some(t=>esMesPasado(t.date))&&<div style={{fontSize:12,color:C.text.s,textAlign:"center",marginBottom:12}}>✏️ Toca cualquier movimiento para editarlo</div>}
       {/* ── Buscador ── */}
-      {monthTx.length>0&&<div style={{marginBottom:12}}>
-        <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:14,border:`1px solid ${busqueda?C.indigo+"55":C.borderStrong||C.border}`,padding:"0 14px",gap:10,transition:"border-color 0.2s",marginBottom:8}}>
-          <span style={{fontSize:16,color:C.text.s}}>🔍</span>
+      {monthTx.length>0&&<div style={{marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"center",background:C.card,borderRadius:14,border:`1px solid ${busqueda?C.indigo+"44":ink(0.06)}`,padding:"0 14px",gap:10,transition:"border-color 0.2s",marginBottom:10,boxShadow:elev("card")}}>
+          <span style={{fontSize:15,color:C.text.s,opacity:0.6}}>🔍</span>
           <input
-            placeholder="Buscar movimiento o categoría..."
+            placeholder="Buscar..."
             value={busqueda}
             onChange={e=>setBusqueda(e.target.value)}
-            style={{flex:1,background:"none",border:"none",outline:"none",fontSize:14,color:C.text.h,padding:"13px 0"}}
+            style={{flex:1,background:"none",border:"none",outline:"none",fontSize:14,color:C.text.h,padding:"14px 0"}}
           />
           {busqueda&&<button onClick={()=>setBusqueda("")} style={{background:"none",border:"none",color:C.text.s,cursor:"pointer",fontSize:18,padding:"0 2px",lineHeight:1}}>×</button>}
         </div>
@@ -3847,6 +3889,26 @@ export default function App(){
           ))}
         </div>
       </Card>
+      <Card style={{marginBottom:12}}>
+        <Lbl>Estilo de cards</Lbl>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          {[
+            {id:"solid",    label:"Sólido",    desc:"Premium limpio"},
+            {id:"glass",    label:"Glass",     desc:"Translúcido"},
+            {id:"gradient", label:"Gradiente", desc:"Con color suave"},
+            {id:"classic",  label:"Clásico",   desc:"3D con orbs"},
+          ].map(s=>(
+            <button key={s.id} onClick={()=>cambiarCardStyle(s.id)}
+              style={{padding:"12px 10px",borderRadius:12,border:"none",cursor:"pointer",
+                background:cardStyle===s.id?`${C.indigo}20`:C.surface,
+                outline:cardStyle===s.id?`2px solid ${C.indigo}`:"2px solid transparent",
+                transition:"all 0.15s",textAlign:"center"}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.text.h}}>{s.label}</div>
+              <div style={{fontSize:10,color:C.text.s,marginTop:2}}>{s.desc}</div>
+            </button>
+          ))}
+        </div>
+      </Card>
       {/* ── Zona de peligro ── */}
       <Card style={{marginBottom:12,borderColor:`${C.red}30`,background:`linear-gradient(135deg,${C.red}08,${C.red}04)`}}>
         <Lbl style={{color:C.red}}>⚠️ Zona de peligro</Lbl>
@@ -3924,28 +3986,27 @@ export default function App(){
   return <div style={{minHeight:"100vh",background:C.bg,color:C.text.h,fontFamily:"'DM Sans','Segoe UI',sans-serif",maxWidth:430,margin:"0 auto",paddingBottom:88}}>
     <style>{CSS}</style>
     {/* Topbar */}
-    <div style={{padding:"16px 20px 14px",background:`${C.bg}f0`,position:"sticky",top:0,zIndex:20,borderBottom:`1px solid ${C.border}`,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+    <div style={{padding:"16px 20px 14px",background:`${C.bg}f0`,position:"sticky",top:0,zIndex:20,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
       <div>
-        <div style={{fontSize:10,color:C.text.s,letterSpacing:2.5,fontWeight:700,marginBottom:2}}>MIS FINANZAS PRO</div>
-        <div style={{fontSize:21,fontWeight:900,letterSpacing:-0.5,color:C.text.h}}>{user.displayName?.split(" ")[0]} 👋</div>
+        <div style={{fontSize:10,color:C.text.s,letterSpacing:1.8,fontWeight:600,marginBottom:2,opacity:0.7}}>MIS FINANZAS PRO</div>
+        <div style={{fontSize:21,fontWeight:700,letterSpacing:-0.5,color:C.text.h}}>{user.displayName?.split(" ")[0]} 👋</div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"6px 14px",fontSize:12,color:C.text.b,fontWeight:700}}>{MONTHS_S[now.getMonth()]} {now.getFullYear()}</div>
-        {/* Badge préstamos pendientes */}
+        <div style={{background:C.card,borderRadius:10,padding:"6px 14px",fontSize:12,color:C.text.b,fontWeight:600,boxShadow:elev("card")}}>{MONTHS_S[now.getMonth()]} {now.getFullYear()}</div>
         {prestamos.filter(p=>!p.devuelto).length>0&&(
           <button onClick={()=>setPrestamosModal(true)}
-            style={{background:"rgba(244,63,94,0.15)",border:"1px solid rgba(244,63,94,0.4)",borderRadius:10,
+            style={{background:"rgba(244,63,94,0.12)",border:"none",borderRadius:10,
               padding:"6px 10px",fontSize:12,fontWeight:700,color:"#f43f5e",cursor:"pointer",
               display:"flex",alignItems:"center",gap:4}}>
             🤝 {prestamos.filter(p=>!p.devuelto).length}
           </button>
         )}
-        {/* Hamburguesa */}
         <button onClick={()=>setMenuOpen(o=>!o)} style={{
-          background:menuOpen?`${C.indigo}30`:C.surface,
-          border:`1px solid ${menuOpen?C.indigo:C.border}`,
+          background:menuOpen?`${C.indigo}22`:C.card,
+          border:"none",
           borderRadius:10,padding:"8px 10px",cursor:"pointer",
           display:"flex",flexDirection:"column",gap:4,alignItems:"center",justifyContent:"center",
+          boxShadow:elev("card"),
           transition:"all 0.2s",
         }}>
           {[0,1,2].map(i=><div key={i} style={{
@@ -4194,7 +4255,7 @@ export default function App(){
       position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",
       width:"100%",maxWidth:430,
       background:`${C.bg}ee`,
-      borderTop:`1px solid ${ink(0.10)}`,
+      borderTop:`1px solid ${ink(0.06)}`,
       backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
       display:"flex",justifyContent:"space-around",padding:"12px 0 20px",zIndex:50,
     }}>
@@ -4208,7 +4269,7 @@ export default function App(){
         {v.id==="metas"
           ?<StarIcon active={tab==="metas"}/>
           :<span style={{fontSize:22,lineHeight:1}}>{v.icon}</span>}
-        <span style={{fontSize:9,fontWeight:tab===v.id?800:600,letterSpacing:0.5,transition:"font-weight 0s, color 0.2s"}}>{v.label}</span>
+        <span style={{fontSize:10,fontWeight:tab===v.id?700:500,letterSpacing:0.3,transition:"color 0.2s"}}>{v.label}</span>
       </button>)}
     </nav>
   </div>;

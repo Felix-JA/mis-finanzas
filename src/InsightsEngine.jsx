@@ -475,23 +475,23 @@ export function InsightsEngine({
   };
 
   return (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 11, color: C.text.b, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 }}>
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontSize: 11, color: C.text.b, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 10 }}>
         🧠 Insights del mes
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {top3.map(ins => (
           <div key={ins.id} style={{
             borderRadius: 18, padding: "14px 16px",
             background: ins.bgType === "info" ? (C.isLight ? "rgba(15,23,42,0.04)" : "rgba(255,255,255,0.04)") : BG_MAP[ins.bgType],
-            border: `1px solid ${ins.bgType === "info" ? (C.isLight ? "rgba(15,23,42,0.08)" : "rgba(255,255,255,0.08)") : BORDER_MAP[ins.bgType]}`,
+            border: "1px solid transparent",
             display: "flex", alignItems: "center", gap: 12,
             animation: "fadeIn 0.3s ease",
             position: "relative",
           }}>
             <div style={{
               width: 44, height: 44, borderRadius: 14, flexShrink: 0,
-              background: `${ins.color}20`, border: `1px solid ${ins.color}35`,
+              background: `${ins.color}22`,
               display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20,
             }}>{ins.icon}</div>
             <div style={{ flex: 1, minWidth: 0, paddingRight: 18 }}>
