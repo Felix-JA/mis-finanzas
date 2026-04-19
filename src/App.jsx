@@ -507,41 +507,42 @@ function useSheetDismiss(onClose){
     lastY.current=clientY;
     isDragging.current=true;
   }
-  function onMove(clientY,e){
+  function onMove(clientY){
     if(!isDragging.current||startY.current===null) return;
     const d=clientY-startY.current;
     lastY.current=clientY;
-    if(d>0){
-      if(e?.cancelable) e.preventDefault();
-      setDragY(d);
-    }
+    if(d>0) setDragY(d);
   }
   function onEnd(){
     if(!isDragging.current) return;
     isDragging.current=false;
     const elapsed=Date.now()-startT.current;
     const dist=dragY;
-    const velocity=dist/Math.max(elapsed,1)*1000; // px/s
+    const velocity=dist/Math.max(elapsed,1)*1000;
     if(dist>100||velocity>400) onClose();
     else setDragY(0);
     startY.current=null;
   }
 
-  // Props para el handle (barrita) — touchAction none para control total
+  // Handle (barrita) — control total del touch
   const handleProps={
     onTouchStart:e=>onStart(e.touches[0].clientY),
-    onTouchMove:e=>onMove(e.touches[0].clientY,e),
+    onTouchMove:e=>onMove(e.touches[0].clientY),
     onTouchEnd:onEnd,
     style:{cursor:"grab",touchAction:"none"},
   };
 
-  // Props para el contenido completo — permite scroll vertical pero detecta swipe down
+  // Contenido completo — solo activa si el dedo baja desde el tope del scroll
   const dragProps={
-    onTouchStart:e=>onStart(e.touches[0].clientY),
+    onTouchStart:e=>{
+      // Guardar posición de scroll al iniciar
+      const el=e.currentTarget;
+      if(el.scrollTop===0) onStart(e.touches[0].clientY);
+    },
     onTouchMove:e=>{
-      const d=e.touches[0].clientY-(startY.current||0);
-      // Solo tomar control si el movimiento es claramente hacia abajo y no hay scroll pendiente
-      if(d>12) onMove(e.touches[0].clientY,e);
+      if(startY.current===null) return;
+      const d=e.touches[0].clientY-startY.current;
+      if(d>8) onMove(e.touches[0].clientY);
     },
     onTouchEnd:onEnd,
   };
@@ -2078,27 +2079,49 @@ export default function App(){
 
   // ── Botón atrás del teléfono ─────────────────────────────────────────────
   const [exitConfirm,setExitConfirm]=useState(false);
+  // Refs para leer estado actual dentro del handler sin recrear el efecto
+  const backRef=useRef({});
+  backRef.current={modal,goalModal,pagoModal,prestamosModal,menuOpen,
+    exportModal,catPersonalModal,budgetSetupOpen,tab,exitConfirm,
+    setModal,setGoalModal,setPagoModal,setPrestamosModal,setMenuOpen,
+    setExportModal,setCatPersonalModal,setBudgetSetupOpen,setTab,setExitConfirm};
+
   useEffect(()=>{
-    // Empujar un estado inicial para interceptar el primer "atrás"
-    history.pushState({page:"app"},"");
+    // Un solo estado en el stack — siempre hay uno para interceptar "atrás"
+    history.replaceState({mfApp:true},"");
+    history.pushState({mfApp:true},"");
+
     const handler=()=>{
-      // Cerrar modales en orden de prioridad
-      if(menuOpen){setMenuOpen(false);history.pushState({page:"app"},"");return;}
-      if(modal){setModal(null);history.pushState({page:"app"},"");return;}
-      if(goalModal){setGoalModal(null);history.pushState({page:"app"},"");return;}
-      if(pagoModal){setPagoModal(null);history.pushState({page:"app"},"");return;}
-      if(prestamosModal){setPrestamosModal(false);history.pushState({page:"app"},"");return;}
-      // Navegar a home si estás en otra pestaña
-      if(tab!=="home"){setTab("home");history.pushState({page:"app"},"");return;}
-      // Estás en home — confirmar salida
-      if(exitConfirm){window.history.back();return;}
-      setExitConfirm(true);
-      history.pushState({page:"app"},"");
-      setTimeout(()=>setExitConfirm(false),3000);
+      const s=backRef.current;
+      // Reponer el estado para el próximo "atrás"
+      history.pushState({mfApp:true},"");
+
+      // 1. Cerrar modales en orden de prioridad
+      if(s.menuOpen){s.setMenuOpen(false);return;}
+      if(s.modal){s.setModal(null);return;}
+      if(s.goalModal){s.setGoalModal(null);return;}
+      if(s.pagoModal){s.setPagoModal(null);return;}
+      if(s.prestamosModal){s.setPrestamosModal(false);return;}
+      if(s.exportModal){s.setExportModal(false);return;}
+      if(s.catPersonalModal){s.setCatPersonalModal(null);return;}
+      if(s.budgetSetupOpen){s.setBudgetSetupOpen(false);return;}
+
+      // 2. Ir a home si estás en otra pestaña
+      if(s.tab!=="home"){s.setTab("home");return;}
+
+      // 3. Estás en home — mostrar confirmación de salida
+      if(s.exitConfirm){
+        // Segunda vez — salir realmente
+        history.go(-2);
+        return;
+      }
+      s.setExitConfirm(true);
+      setTimeout(()=>s.setExitConfirm(false),3000);
     };
+
     window.addEventListener("popstate",handler);
     return()=>window.removeEventListener("popstate",handler);
-  },[modal,goalModal,pagoModal,prestamosModal,menuOpen,tab,exitConfirm]);
+  },[]);// Solo se registra UNA vez al montar
 
   useEffect(()=>onAuthStateChanged(auth,u=>{setUser(u);setAL(false);}),[]);
   useEffect(()=>{if(!user){setSalario(null);setSalarioHistory({});setCatsCustom({});return;}
@@ -3632,7 +3655,7 @@ export default function App(){
     const ci=getCatInfo(cat);
     return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
       style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:300,animation:"fadeIn 0.18s ease"}}>
-      <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:sheet.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",maxHeight:"92vh",overflowY:"auto",scrollBehavior:"auto",position:"relative",...sheet.cardStyle}}>
+      <div {...sheet.dragProps} style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:sheet.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",maxHeight:"92vh",overflowY:"auto",scrollBehavior:"auto",position:"relative",...sheet.cardStyle}}>
         <SheetCloseBtn onClose={onClose}/>
         <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
         <div style={{padding:"0 20px 28px"}}>
