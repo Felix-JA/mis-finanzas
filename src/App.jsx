@@ -209,26 +209,28 @@ function GradientOrbs({color}){
 }
 
 const MAIN_CATS = [
-  { id:"comida",     label:"Comida",   labelFull:"Comida",               icon:"🍽️", color:"#facc15",
-    subs:[{id:"restaurantes",label:"Restaurantes",icon:"🍽️"},{id:"mercado",label:"Mercado",icon:"🛒"},{id:"domicilios",label:"Domicilios",icon:"🛵"},{id:"cafeteria",label:"Cafetería",icon:"☕"}]},
-  { id:"hogar",      label:"Hogar",    labelFull:"Hogar",                icon:"🏠", color:"#60a5fa",
-    subs:[{id:"arriendo",label:"Arriendo",icon:"🏠"},{id:"servicios",label:"Servicios",icon:"💡"},{id:"aseo",label:"Aseo",icon:"🧹"},{id:"reparaciones",label:"Reparaciones",icon:"🔧"}]},
-  { id:"transporte", label:"Transp.",  labelFull:"Transporte",           icon:"🚗", color:"#34d399",
-    subs:[{id:"bus",label:"Bus/Metro",icon:"🚌"},{id:"taxi",label:"Taxi/Uber",icon:"🚕"},{id:"gasolina",label:"Gasolina",icon:"⛽"},{id:"parqueadero",label:"Parqueadero",icon:"🅿️"}]},
-  { id:"vehiculo",   label:"Vehículo", labelFull:"Vehículo",             icon:"🏍️", color:"#fb923c",
-    subs:[{id:"repuestos",label:"Repuestos",icon:"🔩"},{id:"mantenimiento",label:"Mantenimiento",icon:"🛠️"},{id:"soat",label:"SOAT/Seguro",icon:"📋"},{id:"revision",label:"Rev. Técnica",icon:"🔍"}]},
-  { id:"salud",      label:"Salud",    labelFull:"Salud y Bienestar",    icon:"🩺", color:"#f87171",
-    subs:[{id:"medico",label:"Médico",icon:"🏥"},{id:"medicamentos",label:"Medicinas",icon:"💊"},{id:"gym",label:"Fitness",icon:"🏃"},{id:"barberia",label:"Peluquería",icon:"✂️"}]},
-  { id:"ocio",       label:"Ocio",     labelFull:"Entretenimiento",      icon:"🎭", color:"#e879f9",
-    subs:[{id:"salidas",label:"Salidas",icon:"🥂"},{id:"eventos",label:"Eventos",icon:"🎟️"},{id:"viajes",label:"Viajes",icon:"✈️"},{id:"hobbies",label:"Hobbies",icon:"🎨"}]},
-  { id:"estilo",     label:"Estilo",   labelFull:"Ropa y Estilo",        icon:"👔", color:"#a78bfa",
-    subs:[{id:"ropa",label:"Ropa",icon:"👔"},{id:"calzado",label:"Calzado",icon:"👟"},{id:"accesorios",label:"Accesorios",icon:"⌚"},{id:"cuidado",label:"Cuidado",icon:"🧴"}]},
-  { id:"digital",    label:"Digital",  labelFull:"Digital y Suscripciones", icon:"📱", color:"#38bdf8",
-    subs:[{id:"streaming",label:"Streaming",icon:"📺"},{id:"apps",label:"App/Suscrip.",icon:"📲"},{id:"compras_online",label:"Compras online",icon:"🛍️"},{id:"tecnologia",label:"Tecnología",icon:"💻"}]},
-  { id:"deudas",     label:"Deudas",   labelFull:"Deudas",                icon:"💳", color:"#f43f5e",
-    subs:[{id:"tarjeta",label:"Tarjeta",icon:"💳"},{id:"cuotas",label:"Cuotas",icon:"📦"},{id:"credito",label:"Crédito",icon:"🏦"}]},
-  { id:"otros_main", label:"Otros",    labelFull:"Otros",                icon:"📦", color:"#94a3b8",
-    subs:[{id:"educacion",label:"Educación",icon:"📚"},{id:"mascotas",label:"Mascotas",icon:"🐾"},{id:"regalos",label:"Regalos",icon:"🎁"},{id:"otros",label:"Otros",icon:"🗂️"}]},
+  { id:"comida",     label:"Comida",    labelFull:"Comida",                  icon:"🍽️", color:"#facc15",
+    subs:[{id:"desayuno",label:"Desayuno",icon:"🍳"},{id:"almuerzo",label:"Almuerzo",icon:"🍱"},{id:"domicilios",label:"Domicilios",icon:"🛵"},{id:"mercado",label:"Mercado",icon:"🛒"},{id:"snacks",label:"Snacks",icon:"🧃"}]},
+  { id:"hogar",      label:"Hogar",     labelFull:"Hogar",                   icon:"🏠", color:"#60a5fa",
+    subs:[{id:"arriendo",label:"Arriendo",icon:"🏠"},{id:"servicios",label:"Servicios",icon:"💡"},{id:"aseo",label:"Aseo",icon:"🧹"},{id:"reparaciones",label:"Reparaciones",icon:"🔧"},{id:"electro",label:"Electro",icon:"📺"}]},
+  { id:"transporte", label:"Transp.",   labelFull:"Transporte",              icon:"🚗", color:"#34d399",
+    subs:[{id:"bus",label:"Bus/Metro",icon:"🚌"},{id:"taxi",label:"Taxi/Uber",icon:"🚕"},{id:"peaje",label:"Peaje",icon:"🛣️"},{id:"pasajes",label:"Pasajes",icon:"🎫"},{id:"mudanza",label:"Mudanza",icon:"📦"}]},
+  { id:"vehiculo",   label:"Vehículo",  labelFull:"Vehículo",                icon:"🏍️", color:"#fb923c",
+    subs:[{id:"gasolina",label:"Gasolina",icon:"⛽"},{id:"soat",label:"SOAT/Seguro",icon:"📋"},{id:"mecanica",label:"Mecánica",icon:"🛠️"},{id:"parqueadero",label:"Parqueadero",icon:"🅿️"},{id:"repuestos",label:"Repuestos",icon:"🔩"}]},
+  { id:"salud",      label:"Salud",     labelFull:"Salud y Bienestar",       icon:"🩺", color:"#f87171",
+    subs:[{id:"medico",label:"Médico",icon:"🏥"},{id:"medicamentos",label:"Medicinas",icon:"💊"},{id:"gym",label:"Fitness",icon:"🏃"},{id:"psicologia",label:"Psicología",icon:"🧠"},{id:"optica",label:"Óptica",icon:"👓"}]},
+  { id:"ocio",       label:"Ocio",      labelFull:"Entretenimiento",         icon:"🎭", color:"#e879f9",
+    subs:[{id:"salidas",label:"Salidas",icon:"🥂"},{id:"eventos",label:"Eventos",icon:"🎟️"},{id:"viajes",label:"Viajes",icon:"✈️"},{id:"hobbies",label:"Hobbies",icon:"🎨"},{id:"regalos",label:"Regalos",icon:"🎁"}]},
+  { id:"estilo",     label:"Estilo",    labelFull:"Ropa y Estilo",           icon:"👔", color:"#a78bfa",
+    subs:[{id:"ropa",label:"Ropa",icon:"👔"},{id:"calzado",label:"Calzado",icon:"👟"},{id:"accesorios",label:"Accesorios",icon:"⌚"},{id:"peluqueria",label:"Peluquería",icon:"✂️"},{id:"cuidado",label:"Cuidado",icon:"🧴"}]},
+  { id:"digital",    label:"Digital",   labelFull:"Digital y Suscripciones", icon:"📱", color:"#38bdf8",
+    subs:[{id:"streaming",label:"Streaming",icon:"📺"},{id:"apps",label:"Suscripciones",icon:"📲"},{id:"tecnologia",label:"Tecnología",icon:"💻"},{id:"ia",label:"IA",icon:"🤖"},{id:"juegos",label:"Juegos",icon:"🎮"}]},
+  { id:"deudas",     label:"Deudas",    labelFull:"Deudas",                  icon:"💳", color:"#f43f5e",
+    subs:[{id:"tarjeta",label:"Tarjeta",icon:"💳"},{id:"cuotas",label:"Cuotas",icon:"📅"},{id:"credito",label:"Crédito",icon:"🏦"}]},
+  { id:"educacion",  label:"Educación", labelFull:"Educación",               icon:"📚", color:"#818cf8",
+    subs:[{id:"universidad",label:"Universidad",icon:"🎓"},{id:"cursos",label:"Cursos",icon:"💡"},{id:"utiles",label:"Útiles",icon:"✏️"},{id:"colegio",label:"Colegio",icon:"🏫"},{id:"certificados",label:"Certificados",icon:"📜"}]},
+  { id:"mascotas",   label:"Mascotas",  labelFull:"Mascotas",                icon:"🐾", color:"#4ade80",
+    subs:[{id:"comida_mascota",label:"Comida",icon:"🦴"},{id:"veterinario",label:"Veterinario",icon:"🏥"},{id:"peluqueria_mascota",label:"Peluquería",icon:"✂️"},{id:"medicamentos_mascota",label:"Medicamentos",icon:"💊"}]},
 ];
 // Solo "ingreso" es categoría especial — suma al saldo
 // Las metas son el único concepto de ahorro (unificado)
@@ -490,31 +492,65 @@ function Lbl({children,style={}}){
 
 // ─── Helpers para modales tipo bottom-sheet (× + swipe down) ─────────────────
 // Uso: const sheet = useSheetDismiss(onClose);
-// En el card: style={{ ...sheet.cardStyle }}
+// En el card: style={{ ...sheet.cardStyle }} + {...sheet.dragProps}
 // En el handle: {...sheet.handleProps}
-// En el header: <SheetCloseBtn onClick={onClose}/>
 function useSheetDismiss(onClose){
   const [dragY,setDragY]=useState(0);
-  const [dragStartY,setDragStartY]=useState(null);
+  const startY=useRef(null);
+  const startT=useRef(null);
+  const lastY=useRef(null);
+  const isDragging=useRef(false);
+
+  function onStart(clientY){
+    startY.current=clientY;
+    startT.current=Date.now();
+    lastY.current=clientY;
+    isDragging.current=true;
+  }
+  function onMove(clientY,e){
+    if(!isDragging.current||startY.current===null) return;
+    const d=clientY-startY.current;
+    lastY.current=clientY;
+    if(d>0){
+      if(e?.cancelable) e.preventDefault();
+      setDragY(d);
+    }
+  }
+  function onEnd(){
+    if(!isDragging.current) return;
+    isDragging.current=false;
+    const elapsed=Date.now()-startT.current;
+    const dist=dragY;
+    const velocity=dist/Math.max(elapsed,1)*1000; // px/s
+    if(dist>100||velocity>400) onClose();
+    else setDragY(0);
+    startY.current=null;
+  }
+
+  // Props para el handle (barrita) — touchAction none para control total
   const handleProps={
-    onTouchStart:e=>setDragStartY(e.touches[0].clientY),
-    onTouchMove:e=>{
-      if(dragStartY===null)return;
-      const d=e.touches[0].clientY-dragStartY;
-      if(d>0)setDragY(d);
-    },
-    onTouchEnd:()=>{
-      if(dragY>80)onClose();
-      setDragY(0);
-      setDragStartY(null);
-    },
+    onTouchStart:e=>onStart(e.touches[0].clientY),
+    onTouchMove:e=>onMove(e.touches[0].clientY,e),
+    onTouchEnd:onEnd,
     style:{cursor:"grab",touchAction:"none"},
   };
+
+  // Props para el contenido completo — permite scroll vertical pero detecta swipe down
+  const dragProps={
+    onTouchStart:e=>onStart(e.touches[0].clientY),
+    onTouchMove:e=>{
+      const d=e.touches[0].clientY-(startY.current||0);
+      // Solo tomar control si el movimiento es claramente hacia abajo y no hay scroll pendiente
+      if(d>12) onMove(e.touches[0].clientY,e);
+    },
+    onTouchEnd:onEnd,
+  };
+
   const cardStyle={
     transform:`translateY(${dragY}px)`,
-    transition:dragStartY===null?"transform 0.2s ease":"none",
+    transition:isDragging.current?"none":"transform 0.25s cubic-bezier(0.32,0.72,0,1)",
   };
-  return {handleProps,cardStyle,dragY,dragStartY};
+  return {handleProps,dragProps,cardStyle,dragY};
 }
 
 function SheetCloseBtn({onClose,top=14,right=14}){
@@ -570,7 +606,7 @@ function CatPersonalModal({main, catsCustom, handleCatCustomSave, onClose}){
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:500,animation:"fadeIn 0.18s ease"}}>
     <div onClick={e=>e.stopPropagation()}
       style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
-        border:`1px solid ${C.border}`,padding:"20px 20px 36px",animation:sheet.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",maxHeight:"85vh",overflowY:"auto",position:"relative",...sheet.cardStyle}}>
+        border:`1px solid ${C.border}`,padding:"20px 20px 36px",animation:sheet.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",maxHeight:"85vh",overflowY:"auto",position:"relative",...sheet.cardStyle}} {...sheet.dragProps}>
       <SheetCloseBtn onClose={onClose}/>
       <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",marginBottom:14,padding:"4px 0 8px"}}>
         <div style={{width:40,height:4,borderRadius:99,background:C.border}}/>
@@ -656,6 +692,9 @@ function CatSelector({value, onChange, subsCustom={}, onEditCustom}){
   const findMain=(v,custom)=>MAIN_CATS.find(m=>m.subs.some(s=>s.id===v)||(custom[m.id]||[]).some(s=>s.id===v));
   const curMain=findMain(value,subsCustom);
   const [sel,setSel]=useState(()=>findMain(value,subsCustom)?.id||null);
+  const [closing,setClosing]=useState(false); // true mientras anima el cierre
+  const closeTimer=useRef(null);
+
   // Sincronizar sel cuando cambia el value externamente
   const prevValue=useRef(value);
   useEffect(()=>{
@@ -664,9 +703,21 @@ function CatSelector({value, onChange, subsCustom={}, onEditCustom}){
     const main=findMain(value,subsCustom);
     if(main) setSel(main.id);
   });
+
+  function closeSel(){
+    setClosing(true);
+    clearTimeout(closeTimer.current);
+    closeTimer.current=setTimeout(()=>{setSel(null);setClosing(false);},220);
+  }
+  function toggleSel(id){
+    if(sel===id){ closeSel(); return; }
+    if(sel){ setClosing(false); clearTimeout(closeTimer.current); }
+    setSel(id);
+  }
+
   function MBtn({m}){
     const active=curMain?.id===m.id&&!sel,open=sel===m.id;
-    return <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSel(p=>p===m.id?null:m.id)}
+    return <button onMouseDown={e=>e.preventDefault()} onClick={()=>toggleSel(m.id)}
       style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"10px 4px",borderRadius:14,border:"none",cursor:"pointer",
         background:open?`${m.color}35`:active?`${m.color}22`:C.surface,
         outline:(active||open)?`2px solid ${m.color}`:"2px solid transparent",transition:"all 0.15s"}}>
@@ -675,16 +726,18 @@ function CatSelector({value, onChange, subsCustom={}, onEditCustom}){
     </button>;
   }
   return <div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:5,marginBottom:6}}>
-      {MAIN_CATS.slice(0,5).map(m=><MBtn key={m.id} m={m}/>)}
-    </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:5,marginBottom:6}}>
-      {MAIN_CATS.slice(5).map(m=><MBtn key={m.id} m={m}/>)}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5,marginBottom:6}}>
+      {MAIN_CATS.map(m=><MBtn key={m.id} m={m}/>)}
     </div>
     {sel&&(()=>{
       const main=MAIN_CATS.find(m=>m.id===sel);
       const customSubs = subsCustom[sel] || [];
-      return <div style={{background:`${main.color}12`,border:`1px solid ${main.color}44`,borderRadius:14,padding:"12px 10px",marginBottom:8,animation:"slideDown 0.18s ease"}}>
+      return <div style={{
+        background:`${main.color}12`,border:`1px solid ${main.color}44`,borderRadius:14,
+        padding:"12px 10px",marginBottom:8,
+        animation:closing?"fadeSlideDown 0.2s ease forwards":"fadeSlideUp 0.22s ease",
+        overflow:"hidden",
+      }}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,paddingLeft:4}}>
           <div style={{fontSize:11,color:main.color,fontWeight:700,letterSpacing:1}}>{main.icon} {main.label.toUpperCase()}</div>
           {onEditCustom&&<button onMouseDown={e=>e.preventDefault()} onClick={()=>onEditCustom(main)}
@@ -694,21 +747,27 @@ function CatSelector({value, onChange, subsCustom={}, onEditCustom}){
           </button>}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
-          {main.subs.map(s=>{const a=value===s.id;return <button key={s.id} onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(s.id);setSel(null);}}
+          {main.subs.map((s,i)=>{const a=value===s.id;return <button key={s.id} onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(s.id);closeSel();}}
             style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,padding:"8px 4px",borderRadius:12,border:"none",cursor:"pointer",
-              minHeight:72,overflow:"hidden",
-              background:a?`${main.color}35`:C.surface,outline:a?`2px solid ${main.color}`:"2px solid transparent",transition:"all 0.12s"}}>
+              minHeight:68,overflow:"hidden",
+              background:a?`${main.color}35`:C.surface,
+              outline:a?`2px solid ${main.color}`:"2px solid transparent",
+              animation:closing?"none":`fadeSlideUp 0.2s ease both`,
+              animationDelay:closing?"0ms":`${i*35}ms`,
+              transition:"background 0.12s, outline 0.12s"}}>
             <span style={{fontSize:20,flexShrink:0}}>{s.icon}</span>
-            <span style={{fontSize:10,fontWeight:800,color:a?main.color:C.text.b,textAlign:"center",lineHeight:1.25,width:"100%",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",wordBreak:"break-word",hyphens:"auto"}}>{s.label}</span>
+            <span style={{fontSize:10,fontWeight:800,color:a?main.color:C.text.b,textAlign:"center",lineHeight:1.2,width:"100%",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",wordBreak:"break-word"}}>{s.label}</span>
           </button>;})}
-          {/* Subcategorías personalizadas ✦ */}
-          {customSubs.map(s=>{const a=value===s.id;return <button key={s.id} onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(s.id);setSel(null);}}
+          {customSubs.map((s,i)=>{const a=value===s.id;return <button key={s.id} onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(s.id);closeSel();}}
             style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,padding:"8px 4px",borderRadius:12,border:"none",cursor:"pointer",
-              minHeight:72,overflow:"hidden",
-              background:a?`${main.color}35`:C.surface,outline:a?`2px solid ${main.color}`:"2px solid transparent",
-              position:"relative",transition:"all 0.12s"}}>
+              minHeight:68,overflow:"hidden",position:"relative",
+              background:a?`${main.color}35`:C.surface,
+              outline:a?`2px solid ${main.color}`:"2px solid transparent",
+              animation:closing?"none":`fadeSlideUp 0.2s ease both`,
+              animationDelay:closing?"0ms":`${(main.subs.length+i)*35}ms`,
+              transition:"background 0.12s, outline 0.12s"}}>
             <span style={{fontSize:20,flexShrink:0}}>{s.icon}</span>
-            <span style={{fontSize:10,fontWeight:800,color:a?main.color:C.text.b,textAlign:"center",lineHeight:1.25,width:"100%",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",wordBreak:"break-word",hyphens:"auto"}}>{s.label}</span>
+            <span style={{fontSize:10,fontWeight:800,color:a?main.color:C.text.b,textAlign:"center",lineHeight:1.2,width:"100%",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",wordBreak:"break-word"}}>{s.label}</span>
             <span style={{position:"absolute",top:4,right:4,fontSize:8,color:main.color,fontWeight:900}}>✦</span>
           </button>;})}
         </div>
@@ -786,7 +845,7 @@ function GoalModal({initial,onClose,onSave,onDelete}){
   }
   return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
-    <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:sheet.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",maxHeight:"92vh",overflowY:"auto",position:"relative",...sheet.cardStyle}}>
+    <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:sheet.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",maxHeight:"92vh",overflowY:"auto",position:"relative",...sheet.cardStyle}} {...sheet.dragProps}>
       <SheetCloseBtn onClose={onClose}/>
       <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
       <div style={{padding:"0 20px 28px"}}>
@@ -1438,7 +1497,7 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
   }
   return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:300,animation:"fadeIn 0.18s ease"}}>
-    <div ref={scrollRef} style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:sheet.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",maxHeight:"92vh",overflowY:"auto",position:"relative",...sheet.cardStyle}}>
+    <div ref={scrollRef} style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:sheet.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",maxHeight:"92vh",overflowY:"auto",position:"relative",...sheet.cardStyle}} {...sheet.dragProps}>
       <SheetCloseBtn onClose={onClose}/>
       <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
       <div style={{padding:"0 20px"}}>
@@ -1656,6 +1715,48 @@ function TxRow({t,onEdit,catsCustom={}}){
 }
 
 // ─── MODAL PRÉSTAMOS A TERCEROS ───────────────────────────────────────────────
+function ExportModalSheet({onClose,exportarCSV,exportarPDF,tx,now,isMonth,MONTHS}){
+  const sheet=useSheetDismiss(onClose);
+  return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
+    style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
+    <div onClick={e=>e.stopPropagation()} {...sheet.dragProps}
+      style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
+        border:`1px solid ${C.border}`,padding:"20px 20px 36px",position:"relative",...sheet.cardStyle}}>
+      <SheetCloseBtn onClose={onClose}/>
+      <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",marginBottom:16,padding:"4px 0 8px"}}>
+        <div style={{width:40,height:4,borderRadius:99,background:C.border}}/>
+      </div>
+      <div style={{fontSize:18,fontWeight:800,color:C.text.h,marginBottom:4}}>📤 Exportar movimientos</div>
+      <div style={{fontSize:13,color:C.text.b,marginBottom:20,lineHeight:1.6}}>Elige el formato y el período que quieres exportar.</div>
+      <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}}>📊 CSV · Excel / Sheets</div>
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+        <button onClick={()=>exportarCSV(true)} style={{padding:"14px 16px",borderRadius:12,border:`1px solid ${C.emerald}44`,cursor:"pointer",background:`${C.emerald}12`,color:C.text.h,fontSize:14,fontWeight:700,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
+          <span style={{fontSize:22}}>📅</span>
+          <div><div style={{color:C.emeraldLight}}>Solo {MONTHS[now.getMonth()]} {now.getFullYear()}</div>
+          <div style={{fontSize:11,color:C.text.s,marginTop:2}}>{tx.filter(t=>isMonth(t.date,now.getMonth(),now.getFullYear())).length} movimientos</div></div>
+        </button>
+        <button onClick={()=>exportarCSV(false)} style={{padding:"14px 16px",borderRadius:12,border:`1px solid ${C.border}`,cursor:"pointer",background:C.surface,color:C.text.h,fontSize:14,fontWeight:700,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
+          <span style={{fontSize:22}}>📊</span>
+          <div><div>Historial completo</div><div style={{fontSize:11,color:C.text.s,marginTop:2}}>{tx.length} movimientos en total</div></div>
+        </button>
+      </div>
+      <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}}>📄 PDF · Imprimir / Compartir</div>
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+        <button onClick={()=>exportarPDF(true)} style={{padding:"14px 16px",borderRadius:12,border:`1px solid ${C.indigo}44`,cursor:"pointer",background:`${C.indigo}12`,color:C.text.h,fontSize:14,fontWeight:700,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
+          <span style={{fontSize:22}}>📄</span>
+          <div><div style={{color:C.indigoLight}}>PDF · Solo {MONTHS[now.getMonth()]} {now.getFullYear()}</div>
+          <div style={{fontSize:11,color:C.text.s,marginTop:2}}>Se abre ventana para imprimir o guardar</div></div>
+        </button>
+        <button onClick={()=>exportarPDF(false)} style={{padding:"14px 16px",borderRadius:12,border:`1px solid ${C.border}`,cursor:"pointer",background:C.surface,color:C.text.h,fontSize:14,fontWeight:700,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
+          <span style={{fontSize:22}}>📋</span>
+          <div><div>PDF · Historial completo</div><div style={{fontSize:11,color:C.text.s,marginTop:2}}>{tx.length} movimientos · todas las páginas</div></div>
+        </button>
+      </div>
+      <button onClick={onClose} style={{width:"100%",background:"none",border:"none",color:C.text.s,cursor:"pointer",fontSize:13,padding:"8px",fontWeight:600}}>Cancelar</button>
+    </div>
+  </div>;
+}
+
 function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm,setPrestamoForm}){
   const pendientes=prestamos.filter(p=>!p.devuelto);
   const devueltos=prestamos.filter(p=>p.devuelto);
@@ -1793,7 +1894,7 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
     <div onClick={e=>e.stopPropagation()}
       style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
         border:`1px solid ${C.border}`,animation:sheet.dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",
-        maxHeight:"90vh",overflowY:"auto",position:"relative",...sheet.cardStyle}}>
+        maxHeight:"90vh",overflowY:"auto",position:"relative",...sheet.cardStyle}} {...sheet.dragProps}>
       <SheetCloseBtn onClose={onClose}/>
       <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
       <div style={{padding:"0 20px 36px"}}>
@@ -1974,6 +2075,30 @@ export default function App(){
       if(newTab!=="anal") setFiltroMainCatOrigen(null);
     }
   }
+
+  // ── Botón atrás del teléfono ─────────────────────────────────────────────
+  const [exitConfirm,setExitConfirm]=useState(false);
+  useEffect(()=>{
+    // Empujar un estado inicial para interceptar el primer "atrás"
+    history.pushState({page:"app"},"");
+    const handler=()=>{
+      // Cerrar modales en orden de prioridad
+      if(menuOpen){setMenuOpen(false);history.pushState({page:"app"},"");return;}
+      if(modal){setModal(null);history.pushState({page:"app"},"");return;}
+      if(goalModal){setGoalModal(null);history.pushState({page:"app"},"");return;}
+      if(pagoModal){setPagoModal(null);history.pushState({page:"app"},"");return;}
+      if(prestamosModal){setPrestamosModal(false);history.pushState({page:"app"},"");return;}
+      // Navegar a home si estás en otra pestaña
+      if(tab!=="home"){setTab("home");history.pushState({page:"app"},"");return;}
+      // Estás en home — confirmar salida
+      if(exitConfirm){window.history.back();return;}
+      setExitConfirm(true);
+      history.pushState({page:"app"},"");
+      setTimeout(()=>setExitConfirm(false),3000);
+    };
+    window.addEventListener("popstate",handler);
+    return()=>window.removeEventListener("popstate",handler);
+  },[modal,goalModal,pagoModal,prestamosModal,menuOpen,tab,exitConfirm]);
 
   useEffect(()=>onAuthStateChanged(auth,u=>{setUser(u);setAL(false);}),[]);
   useEffect(()=>{if(!user){setSalario(null);setSalarioHistory({});setCatsCustom({});return;}
@@ -2779,6 +2904,8 @@ export default function App(){
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.75}}
     @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
     @keyframes ripple{0%{transform:translate(-50%,-50%) scale(0);opacity:0.4}100%{transform:translate(-50%,-50%) scale(20);opacity:0}}
+    @keyframes fadeSlideUp{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+    @keyframes fadeSlideDown{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(6px)}}
     input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.6);}
     input::placeholder{color:${paleta.text.s}44;}
     ::-webkit-scrollbar{display:none;}
@@ -4006,7 +4133,11 @@ export default function App(){
         <div onClick={()=>setConfirmPago(null)}
           style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
           <div onClick={e=>e.stopPropagation()}
-            style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,padding:"24px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)"}}>
+            style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,padding:"20px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",position:"relative"}}>
+            <SheetCloseBtn onClose={()=>setConfirmPago(null)}/>
+            <div style={{display:"flex",justifyContent:"center",marginBottom:16,padding:"4px 0 8px"}}>
+              <div style={{width:40,height:4,borderRadius:99,background:C.border}}/>
+            </div>
             <div style={{textAlign:"center",marginBottom:20}}>
               <div style={{fontSize:36,marginBottom:10}}>{getCatInfo(confirmPago.cat).icon}</div>
               <div style={{fontSize:17,fontWeight:900,color:C.text.h,marginBottom:6}}>{confirmPago.nombre}</div>
@@ -4015,21 +4146,18 @@ export default function App(){
             </div>
             <div style={{fontSize:14,fontWeight:800,color:C.text.b,textAlign:"center",marginBottom:16}}>¿Ya realizaste este pago?</div>
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              {/* Sí, lo pagué */}
               <button onClick={async()=>{await handlePagoConfirmar(confirmPago);setConfirmPago(null);}}
                 style={{width:"100%",padding:"16px",borderRadius:14,border:"none",cursor:"pointer",
                   background:`linear-gradient(135deg,${C.emerald},#059669)`,
                   color:"#000",fontSize:15,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
                 <span>✅</span> Sí, ya lo pagué — registrar
               </button>
-              {/* Recordar mañana */}
               <button onClick={async()=>{await handlePagoPostponer(confirmPago);setConfirmPago(null);}}
                 style={{width:"100%",padding:"16px",borderRadius:14,border:`1px solid ${C.amber}44`,cursor:"pointer",
                   background:`${C.amber}12`,
                   color:C.amber,fontSize:15,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
                 <span>⏰</span> Recordármelo mañana
               </button>
-              {/* No lo pagué */}
               <button onClick={async()=>{await handlePagoNoPague(confirmPago);setConfirmPago(null);}}
                 style={{width:"100%",padding:"16px",borderRadius:14,border:`1px solid ${C.red}33`,cursor:"pointer",
                   background:`${C.red}10`,
@@ -4531,73 +4659,10 @@ export default function App(){
       onSave={handlePagoSave}
       onDelete={handlePagoDelete}/>}
     {/* Modal exportar */}
-    {exportModal&&<div onClick={()=>setExportModal(false)}
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
-      <div onClick={e=>e.stopPropagation()}
-        style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
-          border:`1px solid ${C.border}`,padding:"24px 20px 36px",
-          animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)"}}>
-        <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
-          <div style={{width:40,height:4,borderRadius:99,background:C.border}}/>
-        </div>
-        <div style={{fontSize:18,fontWeight:800,color:C.text.h,marginBottom:4}}>📤 Exportar movimientos</div>
-        <div style={{fontSize:13,color:C.text.b,marginBottom:20,lineHeight:1.6}}>
-          Elige el formato y el período que quieres exportar.
-        </div>
-        {/* CSV */}
-        <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}}>📊 Formato CSV · Excel / Sheets</div>
-        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
-          <button onClick={()=>exportarCSV(true)}
-            style={{padding:"14px 16px",borderRadius:12,border:`1px solid ${C.emerald}44`,cursor:"pointer",
-              background:`${C.emerald}12`,
-              color:C.text.h,fontSize:14,fontWeight:700,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
-            <span style={{fontSize:22}}>📅</span>
-            <div>
-              <div style={{color:C.emeraldLight}}>Solo {MONTHS[now.getMonth()]} {now.getFullYear()}</div>
-              <div style={{fontSize:11,color:C.text.s,marginTop:2}}>{tx.filter(t=>isMonth(t.date,now.getMonth(),now.getFullYear())).length} movimientos</div>
-            </div>
-          </button>
-          <button onClick={()=>exportarCSV(false)}
-            style={{padding:"14px 16px",borderRadius:12,border:`1px solid ${C.border}`,cursor:"pointer",
-              background:C.surface,
-              color:C.text.h,fontSize:14,fontWeight:700,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
-            <span style={{fontSize:22}}>📊</span>
-            <div>
-              <div>Historial completo</div>
-              <div style={{fontSize:11,color:C.text.s,marginTop:2}}>{tx.length} movimientos en total</div>
-            </div>
-          </button>
-        </div>
-        {/* PDF */}
-        <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}}>📄 Formato PDF · Imprimir / Compartir</div>
-        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
-          <button onClick={()=>exportarPDF(true)}
-            style={{padding:"14px 16px",borderRadius:12,border:`1px solid ${C.indigo}44`,cursor:"pointer",
-              background:`${C.indigo}12`,
-              color:C.text.h,fontSize:14,fontWeight:700,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
-            <span style={{fontSize:22}}>📄</span>
-            <div>
-              <div style={{color:C.indigoLight}}>PDF · Solo {MONTHS[now.getMonth()]} {now.getFullYear()}</div>
-              <div style={{fontSize:11,color:C.text.s,marginTop:2}}>Se abre una ventana para imprimir o guardar</div>
-            </div>
-          </button>
-          <button onClick={()=>exportarPDF(false)}
-            style={{padding:"14px 16px",borderRadius:12,border:`1px solid ${C.border}`,cursor:"pointer",
-              background:C.surface,
-              color:C.text.h,fontSize:14,fontWeight:700,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
-            <span style={{fontSize:22}}>📋</span>
-            <div>
-              <div>PDF · Historial completo</div>
-              <div style={{fontSize:11,color:C.text.s,marginTop:2}}>{tx.length} movimientos · todas las páginas</div>
-            </div>
-          </button>
-        </div>
-        <button onClick={()=>setExportModal(false)}
-          style={{width:"100%",background:"none",border:"none",color:C.text.s,cursor:"pointer",fontSize:13,padding:"8px",fontWeight:600}}>
-          Cancelar
-        </button>
-      </div>
-    </div>}
+    {exportModal&&<ExportModalSheet
+      onClose={()=>setExportModal(false)}
+      exportarCSV={exportarCSV} exportarPDF={exportarPDF}
+      tx={tx} now={now} isMonth={isMonth} MONTHS={MONTHS}/>}
     {/* Banner in-app pagos pendientes hoy */}
     {pagosPendientesHoy.length>0&&!modal&&!goalModal&&!pagoModal&&(
       <div style={{position:"fixed",top:74,left:"50%",transform:"translateX(-50%)",width:"calc(100% - 32px)",maxWidth:398,zIndex:18,animation:"slideDown 0.3s ease"}}>
@@ -4642,5 +4707,21 @@ export default function App(){
         <span style={{fontSize:10,fontWeight:tab===v.id?700:500,letterSpacing:0.3,transition:"color 0.2s"}}>{v.label}</span>
       </button>)}
     </nav>
+    {/* Modal confirmación salir */}
+    {exitConfirm&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,padding:24,animation:"fadeIn 0.15s ease"}}>
+      <div style={{background:C.card,borderRadius:20,padding:"28px 24px",width:"100%",maxWidth:320,boxShadow:"0 24px 60px rgba(0,0,0,0.5)",animation:"fadeSlideUp 0.2s ease"}}>
+        <div style={{fontSize:32,textAlign:"center",marginBottom:12}}>👋</div>
+        <div style={{fontSize:17,fontWeight:800,color:C.text.h,textAlign:"center",marginBottom:8}}>¿Deseas salir?</div>
+        <div style={{fontSize:13,color:C.text.s,textAlign:"center",marginBottom:24,lineHeight:1.5}}>Tus datos están guardados y seguros.</div>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <button onClick={()=>window.history.back()} style={{width:"100%",padding:14,borderRadius:14,border:"none",cursor:"pointer",fontSize:15,fontWeight:800,background:`linear-gradient(135deg,${C.red},#dc2626)`,color:"#fff"}}>
+            Salir
+          </button>
+          <button onClick={()=>setExitConfirm(false)} style={{width:"100%",padding:14,borderRadius:14,border:`1px solid ${C.border}`,cursor:"pointer",fontSize:15,fontWeight:700,background:C.surface,color:C.text.b}}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>}
   </div>;
 }
