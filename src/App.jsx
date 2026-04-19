@@ -1400,7 +1400,7 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
   const isEdit=!!initial;
   const [amount,setAmount]=useState(initial?Number(initial.amount).toLocaleString("es-CO"):"");
   const [desc,setDesc]=useState(initial?.desc||"");
-  const [cat,setCat]=useState(initial?.cat||(initialCat||"restaurantes"));
+  const [cat,setCat]=useState(initial?.cat||(initialCat||"almuerzo"));
   const [date,setDate]=useState(initial?.date||todayStr());
   const [goalId,setGoalId]=useState(initial?.goalId||"");
   const [conf,setConf]=useState(false);
@@ -1505,7 +1505,7 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
   }
   return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:300,animation:"fadeIn 0.18s ease"}}>
-    <div ref={scrollRef} style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto",position:"relative",...sheet.cardStyle}} ref={sheet.cardRef} {...sheet.dragProps}>
+    <div ref={el=>{scrollRef.current=el;sheet.cardRef.current=el;}} style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto",position:"relative",...sheet.cardStyle}} {...sheet.dragProps}>
       <SheetCloseBtn onClose={onClose}/>
       <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
       <div style={{padding:"0 20px"}}>
@@ -1576,7 +1576,7 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
         {/* Toggle Gasto / Meta / Ingreso / Extra */}
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5,marginBottom:14}}>
           {[
-            {id:"gasto",  label:"🛍️ Gasto",   color:C.red,    active:!esIngreso&&!esIngresoExtra&&cat!=="meta_aporte", onClick:()=>setCatSinScroll("restaurantes")},
+            {id:"gasto",  label:"🛍️ Gasto",   color:C.red,    active:!esIngreso&&!esIngresoExtra&&cat!=="meta_aporte", onClick:()=>setCatSinScroll("almuerzo")},
             {id:"meta",   label:"⭐ Meta",     color:C.indigo, active:cat==="meta_aporte",                              onClick:()=>setCatSinScroll("meta_aporte")},
             {id:"ingreso",label:"💵 Salario",  color:C.emerald,active:esIngreso,                                        onClick:()=>setCatSinScroll("ingreso")},
             {id:"extra",  label:"💫 Extra",    color:C.amber,  active:esIngresoExtra,                                   onClick:()=>setCatSinScroll("ingreso_extra")},
@@ -2099,14 +2099,14 @@ export default function App(){
   };
 
   useEffect(()=>{
-    // Solo un estado en el stack — simple y predecible
-    history.pushState({mfApp:true},"");
+    // Garantizar dos entradas: base + top — así el primer "atrás" siempre dispara popstate
+    history.replaceState({mfApp:"base"},"");
+    history.pushState({mfApp:"top"},"");
 
     const handler=(e)=>{
       const s=backRef.current;
-
-      // Siempre reponer el estado para interceptar el próximo atrás
-      history.pushState({mfApp:true},"");
+      // Reponer "top" para el próximo atrás
+      history.pushState({mfApp:"top"},"");
 
       // 1. Modales en orden
       if(s.menuOpen){s.setMenuOpen(false);return;}
@@ -2130,7 +2130,7 @@ export default function App(){
       // 3. No estás en home → ir a home
       if(s.tab!=="home"){s.setTab("home");return;}
 
-      // 4. Estás en home → mostrar modal salir
+      // 4. En home → mostrar modal de salida
       clearTimeout(exitTimer.current);
       s.setExitConfirm(true);
       exitTimer.current=setTimeout(()=>s.setExitConfirm(false),3500);
