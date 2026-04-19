@@ -2099,20 +2099,24 @@ export default function App(){
   };
 
   useEffect(()=>{
-    history.pushState({mfApp:"top"},"");
+    // Saturar el historial con 50 estados propios al montar.
+    // Así, sin importar cuántos estados acumulados haya de sesiones anteriores,
+    // siempre hay estados nuestros para consumir antes de que el browser salga.
+    for(let i=0;i<50;i++) history.pushState({mfApp:"top"},"");
     const handler=()=>{
       const s=backRef.current;
+      // Reponer siempre un estado para el siguiente atrás
+      history.pushState({mfApp:"top"},"");
       // Si hay modal abierto, no hacer nada — se cierra con X, drag o click afuera
       const anyModal=!!(s.modal||s.goalModal||s.pagoModal||s.prestamosModal||
         s.menuOpen||s.exportModal||s.catPersonalModal||s.budgetSetupOpen||s.presupuestoModal||s.filtroMainCat);
-      if(anyModal){history.replaceState({mfApp:"top"},"");return;}
+      if(anyModal) return;
       // Sin modal — ir a home si estás en otra pestaña
-      if(s.tab!=="home"){s.setTab("home");history.pushState({mfApp:"top"},"");return;}
+      if(s.tab!=="home"){s.setTab("home");return;}
       // En home → confirmación de salida
       clearTimeout(exitTimer.current);
       s.setExitConfirm(true);
       exitTimer.current=setTimeout(()=>s.setExitConfirm(false),3500);
-      history.pushState({mfApp:"top"},"");
     };
     window.addEventListener("popstate",handler);
     return()=>{window.removeEventListener("popstate",handler);clearTimeout(exitTimer.current);};
