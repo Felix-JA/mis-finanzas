@@ -2079,21 +2079,25 @@ export default function App(){
 
   // ── Botón atrás del teléfono ─────────────────────────────────────────────
   const [exitConfirm,setExitConfirm]=useState(false);
+  const exitTimer=useRef(null);
   // Refs para leer estado actual dentro del handler sin recrear el efecto
   const backRef=useRef({});
-  backRef.current={modal,goalModal,pagoModal,prestamosModal,menuOpen,
-    exportModal,catPersonalModal,budgetSetupOpen,tab,exitConfirm,
+  backRef.current={
+    modal,goalModal,pagoModal,prestamosModal,menuOpen,
+    exportModal,catPersonalModal,budgetSetupOpen,presupuestoModal,
+    tab,exitConfirm,filtroMainCat,
     setModal,setGoalModal,setPagoModal,setPrestamosModal,setMenuOpen,
-    setExportModal,setCatPersonalModal,setBudgetSetupOpen,setTab,setExitConfirm};
+    setExportModal,setCatPersonalModal,setBudgetSetupOpen,setPresupuestoModal,
+    setTab,setExitConfirm,setFiltroMainCat,setFiltroMainCatOrigen,
+  };
 
   useEffect(()=>{
-    // Un solo estado en el stack — siempre hay uno para interceptar "atrás"
     history.replaceState({mfApp:true},"");
     history.pushState({mfApp:true},"");
 
     const handler=()=>{
       const s=backRef.current;
-      // Reponer el estado para el próximo "atrás"
+      // Reponer entrada para el próximo atrás
       history.pushState({mfApp:true},"");
 
       // 1. Cerrar modales en orden de prioridad
@@ -2105,23 +2109,28 @@ export default function App(){
       if(s.exportModal){s.setExportModal(false);return;}
       if(s.catPersonalModal){s.setCatPersonalModal(null);return;}
       if(s.budgetSetupOpen){s.setBudgetSetupOpen(false);return;}
+      if(s.presupuestoModal){s.setPresupuestoModal(null);return;}
 
-      // 2. Ir a home si estás en otra pestaña
-      if(s.tab!=="home"){s.setTab("home");return;}
-
-      // 3. Estás en home — mostrar confirmación de salida
-      if(s.exitConfirm){
-        // Segunda vez — salir realmente
-        history.go(-2);
+      // 2. Limpiar filtro de categoría en movimientos (volver a análisis si vino de ahí)
+      if(s.filtroMainCat){
+        s.setFiltroMainCat(null);
+        s.setFiltroMainCatOrigen(null);
+        s.setTab("analisis");
         return;
       }
+
+      // 3. Ir a home si estás en otra pestaña
+      if(s.tab!=="home"){s.setTab("home");return;}
+
+      // 4. En home — mostrar modal de salida
+      clearTimeout(exitTimer.current);
       s.setExitConfirm(true);
-      setTimeout(()=>s.setExitConfirm(false),3000);
+      exitTimer.current=setTimeout(()=>s.setExitConfirm(false),3500);
     };
 
     window.addEventListener("popstate",handler);
-    return()=>window.removeEventListener("popstate",handler);
-  },[]);// Solo se registra UNA vez al montar
+    return()=>{window.removeEventListener("popstate",handler);clearTimeout(exitTimer.current);};
+  },[]);
 
   useEffect(()=>onAuthStateChanged(auth,u=>{setUser(u);setAL(false);}),[]);
   useEffect(()=>{if(!user){setSalario(null);setSalarioHistory({});setCatsCustom({});return;}
@@ -4737,7 +4746,11 @@ export default function App(){
         <div style={{fontSize:17,fontWeight:800,color:C.text.h,textAlign:"center",marginBottom:8}}>¿Deseas salir?</div>
         <div style={{fontSize:13,color:C.text.s,textAlign:"center",marginBottom:24,lineHeight:1.5}}>Tus datos están guardados y seguros.</div>
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          <button onClick={()=>window.history.back()} style={{width:"100%",padding:14,borderRadius:14,border:"none",cursor:"pointer",fontSize:15,fontWeight:800,background:`linear-gradient(135deg,${C.red},#dc2626)`,color:"#fff"}}>
+          <button onClick={()=>{
+            // Limpiar el stack y salir
+            history.go(-(history.length));
+            setTimeout(()=>window.close(),100);
+          }} style={{width:"100%",padding:14,borderRadius:14,border:"none",cursor:"pointer",fontSize:15,fontWeight:800,background:`linear-gradient(135deg,${C.red},#dc2626)`,color:"#fff"}}>
             Salir
           </button>
           <button onClick={()=>setExitConfirm(false)} style={{width:"100%",padding:14,borderRadius:14,border:`1px solid ${C.border}`,cursor:"pointer",fontSize:15,fontWeight:700,background:C.surface,color:C.text.b}}>
