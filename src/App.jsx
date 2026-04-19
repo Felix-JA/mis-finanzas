@@ -2099,14 +2099,18 @@ export default function App(){
   };
 
   useEffect(()=>{
+    // Empujar DOS entradas — una se consume con cada "atrás", la otra queda
+    // Así nunca el browser sale de la app por quedarse sin historial
     history.replaceState({mfApp:"base"},"");
+    history.pushState({mfApp:"mid"},"");
     history.pushState({mfApp:"top"},"");
 
     const handler=()=>{
       const s=backRef.current;
 
-      // Reponer "top" DESPUÉS del evento para evitar bugs en Android Chrome
-      setTimeout(()=>history.pushState({mfApp:"top"},""),0);
+      // Siempre reponer dos entradas para el próximo atrás
+      history.pushState({mfApp:"mid"},"");
+      history.pushState({mfApp:"top"},"");
 
       // 1. Modales en orden
       if(s.menuOpen){s.setMenuOpen(false);return;}
