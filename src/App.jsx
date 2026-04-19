@@ -2099,47 +2099,21 @@ export default function App(){
   };
 
   useEffect(()=>{
-    // Empujar DOS entradas — una se consume con cada "atrás", la otra queda
-    // Así nunca el browser sale de la app por quedarse sin historial
-    history.replaceState({mfApp:"base"},"");
-    history.pushState({mfApp:"mid"},"");
     history.pushState({mfApp:"top"},"");
-
     const handler=()=>{
       const s=backRef.current;
-
-      // Siempre reponer dos entradas para el próximo atrás
-      history.pushState({mfApp:"mid"},"");
-      history.pushState({mfApp:"top"},"");
-
-      // 1. Modales en orden
-      if(s.menuOpen){s.setMenuOpen(false);return;}
-      if(s.modal){s.setModal(null);return;}
-      if(s.goalModal){s.setGoalModal(null);return;}
-      if(s.pagoModal){s.setPagoModal(null);return;}
-      if(s.prestamosModal){s.setPrestamosModal(false);return;}
-      if(s.exportModal){s.setExportModal(false);return;}
-      if(s.catPersonalModal){s.setCatPersonalModal(null);return;}
-      if(s.budgetSetupOpen){s.setBudgetSetupOpen(false);return;}
-      if(s.presupuestoModal){s.setPresupuestoModal(null);return;}
-
-      // 2. Filtro activo → limpiar y volver a análisis
-      if(s.filtroMainCat){
-        s.setFiltroMainCat(null);
-        s.setFiltroMainCatOrigen(null);
-        s.setTab("anal");
-        return;
-      }
-
-      // 3. No estás en home → ir a home
-      if(s.tab!=="home"){s.setTab("home");return;}
-
-      // 4. En home → mostrar modal de salida
+      // Si hay modal abierto, atrás no hace nada — se cierra con X, drag o click afuera
+      const anyModal=!!(s.modal||s.goalModal||s.pagoModal||s.prestamosModal||
+        s.menuOpen||s.exportModal||s.catPersonalModal||s.budgetSetupOpen||s.presupuestoModal||s.filtroMainCat);
+      if(anyModal){history.pushState({mfApp:"top"},"");return;}
+      // Sin modal — ir a home si estás en otra pestaña
+      if(s.tab!=="home"){s.setTab("home");history.pushState({mfApp:"top"},"");return;}
+      // En home → confirmación de salida
       clearTimeout(exitTimer.current);
       s.setExitConfirm(true);
       exitTimer.current=setTimeout(()=>s.setExitConfirm(false),3500);
+      history.pushState({mfApp:"top"},"");
     };
-
     window.addEventListener("popstate",handler);
     return()=>{window.removeEventListener("popstate",handler);clearTimeout(exitTimer.current);};
   },[]);
