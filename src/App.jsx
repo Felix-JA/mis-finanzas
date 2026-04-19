@@ -2099,20 +2099,25 @@ export default function App(){
   };
 
   useEffect(()=>{
+    // Reemplazar el estado actual (no acumula) y luego empujar el nuestro encima.
+    // replaceState limpia el estado actual; el pushState añade UNO encima.
+    // El handler siempre repone ese uno con otro pushState, así nunca se agota.
+    history.replaceState({mfApp:"base"},"");
     history.pushState({mfApp:"top"},"");
     const handler=()=>{
       const s=backRef.current;
-      // Si hay modal abierto, atrás no hace nada — se cierra con X, drag o click afuera
+      // Reponer INMEDIATAMENTE antes de cualquier lógica
+      history.pushState({mfApp:"top"},"");
+      // Si hay modal abierto, no hacer nada más — se cierra con X, drag o click afuera
       const anyModal=!!(s.modal||s.goalModal||s.pagoModal||s.prestamosModal||
         s.menuOpen||s.exportModal||s.catPersonalModal||s.budgetSetupOpen||s.presupuestoModal||s.filtroMainCat);
-      if(anyModal){history.pushState({mfApp:"top"},"");return;}
+      if(anyModal) return;
       // Sin modal — ir a home si estás en otra pestaña
-      if(s.tab!=="home"){s.setTab("home");history.pushState({mfApp:"top"},"");return;}
+      if(s.tab!=="home"){s.setTab("home");return;}
       // En home → confirmación de salida
       clearTimeout(exitTimer.current);
       s.setExitConfirm(true);
       exitTimer.current=setTimeout(()=>s.setExitConfirm(false),3500);
-      history.pushState({mfApp:"top"},"");
     };
     window.addEventListener("popstate",handler);
     return()=>{window.removeEventListener("popstate",handler);clearTimeout(exitTimer.current);};
