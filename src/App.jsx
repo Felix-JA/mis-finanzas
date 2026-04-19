@@ -2099,24 +2099,29 @@ export default function App(){
   };
 
   useEffect(()=>{
-    // Saturar el historial con 50 estados propios al montar.
-    // Así, sin importar cuántos estados acumulados haya de sesiones anteriores,
-    // siempre hay estados nuestros para consumir antes de que el browser salga.
-    for(let i=0;i<50;i++) history.pushState({mfApp:"top"},"");
-    const handler=()=>{
+    // Estrategia: replaceState limpia el estado actual, luego pushState pone el nuestro.
+    // Resultado: [...historial_viejo, BASE, TOP]
+    // Atrás consume TOP → handler repone TOP con replaceState (no acumula).
+    // Segundo atrás consume TOP de nuevo → handler corre de nuevo.
+    // Nunca llega a BASE porque replaceState mantiene TOP en su lugar.
+    history.replaceState({mfApp:"base"},"");
+    history.pushState({mfApp:"top"},"");
+    const handler=(e)=>{
       const s=backRef.current;
-      // Reponer siempre un estado para el siguiente atrás
-      history.pushState({mfApp:"top"},"");
-      // Si hay modal abierto, no hacer nada — se cierra con X, drag o click afuera
+      // Siempre reemplazar el estado actual (no acumular) para que el siguiente
+      // atrás también llegue aquí
+      history.replaceState({mfApp:"top"},"");
+      // Si hay modal abierto, ignorar — se cierra con X, drag o click afuera
       const anyModal=!!(s.modal||s.goalModal||s.pagoModal||s.prestamosModal||
         s.menuOpen||s.exportModal||s.catPersonalModal||s.budgetSetupOpen||s.presupuestoModal||s.filtroMainCat);
       if(anyModal) return;
       // Sin modal — ir a home si estás en otra pestaña
       if(s.tab!=="home"){s.setTab("home");return;}
-      // En home → confirmación de salida
+      // En home — mostrar confirmación de salida
+      // Al confirmar "Salir", el usuario hace history.back() que consume BASE y sale
       clearTimeout(exitTimer.current);
       s.setExitConfirm(true);
-      exitTimer.current=setTimeout(()=>s.setExitConfirm(false),3500);
+      exitTimer.current=setTimeout(()=>s.setExitConfirm(false),4000);
     };
     window.addEventListener("popstate",handler);
     return()=>{window.removeEventListener("popstate",handler);clearTimeout(exitTimer.current);};
@@ -4744,13 +4749,18 @@ export default function App(){
         <div style={{fontSize:13,color:C.text.s,textAlign:"center",marginBottom:24,lineHeight:1.5}}>Tus datos están guardados y seguros.</div>
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           <button onClick={()=>{
-            // Limpiar el stack y salir
-            history.go(-(history.length));
-            setTimeout(()=>window.close(),100);
+            // En PWA Android: history.back() consume el estado BASE y el sistema
+            // devuelve al launcher o minimiza la app — es el comportamiento correcto.
+            setExitConfirm(false);
+            history.back();
           }} style={{width:"100%",padding:14,borderRadius:14,border:"none",cursor:"pointer",fontSize:15,fontWeight:800,background:`linear-gradient(135deg,${C.red},#dc2626)`,color:"#fff"}}>
             Salir
           </button>
-          <button onClick={()=>setExitConfirm(false)} style={{width:"100%",padding:14,borderRadius:14,border:`1px solid ${C.border}`,cursor:"pointer",fontSize:15,fontWeight:700,background:C.surface,color:C.text.b}}>
+          <button onClick={()=>{
+            setExitConfirm(false);
+            // Reponer el estado TOP para que el handler siga funcionando
+            history.pushState({mfApp:"top"},"");
+          }} style={{width:"100%",padding:14,borderRadius:14,border:`1px solid ${C.border}`,cursor:"pointer",fontSize:15,fontWeight:700,background:C.surface,color:C.text.b}}>
             Cancelar
           </button>
         </div>
