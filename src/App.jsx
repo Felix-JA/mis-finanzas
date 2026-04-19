@@ -1427,7 +1427,7 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
       .sort((a,b)=>b.count-a.count)
       .slice(0,3);
   },[desc,txHistorial,isEdit]);
-  useEffect(()=>{const t=setTimeout(()=>ref.current?.focus(),120);return()=>clearTimeout(t);},[]);
+  // No hacer autofocus al monto — el teclado solo abre cuando el usuario toca el campo
   // Preservar posición de scroll al cambiar categoría
   function setCatSinScroll(v){
     // Si elige A terceros → ir directo al módulo de préstamos sin pasar por aquí
@@ -1798,7 +1798,7 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
         <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:12,overflow:"hidden",
           border:`2px solid ${raw>0?"#10b981":C.border}`,transition:"border-color 0.2s",marginBottom:10}}>
           <span style={{padding:"0 14px",color:C.text.s,fontSize:18,lineHeight:"54px"}}>$</span>
-          <input inputMode="numeric" placeholder="0" value={monto} onChange={hm} autoFocus
+          <input inputMode="numeric" placeholder="0" value={monto} onChange={hm}
             style={{flex:1,background:"none",border:"none",outline:"none",fontSize:24,fontWeight:800,color:C.text.h,padding:"0 8px",height:54}}/>
         </div>
         {raw!==prestamo.monto&&raw>0&&<div style={{fontSize:11,color:raw>prestamo.monto?"#10b981":"#f59e0b",marginBottom:12,textAlign:"center",fontWeight:600}}>
@@ -2099,15 +2099,16 @@ export default function App(){
   };
 
   useEffect(()=>{
-    history.replaceState({mfApp:true},"");
+    // Solo un estado en el stack — simple y predecible
     history.pushState({mfApp:true},"");
 
-    const handler=()=>{
+    const handler=(e)=>{
       const s=backRef.current;
-      // Reponer entrada para el próximo atrás
+
+      // Siempre reponer el estado para interceptar el próximo atrás
       history.pushState({mfApp:true},"");
 
-      // 1. Cerrar modales en orden de prioridad
+      // 1. Modales en orden
       if(s.menuOpen){s.setMenuOpen(false);return;}
       if(s.modal){s.setModal(null);return;}
       if(s.goalModal){s.setGoalModal(null);return;}
@@ -2118,7 +2119,7 @@ export default function App(){
       if(s.budgetSetupOpen){s.setBudgetSetupOpen(false);return;}
       if(s.presupuestoModal){s.setPresupuestoModal(null);return;}
 
-      // 2. Limpiar filtro de categoría en movimientos (volver a análisis si vino de ahí)
+      // 2. Filtro activo → limpiar y volver a análisis
       if(s.filtroMainCat){
         s.setFiltroMainCat(null);
         s.setFiltroMainCatOrigen(null);
@@ -2126,10 +2127,10 @@ export default function App(){
         return;
       }
 
-      // 3. Ir a home si estás en otra pestaña
+      // 3. No estás en home → ir a home
       if(s.tab!=="home"){s.setTab("home");return;}
 
-      // 4. En home — mostrar modal de salida
+      // 4. Estás en home → mostrar modal salir
       clearTimeout(exitTimer.current);
       s.setExitConfirm(true);
       exitTimer.current=setTimeout(()=>s.setExitConfirm(false),3500);
@@ -3440,7 +3441,7 @@ export default function App(){
         <Lbl>Límite mensual (COP)</Lbl>
         <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:14,overflow:"hidden",border:`2px solid ${val>0?cat.color:C.border}`,marginBottom:16}}>
           <span style={{padding:"0 14px",color:C.text.s,fontSize:16,lineHeight:"56px"}}>$</span>
-          <input inputMode="numeric" placeholder="Sin límite" value={tmp} onChange={hm} autoFocus
+          <input inputMode="numeric" placeholder="Sin límite" value={tmp} onChange={hm}
             style={{flex:1,background:"none",border:"none",outline:"none",fontSize:22,fontWeight:800,color:C.text.h,padding:"0 8px",height:56}}/>
           {tmp&&<button onClick={()=>setTmp("")} style={{background:"none",border:"none",color:C.text.s,fontSize:20,padding:"0 14px",cursor:"pointer"}}>×</button>}
         </div>
