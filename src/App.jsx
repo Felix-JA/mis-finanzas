@@ -2102,10 +2102,10 @@ export default function App(){
     history.pushState({mfApp:"top"},"");
     const handler=()=>{
       const s=backRef.current;
-      // Si hay modal abierto, atrás no hace nada — se cierra con X, drag o click afuera
+      // Si hay modal abierto, no hacer nada — se cierra con X, drag o click afuera
       const anyModal=!!(s.modal||s.goalModal||s.pagoModal||s.prestamosModal||
         s.menuOpen||s.exportModal||s.catPersonalModal||s.budgetSetupOpen||s.presupuestoModal||s.filtroMainCat);
-      if(anyModal){history.pushState({mfApp:"top"},"");return;}
+      if(anyModal){history.replaceState({mfApp:"top"},"");return;}
       // Sin modal — ir a home si estás en otra pestaña
       if(s.tab!=="home"){s.setTab("home");history.pushState({mfApp:"top"},"");return;}
       // En home → confirmación de salida
