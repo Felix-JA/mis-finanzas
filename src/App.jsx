@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { InsightsEngine } from "./InsightsEngine";
+import { LogrosTab, calcBadgesDesbloqueados, calcMesesPerfectos, BADGES_DEF } from "./LogrosEngine";
 import { FinancialScore } from "./FinancialScore";
 import { MonthlyProjection } from "./MonthlyProjection";
 import { getSuggestedBudgets, BudgetSetupBanner, BudgetHealth } from "./BudgetEngine";
@@ -2029,6 +2030,7 @@ export default function App(){
   const [salarioHistory,setSalarioHistory]=useState({}); // {"YYYY-M": monto}
   const [tx,setTx]=useState([]),[goals,setGoals]=useState([]);
   const [month,setMonth]=useState(now.getMonth()),[tab,setTab]=useState("home");
+  const [selectedYear,setSelectedYear]=useState(now.getFullYear());
   const [filtroMainCat,setFiltroMainCat]=useState(null); // id de MAIN_CAT para filtrar en MovTab desde Análisis
   const [filtroMainCatOrigen,setFiltroMainCatOrigen]=useState(null); // de dónde vino: "analisis" | null
   const monthScrollRef=useRef(null);
@@ -2049,6 +2051,9 @@ export default function App(){
   const [prestamos,setPrestamos]=useState([]);
   const [prestamosModal,setPrestamosModal]=useState(false);
   const [prestamoForm,setPrestamoForm]=useState(null);
+  const [badgesGuardados,setBadgesGuardados]=useState({});
+  const [badgesNuevos,setBadgesNuevos]=useState([]);
+  const badgesResettingRef=useRef(false);
   const [tema,setTema]=useState(()=>{
     const saved=localStorage.getItem("mf_tema");
     return (saved && TEMAS[saved]) ? saved : "navy";
@@ -2154,6 +2159,12 @@ export default function App(){
   useEffect(()=>{if(!user){setPrestamos([]);return;}
     return onSnapshot(query(collection(db,"usuarios",user.uid,"prestamos"),orderBy("createdAt","desc")),snap=>{
       setPrestamos(snap.docs.map(d=>({id:d.id,...d.data()})));
+    });},[user]);
+
+  // Cargar badges guardados desde Firestore
+  useEffect(()=>{if(!user){setBadgesGuardados({});return;}
+    getDoc(doc(db,"usuarios",user.uid)).then(snap=>{
+      if(snap.exists()&&snap.data().badges) setBadgesGuardados(snap.data().badges);
     });},[user]);
 
   // Listener del dismiss del banner de presupuesto (desde BudgetEngine)
@@ -2804,7 +2815,7 @@ export default function App(){
     return !yaConfirmado;
   });
 
-  const monthTx=tx.filter(t=>isMonth(t.date,month,now.getFullYear()));
+  const monthTx=tx.filter(t=>isMonth(t.date,month,selectedYear));
   const gastosTx=monthTx.filter(t=>isGasto(t.cat)&&!isAporteMeta(t));
   const ingresosTx=monthTx.filter(t=>isIngreso(t.cat));
   const devolucionesTx=monthTx.filter(t=>isDevolucion(t.cat));
@@ -2817,7 +2828,7 @@ export default function App(){
   const totalPrestamos=prestamosTx.reduce((s,t)=>s+t.amount,0);
   const totalAportes=aporteMesAll.reduce((s,t)=>s+t.amount,0);
   const sal=salario||0;
-  const salDelMes=getSalarioDelMes(now.getFullYear(),month);
+  const salDelMes=getSalarioDelMes(selectedYear,month);
   const ingresosExtra=ingresosTx.reduce((s,t)=>s+t.amount,0);
   const totalIngresoMes=salDelMes+ingresosExtra; // solo salario + ingresos reales de trabajo
 
@@ -2902,6 +2913,70 @@ export default function App(){
   // Compartidos entre HomeTab y AnalisisTab — subidos al scope de App()
   const byMain=MAIN_CATS.map(m=>({...m,total:gastosTx.filter(t=>m.subs.some(s=>s.id===t.cat)||(catsCustom[m.id]||[]).some(s=>s.id===t.cat)).reduce((s,t)=>s+t.amount,0)})).filter(c=>c.total>0||(presupuestos[c.id]||0)>0).sort((a,b)=>(b.total-a.total)||((presupuestos[b.id]||0)-(presupuestos[a.id]||0)));
   const totalMesesConDatos=new Set(tx.map(t=>{const d=parseDateSafe(t.date);return `${d.getFullYear()}-${d.getMonth()}`;})).size;
+
+  // ── Cálculo de logros ──────────────────────────────────────────────────────
+  // mesesResumen usa la misma lógica exacta de App.jsx — sin reimplementar nada
+  const mesesResumen=useMemo(()=>{
+    const mesesSet=new Set(tx.map(t=>{
+      const d=parseDateSafe(t.date);
+      return `${d.getFullYear()}-${d.getMonth()}`;
+    }));
+    return [...mesesSet].map(key=>{
+      const [y,m]=key.split('-').map(Number);
+      const mTx=tx.filter(t=>{const d=parseDateSafe(t.date);return d.getFullYear()===y&&d.getMonth()===m;});
+      const gastos=mTx.filter(t=>isGasto(t.cat)&&!isAporteMeta(t)).reduce((s,t)=>s+t.amount,0);
+      const ingresosReg=mTx.filter(t=>isIngreso(t.cat)).reduce((s,t)=>s+t.amount,0);
+      const ingresos=getSalarioDelMes(y,m)+ingresosReg; // igual que totalIngresoMes
+      const aportes=mTx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat)).reduce((s,t)=>s+t.amount,0);
+      const totalTx=mTx.length;
+      return{anio:y,mes:m,gastos,ingresos,aportes,totalTx};
+    });
+  },[tx,salario,salarioHistory]);
+
+  const mesesPerfectos=useMemo(()=>calcMesesPerfectos({
+    tx,presupuestos,MAIN_CATS,isGasto,isAporteMeta,
+  }),[tx,presupuestos]);
+
+  // Racha actual (meses consecutivos gastos < ingresos, hacia atrás desde hoy)
+  const rachaActualLogros=useMemo(()=>{
+    const currentM=now.getMonth(),currentY=now.getFullYear();
+    let racha=0;
+    let y=currentY,m=currentM-1; // empezar desde el mes anterior
+    if(m<0){m=11;y--;}
+    for(let i=0;i<24;i++){
+      const mr=mesesResumen.find(r=>r.anio===y&&r.mes===m);
+      if(!mr||mr.gastos>=mr.ingresos) break;
+      racha++;
+      m--;if(m<0){m=11;y--;}
+    }
+    return racha;
+  },[mesesResumen]);
+
+  const badgesDesbloqueados=useMemo(()=>calcBadgesDesbloqueados({
+    tx,goals,presupuestos,prestamos,
+    rachaActual:rachaActualLogros,
+    totalMesesConDatos,mesesResumen,mesesPerfectos,
+    getAportado,MAIN_CATS,isGasto,isAporteMeta,
+  }),[tx,goals,presupuestos,prestamos,rachaActualLogros,totalMesesConDatos,mesesResumen,mesesPerfectos]);
+
+  const totalPts=useMemo(()=>
+    BADGES_DEF.filter(b=>badgesDesbloqueados[b.id]).reduce((s,b)=>s+b.pts,0)
+  ,[badgesDesbloqueados]);
+
+  // Detectar badges nuevos y guardar en Firestore
+  useEffect(()=>{
+    if(!user||!tx.length||badgesResettingRef.current) return;
+    const nuevos=Object.entries(badgesDesbloqueados)
+      .filter(([id,val])=>val&&!badgesGuardados[id])
+      .map(([id])=>id);
+    if(nuevos.length===0) return;
+    const updated={...badgesGuardados};
+    nuevos.forEach(id=>{updated[id]=true;});
+    setBadgesGuardados(updated);
+    setBadgesNuevos(nuevos);
+    setDoc(doc(db,"usuarios",user.uid),{badges:updated},{merge:true});
+    setTimeout(()=>setBadgesNuevos([]),4000);
+  },[badgesDesbloqueados,user]);
   function getAportado(gid){
     // Acumulado histórico = saldo inicial (ahorros previos) + aportes registrados en la app
     const meta=goals.find(g=>g.id===gid);
@@ -2942,47 +3017,77 @@ export default function App(){
   const MonthSelector=()=>{
     const currentM=now.getMonth(), currentY=now.getFullYear();
 
-    // Construir lista de meses visibles:
-    // - Todos los meses/años con al menos 1 transacción
-    // - El mes actual siempre
-    // - El mes siguiente (proyección)
-    const conTx=new Set(tx.map(t=>{const d=parseDateSafe(t.date);return `${d.getFullYear()}-${d.getMonth()}`;}));
-    conTx.add(`${currentY}-${currentM}`);           // mes actual siempre
-    conTx.add(`${currentY}-${currentM+1<=11?currentM+1:0}`); // siguiente
+    // Años con transacciones + año actual siempre disponible
+    const aniosSet=new Set(tx.map(t=>parseDateSafe(t.date).getFullYear()));
+    aniosSet.add(currentY);
+    const anios=[...aniosSet].sort((a,b)=>a-b);
+    const minAnio=anios[0], maxAnio=currentY;
 
-    // Convertir a lista ordenada de {year, month}
-    const lista=[...conTx].map(k=>{const[y,m]=k.split("-").map(Number);return{y,m};})
-      .sort((a,b)=>a.y!==b.y?a.y-b.y:a.m-b.m);
-
-    // Agrupar por año
-    const porAnio={};
-    lista.forEach(({y,m})=>{if(!porAnio[y])porAnio[y]=[];porAnio[y].push(m);});
-    const years=Object.keys(porAnio).map(Number).sort((a,b)=>a-b);
+    // Meses con datos del año seleccionado
+    const conTxAnio=new Set(
+      tx.filter(t=>parseDateSafe(t.date).getFullYear()===selectedYear)
+        .map(t=>parseDateSafe(t.date).getMonth())
+    );
+    // Siempre incluir mes actual si es el año actual
+    if(selectedYear===currentY){
+      conTxAnio.add(currentM);
+      if(currentM+1<=11) conTxAnio.add(currentM+1); // mes siguiente
+    }
+    const mesesVisibles=[...conTxAnio].sort((a,b)=>a-b);
 
     useEffect(()=>{
       if(!monthScrollRef.current)return;
       const active=monthScrollRef.current.querySelector("[data-active='true']");
       if(active) active.scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"});
-    },[]);
+    },[selectedYear]);
 
-    return <div ref={monthScrollRef} style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:14,paddingTop:2,scrollbarWidth:"none",WebkitOverflowScrolling:"touch",alignItems:"center"}}>
-      {years.map(y=><div key={y} style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
-        {years.length>1&&<span style={{fontSize:10,color:C.text.s,fontWeight:500,letterSpacing:0.8,padding:"0 4px",flexShrink:0,opacity:0.6}}>{y}</span>}
-        {porAnio[y].map(i=>{
-          const isNext=y===currentY&&i===currentM+1;
-          const isActive=month===i&&now.getFullYear()===y;
+    function cambiarAnio(nuevoAnio){
+      setSelectedYear(nuevoAnio);
+      // Al cambiar año, ir al último mes con datos de ese año (o enero)
+      const mesesDelAnio=new Set(
+        tx.filter(t=>parseDateSafe(t.date).getFullYear()===nuevoAnio)
+          .map(t=>parseDateSafe(t.date).getMonth())
+      );
+      if(nuevoAnio===currentY) mesesDelAnio.add(currentM);
+      const ultimo=mesesDelAnio.size?Math.max(...mesesDelAnio):0;
+      setMonth(ultimo);
+    }
+
+    const puedeIrAtras=selectedYear>minAnio;
+    const puedeIrAdelante=selectedYear<maxAnio;
+
+    return <div style={{marginBottom:0}}>
+      {/* Selector de año — solo si hay más de un año */}
+      {anios.length>1&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <button onClick={()=>puedeIrAtras&&cambiarAnio(selectedYear-1)}
+          style={{width:28,height:28,borderRadius:8,border:`1px solid ${C.border}`,background:C.card,
+            color:puedeIrAtras?C.text.h:C.text.s,cursor:puedeIrAtras?"pointer":"default",
+            fontSize:14,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>‹</button>
+        <span style={{fontSize:12,fontWeight:700,color:C.text.b,letterSpacing:0.5}}>{selectedYear}</span>
+        <button onClick={()=>puedeIrAdelante&&cambiarAnio(selectedYear+1)}
+          style={{width:28,height:28,borderRadius:8,border:`1px solid ${C.border}`,background:C.card,
+            color:puedeIrAdelante?C.text.h:C.text.s,cursor:puedeIrAdelante?"pointer":"default",
+            fontSize:14,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>›</button>
+      </div>}
+      {/* Scroll de meses */}
+      <div ref={monthScrollRef} style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:14,paddingTop:2,
+        scrollbarWidth:"none",WebkitOverflowScrolling:"touch",alignItems:"center"}}>
+        {mesesVisibles.map(i=>{
+          const isNext=selectedYear===currentY&&i===currentM+1;
+          const isActive=month===i;
           return <button key={i} data-active={isActive?"true":"false"}
-            onClick={()=>{setMonth(i);}}
+            onClick={()=>setMonth(i)}
             style={{
-              flexShrink:0, padding:"8px 18px", borderRadius:99, border:"none", cursor:"pointer",
-              fontSize:12, fontWeight:isActive?700:500,
+              flexShrink:0,padding:"8px 18px",borderRadius:99,border:"none",cursor:"pointer",
+              fontSize:12,fontWeight:isActive?700:500,
               background:isActive?C.emerald:isNext?`${C.indigo}18`:C.card,
               color:isActive?"#000":isNext?C.indigoLight:C.text.s,
               boxShadow:isActive?"none":elev("card"),
               transition:"all 0.2s",
             }}>{MONTHS_S[i]}</button>;
         })}
-      </div>)}
+        {mesesVisibles.length===0&&<span style={{fontSize:12,color:C.text.s,padding:"8px 0"}}>Sin datos en {selectedYear}</span>}
+      </div>
     </div>;
   };
 
@@ -3203,7 +3308,7 @@ export default function App(){
           <div style={{fontSize:11,color:C.text.s,letterSpacing:1.5,fontWeight:600,textTransform:"uppercase"}}>Mis metas</div>
           <button onClick={()=>changeTab("metas")} style={{background:"none",border:"none",color:C.indigo,fontSize:13,fontWeight:600,cursor:"pointer"}}>Ver todas →</button>
         </div>
-        {goals.slice(0,2).map(g=><GoalChip key={g.id} goal={g} aportado={getAportado(g.id)} aportadoEsteMes={getAportadoMes(g.id,month,now.getFullYear())} txAll={tx} onClick={()=>changeTab("metas")}/>)}
+        {goals.slice(0,2).map(g=><GoalChip key={g.id} goal={g} aportado={getAportado(g.id)} aportadoEsteMes={getAportadoMes(g.id,month,selectedYear)} txAll={tx} onClick={()=>changeTab("metas")}/>)}
       </>}
     </div>;
 
@@ -3320,7 +3425,7 @@ export default function App(){
           <div style={{fontSize:11,color:C.text.s,letterSpacing:1.5,fontWeight:600,textTransform:"uppercase"}}>Mis metas</div>
           <button onClick={()=>changeTab("metas")} style={{background:"none",border:"none",color:C.indigo,fontSize:13,fontWeight:600,cursor:"pointer"}}>Ver todas →</button>
         </div>
-        {goals.slice(0,3).map(g=><GoalChip key={g.id} goal={g} aportado={getAportado(g.id)} aportadoEsteMes={getAportadoMes(g.id,month,now.getFullYear())} txAll={tx} onClick={()=>changeTab("metas")}/>)}
+        {goals.slice(0,3).map(g=><GoalChip key={g.id} goal={g} aportado={getAportado(g.id)} aportadoEsteMes={getAportadoMes(g.id,month,selectedYear)} txAll={tx} onClick={()=>changeTab("metas")}/>)}
       </>}
       {!txLoading&&monthTx.length===0&&month===now.getMonth()&&<div style={{textAlign:"center",padding:"40px 0",color:C.text.b,fontSize:14,lineHeight:2.2}}>
         Todo listo para empezar.<br/><span style={{fontSize:32}}>👆</span><br/>Toca <b style={{color:C.emerald}}>+</b> para registrar tu primer movimiento.
@@ -3342,7 +3447,7 @@ export default function App(){
       </div>}
       {goals.map(g=><GoalCard key={g.id} goal={g}
           aportado={getAportado(g.id)}
-          aportadoEsteMes={getAportadoMes(g.id,month,now.getFullYear())}
+          aportadoEsteMes={getAportadoMes(g.id,month,selectedYear)}
           txAll={tx}
           onEdit={()=>setGoalModal({
             ...g,
@@ -3625,6 +3730,183 @@ export default function App(){
           Toca para ver ese mes
         </div>
       </div>
+    </div>;
+  };
+
+  // ── Resumen Anual ────────────────────────────────────────────────────────
+  const ResumenAnualTab=()=>{
+    const currentY=now.getFullYear();
+    const [anio,setAnio]=useState(currentY);
+
+    const aniosDisponibles=[...new Set(tx.map(t=>parseDateSafe(t.date).getFullYear()))].sort((a,b)=>b-a);
+    if(!aniosDisponibles.includes(currentY)) aniosDisponibles.unshift(currentY);
+
+    const datosMeses=MONTHS.map((_,m)=>{
+      const mTx=tx.filter(t=>{const d=parseDateSafe(t.date);return d.getFullYear()===anio&&d.getMonth()===m;});
+      const gastos=mTx.filter(t=>isGasto(t.cat)&&!isAporteMeta(t)).reduce((s,t)=>s+t.amount,0);
+      const ingresos=mTx.filter(t=>isIngreso(t.cat)).reduce((s,t)=>s+t.amount,0)+(getSalarioDelMes(anio,m)||0);
+      const aportes=mTx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat)).reduce((s,t)=>s+t.amount,0);
+      const tieneDatos=mTx.length>0;
+      const esFuturo=anio===currentY&&m>now.getMonth();
+      return{m,gastos,ingresos,aportes,tieneDatos,esFuturo};
+    });
+
+    const mesesConDatos=datosMeses.filter(d=>d.tieneDatos);
+    const totalAnioGastos=mesesConDatos.reduce((s,d)=>s+d.gastos,0);
+    const totalAnioIngresos=mesesConDatos.reduce((s,d)=>s+d.ingresos,0);
+    const totalAnioAhorros=mesesConDatos.reduce((s,d)=>s+d.aportes,0);
+    const mesesValidos=mesesConDatos.filter(d=>!d.esFuturo&&d.gastos>0);
+    const mejorMes=mesesValidos.length?mesesValidos.reduce((a,b)=>a.gastos<b.gastos?a:b):null;
+    const peorMes=mesesValidos.length?mesesValidos.reduce((a,b)=>a.gastos>b.gastos?a:b):null;
+    const maxVal=Math.max(...datosMeses.map(d=>Math.max(d.gastos,d.ingresos)),1);
+
+    // Gráfica con scroll horizontal — cada mes ocupa 52px, cómodo para dedo
+    const COL=52, H=130, BW=18, SVG_W=COL*12, SVG_H=H+32;
+
+    return <div style={{padding:"16px 20px 80px"}}>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+        <div>
+          <div style={{fontSize:11,color:C.text.s,fontWeight:700,letterSpacing:1.2,textTransform:"uppercase",marginBottom:2}}>Resumen anual</div>
+          <div style={{fontSize:22,fontWeight:900,color:C.text.h,letterSpacing:-0.5}}>{anio}</div>
+        </div>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={()=>setAnio(a=>a-1)} disabled={!aniosDisponibles.includes(anio-1)}
+            style={{width:36,height:36,borderRadius:10,border:`1px solid ${C.border}`,background:C.card,
+              color:aniosDisponibles.includes(anio-1)?C.text.h:C.text.s,
+              cursor:aniosDisponibles.includes(anio-1)?"pointer":"default",
+              fontSize:18,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
+          <button onClick={()=>setAnio(a=>a+1)} disabled={anio>=currentY}
+            style={{width:36,height:36,borderRadius:10,border:`1px solid ${C.border}`,background:C.card,
+              color:anio<currentY?C.text.h:C.text.s,cursor:anio<currentY?"pointer":"default",
+              fontSize:18,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
+        </div>
+      </div>
+
+      {/* Totales */}
+      {mesesConDatos.length>0&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:20}}>
+        {[
+          {label:"Ingresos",val:totalAnioIngresos,color:C.emerald},
+          {label:"Gastos",val:totalAnioGastos,color:C.red},
+          {label:"En metas",val:totalAnioAhorros,color:C.indigo},
+        ].map(item=><div key={item.label} style={{background:C.card,borderRadius:16,padding:"14px 12px",boxShadow:elev("card")}}>
+          <div style={{fontSize:9,color:item.color,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>{item.label}</div>
+          <div style={{fontSize:14,fontWeight:800,color:item.color,letterSpacing:-0.3}}>
+            {item.val>=1000000?`$${(item.val/1000000).toFixed(1)}M`:item.val>=1000?`$${Math.round(item.val/1000)}k`:`$${item.val}`}
+          </div>
+        </div>)}
+      </div>}
+
+      {/* Gráfica scrollable */}
+      <div style={{background:C.card,borderRadius:20,paddingTop:18,paddingBottom:0,boxShadow:elev("card"),marginBottom:16,overflow:"hidden"}}>
+        {/* Leyenda */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingLeft:16,paddingRight:16,marginBottom:12}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.text.s,letterSpacing:1,textTransform:"uppercase"}}>Gastos vs ingresos</div>
+          <div style={{display:"flex",gap:14,fontSize:11,color:C.text.s}}>
+            <span style={{display:"flex",alignItems:"center",gap:5}}>
+              <span style={{width:10,height:10,borderRadius:3,background:C.emerald,display:"inline-block",opacity:0.8}}/>Ingresos
+            </span>
+            <span style={{display:"flex",alignItems:"center",gap:5}}>
+              <span style={{width:10,height:10,borderRadius:3,background:C.red,display:"inline-block"}}/>Gastos
+            </span>
+          </div>
+        </div>
+        {/* Área scrollable */}
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",paddingBottom:14}}>
+          <svg width={SVG_W} height={SVG_H} style={{display:"block",minWidth:SVG_W}}>
+            {/* Línea base */}
+            <line x1={0} y1={H} x2={SVG_W} y2={H} stroke={ink(0.06)} strokeWidth={1}/>
+            {datosMeses.map((d,i)=>{
+              const x=i*COL+COL/2;
+              const hI=d.ingresos>0?Math.max(d.ingresos/maxVal*H,5):0;
+              const hG=d.gastos>0?Math.max(d.gastos/maxVal*H,5):0;
+              const esActual=anio===currentY&&d.m===now.getMonth();
+              const esMejor=mejorMes?.m===d.m;
+              const esPeor=peorMes?.m===d.m&&mejorMes?.m!==d.m;
+              const tocable=d.tieneDatos&&!d.esFuturo;
+              return <g key={d.m} onClick={tocable?()=>{setMonth(d.m);changeTab("anal");}:undefined}
+                style={{cursor:tocable?"pointer":"default"}}>
+                {/* Fondo columna activa */}
+                {esActual&&<rect x={i*COL+4} y={4} width={COL-8} height={H-4} rx={8}
+                  fill={C.emerald} fillOpacity={0.06}/>}
+                {/* Badges mejor/peor */}
+                {esMejor&&<text x={x} y={H-hG-14} textAnchor="middle" fontSize={13} fill={C.emerald}>★</text>}
+                {esPeor&&<text x={x} y={H-hG-14} textAnchor="middle" fontSize={11} fill={C.red} fontWeight="700">▲</text>}
+                {/* Barra ingresos */}
+                <rect x={x-BW-1} y={H-hI} width={BW} height={hI} rx={4}
+                  fill={C.emerald} fillOpacity={d.esFuturo?0.1:d.tieneDatos?0.6:0.07}/>
+                {/* Barra gastos */}
+                <rect x={x+1} y={H-hG} width={BW} height={hG} rx={4}
+                  fill={C.red} fillOpacity={d.esFuturo?0.1:d.tieneDatos?0.85:0.07}/>
+                {/* Label mes */}
+                <text x={x} y={H+20} textAnchor="middle" fontSize={11}
+                  fill={esActual?C.emerald:d.tieneDatos?ink(0.65):ink(0.2)}
+                  fontWeight={esActual?"800":d.tieneDatos?"600":"400"}
+                  fontFamily="DM Sans,sans-serif">
+                  {MONTHS_S[d.m]}
+                </text>
+              </g>;
+            })}
+          </svg>
+        </div>
+        {/* Hint pegado a la gráfica */}
+        <div style={{textAlign:"center",padding:"10px 0 14px",borderTop:`1px solid ${ink(0.05)}`}}>
+          <span style={{fontSize:12,color:C.text.b,fontWeight:600}}>👆 Toca un mes con datos para ver su análisis</span>
+        </div>
+      </div>
+
+      {/* Mejor y peor mes */}
+      {(mejorMes||peorMes)&&mesesValidos.length>1&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+        {mejorMes&&<div style={{background:`${C.emerald}10`,border:`1px solid ${C.emerald}25`,borderRadius:16,padding:"14px"}}>
+          <div style={{fontSize:10,color:C.emerald,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>★ Mejor mes</div>
+          <div style={{fontSize:15,fontWeight:800,color:C.text.h,marginBottom:2}}>{MONTHS[mejorMes.m]}</div>
+          <div style={{fontSize:13,color:C.emerald,fontWeight:700}}>{COP(mejorMes.gastos)}</div>
+          <div style={{fontSize:10,color:C.text.s,marginTop:2}}>en gastos</div>
+        </div>}
+        {peorMes&&<div style={{background:`${C.red}10`,border:`1px solid ${C.red}25`,borderRadius:16,padding:"14px"}}>
+          <div style={{fontSize:10,color:C.red,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>▲ Mes más caro</div>
+          <div style={{fontSize:15,fontWeight:800,color:C.text.h,marginBottom:2}}>{MONTHS[peorMes.m]}</div>
+          <div style={{fontSize:13,color:C.red,fontWeight:700}}>{COP(peorMes.gastos)}</div>
+          <div style={{fontSize:10,color:C.text.s,marginTop:2}}>en gastos</div>
+        </div>}
+      </div>}
+
+      {/* Detalle por mes — solo meses con datos */}
+      {mesesConDatos.length>0&&<div style={{background:C.card,borderRadius:20,padding:"4px 0",boxShadow:elev("card"),marginBottom:16}}>
+        <div style={{padding:"14px 16px 10px",borderBottom:`1px solid ${C.border}`}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.text.s,letterSpacing:1,textTransform:"uppercase"}}>Detalle por mes</div>
+        </div>
+        {datosMeses.filter(d=>d.tieneDatos&&!d.esFuturo).map((d,i,arr)=>{
+          const pct=d.ingresos>0?d.gastos/d.ingresos:0;
+          const col=pct>=1?C.red:pct>=0.8?C.amber:C.emerald;
+          return <div key={d.m} onClick={()=>{setMonth(d.m);changeTab("anal");}}
+            style={{padding:"12px 16px",borderBottom:i<arr.length-1?`1px solid ${ink(0.04)}`:"none",
+              cursor:"pointer",display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:40,height:40,borderRadius:12,flexShrink:0,
+              background:mejorMes?.m===d.m?`${C.emerald}18`:peorMes?.m===d.m?`${C.red}18`:`${C.surface}`,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:12,fontWeight:800,color:mejorMes?.m===d.m?C.emerald:peorMes?.m===d.m?C.red:C.text.s}}>
+              {MONTHS_S[d.m]}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:5}}>
+                <span style={{fontSize:14,fontWeight:700,color:C.text.h}}>{COP(d.gastos)}</span>
+                <span style={{fontSize:12,fontWeight:600,color:col}}>{Math.round(pct*100)}% del ingreso</span>
+              </div>
+              <div style={{background:ink(0.05),borderRadius:99,height:4,overflow:"hidden"}}>
+                <div style={{height:4,borderRadius:99,background:col,width:`${Math.min(pct*100,100)}%`,transition:"width 0.6s"}}/>
+              </div>
+            </div>
+            <div style={{fontSize:14,color:C.text.s,flexShrink:0}}>›</div>
+          </div>;
+        })}
+      </div>}
+
+      {mesesConDatos.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:C.text.s}}>
+        <div style={{fontSize:40,marginBottom:12}}>📅</div>
+        <div style={{fontSize:15,fontWeight:700,color:C.text.h,marginBottom:6}}>Sin datos para {anio}</div>
+        <div style={{fontSize:13,lineHeight:1.6}}>Aún no hay movimientos registrados en este año.</div>
+      </div>}
     </div>;
   };
 
@@ -4423,6 +4705,7 @@ export default function App(){
       {/* ── Zona de peligro ── */}
       <Card style={{marginBottom:12,borderColor:`${C.red}30`,background:`linear-gradient(135deg,${C.red}08,${C.red}04)`}}>
         <Lbl style={{color:C.red}}>⚠️ Zona de peligro</Lbl>
+
         <EliminarMesSection tx={tx} MONTHS={MONTHS} MONTHS_S={MONTHS_S} user={user} db={db} isMonth={isMonth}/>
         <div style={{height:1,background:C.border,margin:"16px 0"}}/>
         <EliminarCuentaSection user={user} db={db} handleLogout={handleLogout}/>
@@ -4580,6 +4863,8 @@ export default function App(){
         <div style={{height:1,background:C.border,margin:"4px 16px"}}/>
         {[
           {icon:"🤝", label:"Préstamos",            badge:prestamos.filter(p=>!p.devuelto).length||null, color:"#f43f5e", onClick:()=>{setPrestamosModal(true);setMenuOpen(false);}},
+          {icon:"📊", label:"Resumen anual",         onClick:()=>{changeTab("anual");setMenuOpen(false);}},
+          {icon:"🏆", label:"Logros",                  onClick:()=>{changeTab("logros");setMenuOpen(false);}},
           {icon:"📤", label:"Exportar",              onClick:()=>{setExportModal(true);setMenuOpen(false);}},
           {icon:"🎨", label:`Tema: ${TEMAS[tema]?.label||"Navy"}`, onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
           {icon:"⚙️", label:"Configuración",        onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
@@ -4603,9 +4888,9 @@ export default function App(){
         </button>
       </div>
     </div>}
-    {tab==="home"&&<HomeTab/>}{tab==="metas"&&<MetasTab/>}{tab==="cal"&&<CalendarioTab/>}{tab==="mov"&&<MovTab/>}{tab==="anal"&&<AnalisisTab/>}{tab==="cfg"&&<ConfigTab/>}
+    {tab==="home"&&<HomeTab/>}{tab==="metas"&&<MetasTab/>}{tab==="cal"&&<CalendarioTab/>}{tab==="mov"&&<MovTab/>}{tab==="anal"&&<AnalisisTab/>}{tab==="cfg"&&<ConfigTab/>}{tab==="anual"&&<ResumenAnualTab/>}{tab==="logros"&&<LogrosTab badgesDesbloqueados={badgesDesbloqueados} badgesGuardados={badgesGuardados} totalPts={totalPts} tx={tx} goals={goals} presupuestos={presupuestos} prestamos={prestamos} rachaActual={rachaActualLogros} totalMesesConDatos={totalMesesConDatos} mesesResumen={mesesResumen} mesesPerfectos={mesesPerfectos} getAportado={getAportado} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} C={C} COP={COP}/>}
     {/* FAB */}
-    {!modal&&!goalModal&&!pagoModal&&<button onClick={()=>{
+    {!modal&&!goalModal&&!pagoModal&&tab!=="anual"&&tab!=="logros"&&<button onClick={()=>{
       if(tab==="metas") setGoalModal("new");
       else if(tab==="cal"){setPagoModalDia(null);setPagoModal("new");}
       else setModal("new");
@@ -4707,6 +4992,28 @@ export default function App(){
       </div>
     )}
     {AlertaGastoModal}
+    {/* Toast de badge nuevo */}
+    {badgesNuevos.length>0&&(()=>{
+      const b=BADGES_DEF.find(x=>x.id===badgesNuevos[0]);
+      if(!b) return null;
+      return <div style={{position:"fixed",bottom:100,left:"50%",transform:"translateX(-50%)",
+        width:"calc(100% - 32px)",maxWidth:390,zIndex:600,animation:"slideUp 0.35s cubic-bezier(0.34,1.56,0.64,1)"}}>
+        <div style={{background:C.card,borderRadius:18,padding:"14px 16px",
+          border:`1px solid ${C.indigo}40`,boxShadow:`0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px ${C.indigo}20`,
+          display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:44,height:44,borderRadius:13,flexShrink:0,
+            background:`${C.indigo}22`,border:`1px solid ${C.indigo}44`,
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>{b.icon}</div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:11,color:C.indigo,fontWeight:700,letterSpacing:1,marginBottom:2}}>🏆 LOGRO DESBLOQUEADO</div>
+            <div style={{fontSize:14,fontWeight:800,color:C.text.h,marginBottom:1}}>{b.label}</div>
+            <div style={{fontSize:11,color:C.text.s}}>{b.desc}</div>
+          </div>
+          <div style={{fontSize:13,fontWeight:800,color:C.indigo,flexShrink:0,
+            background:`${C.indigo}18`,padding:"4px 10px",borderRadius:99}}>+{b.pts}pts</div>
+        </div>
+      </div>;
+    })()}
     {/* Nav */}
     <nav style={{
       position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",
@@ -4733,14 +5040,11 @@ export default function App(){
     {exitConfirm&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,padding:24,animation:"fadeIn 0.15s ease"}}>
       <div style={{background:C.card,borderRadius:20,padding:"28px 24px",width:"100%",maxWidth:320,boxShadow:"0 24px 60px rgba(0,0,0,0.5)",animation:"fadeSlideUp 0.2s ease"}}>
         <div style={{fontSize:32,textAlign:"center",marginBottom:12}}>👋</div>
-        <div style={{fontSize:17,fontWeight:800,color:C.text.h,textAlign:"center",marginBottom:8}}>¿Deseas salir?</div>
-        <div style={{fontSize:13,color:C.text.s,textAlign:"center",marginBottom:24,lineHeight:1.5}}>Tus datos están guardados y seguros.</div>
+        <div style={{fontSize:17,fontWeight:800,color:C.text.h,textAlign:"center",marginBottom:8}}>¿Cerrar sesión?</div>
+        <div style={{fontSize:13,color:C.text.s,textAlign:"center",marginBottom:24,lineHeight:1.5}}>Tus datos están guardados en la nube.</div>
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          <button onClick={()=>{
-            history.go(-(history.length));
-            setTimeout(()=>window.close(),100);
-          }} style={{width:"100%",padding:14,borderRadius:14,border:"none",cursor:"pointer",fontSize:15,fontWeight:800,background:`linear-gradient(135deg,${C.red},#dc2626)`,color:"#fff"}}>
-            Salir
+          <button onClick={()=>{setExitConfirm(false);handleLogout();}} style={{width:"100%",padding:14,borderRadius:14,border:"none",cursor:"pointer",fontSize:15,fontWeight:800,background:`linear-gradient(135deg,${C.red},#dc2626)`,color:"#fff"}}>
+            Cerrar sesión
           </button>
           <button onClick={()=>setExitConfirm(false)} style={{width:"100%",padding:14,borderRadius:14,border:`1px solid ${C.border}`,cursor:"pointer",fontSize:15,fontWeight:700,background:C.surface,color:C.text.b}}>
             Cancelar
