@@ -2099,14 +2099,14 @@ export default function App(){
   };
 
   useEffect(()=>{
-    // Garantizar dos entradas: base + top — así el primer "atrás" siempre dispara popstate
     history.replaceState({mfApp:"base"},"");
     history.pushState({mfApp:"top"},"");
 
-    const handler=(e)=>{
+    const handler=()=>{
       const s=backRef.current;
-      // Reponer "top" para el próximo atrás
-      history.pushState({mfApp:"top"},"");
+
+      // Reponer "top" DESPUÉS del evento para evitar bugs en Android Chrome
+      setTimeout(()=>history.pushState({mfApp:"top"},""),0);
 
       // 1. Modales en orden
       if(s.menuOpen){s.setMenuOpen(false);return;}
