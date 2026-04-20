@@ -472,7 +472,7 @@ function ShimmerHome(){
         <Shimmer h={10} w="35%" r={6}/><Shimmer h={10} w="20%" r={6}/>
       </div>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:24}}>
+    <div style={{display:"grid",gridTemplateColumns:SC.isSmall?"1fr":"1fr 1fr",gap:SC.isSmall?8:12,marginBottom:24}}>
       {[0,1].map(i=><div key={i} style={{background:C.card,borderRadius:20,padding:"20px 18px",boxShadow:elev("card")}}>
         <Shimmer h={10} w="50%" r={6} mb={12}/><Shimmer h={24} w="80%" r={8} mb={6}/><Shimmer h={9} w="60%" r={6}/>
       </div>)}
@@ -495,6 +495,24 @@ function Lbl({children,style={}}){
 // Uso: const sheet = useSheetDismiss(onClose);
 // En el card: style={{ ...sheet.cardStyle }} + {...sheet.dragProps}
 // En el handle: {...sheet.handleProps}
+// Hook para detectar pantalla pequeña y escalar UI
+function useScreenSize(){
+  const [w,setW]=useState(()=>window.innerWidth);
+  useEffect(()=>{
+    const h=()=>setW(window.innerWidth);
+    window.addEventListener('resize',h);
+    return()=>window.removeEventListener('resize',h);
+  },[]);
+  return{
+    isSmall:w<=320,      // 320px — Huawei viejos, iPhone SE 1era gen
+    isTiny:w<=280,       // 280px — extremo
+    w,
+    // Escala fuentes y padding proporcionalmente
+    fs:(base)=>w<=320?Math.round(base*0.88):base,
+    pad:(base)=>w<=320?Math.round(base*0.8):base,
+  };
+}
+
 function useSheetDismiss(onClose){
   const cardRef=useRef(null);
   const startY=useRef(null);
@@ -2031,12 +2049,97 @@ function diasRestantesMes(){
 }
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
+function MenuSheet({onClose,user,disponibleGastar,totalGasto,prestamos,tema,TEMAS,changeTab,setMenuOpen,setPrestamosModal,setExportModal,handleLogout,C,COP}){
+  const sheet=useSheetDismiss(onClose);
+  return <>
+    <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:49,background:"rgba(0,0,0,0.5)",animation:"fadeIn 0.18s ease"}}/>
+    <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:50,display:"flex",justifyContent:"center"}}>
+      <div ref={sheet.cardRef} {...sheet.dragProps}
+        style={{width:"100%",maxWidth:430,background:C.card,borderRadius:"22px 22px 0 0",
+          border:`1px solid ${C.border}`,animation:"slideUp 0.25s cubic-bezier(0.32,0.72,0,1)",
+          maxHeight:"85vh",display:"flex",flexDirection:"column",...sheet.cardStyle}}>
+        {/* Handle drag */}
+        <div {...sheet.handleProps} style={{...sheet.handleProps.style,padding:"12px 0 4px",display:"flex",justifyContent:"center",flexShrink:0}}>
+          <div style={{width:36,height:4,borderRadius:99,background:C.border}}/>
+        </div>
+        {/* Info usuario — fija */}
+        <div style={{padding:"12px 20px 14px",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+            <img src={user.photoURL} alt="" style={{width:42,height:42,borderRadius:"50%",border:`2px solid ${C.indigo}44`}}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:15,fontWeight:700,color:C.text.h}}>{user.displayName?.split(" ")[0]}</div>
+              <div style={{fontSize:11,color:C.text.s,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.email}</div>
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <div style={{background:`${C.emerald}12`,border:`1px solid ${C.emerald}25`,borderRadius:12,padding:"10px 12px"}}>
+              <div style={{fontSize:9,color:C.emerald,fontWeight:700,letterSpacing:0.8,marginBottom:3}}>DISPONIBLE</div>
+              <div style={{fontSize:15,fontWeight:800,color:C.emeraldLight}}>{COP(disponibleGastar)}</div>
+            </div>
+            <div style={{background:`${C.red}10`,border:`1px solid ${C.red}20`,borderRadius:12,padding:"10px 12px"}}>
+              <div style={{fontSize:9,color:C.red,fontWeight:700,letterSpacing:0.8,marginBottom:3}}>GASTOS</div>
+              <div style={{fontSize:15,fontWeight:800,color:C.red}}>{COP(totalGasto)}</div>
+            </div>
+          </div>
+        </div>
+        {/* Lista scrolleable */}
+        <div style={{overflowY:"auto",WebkitOverflowScrolling:"touch",flex:1}}>
+          <div style={{padding:"8px 0 32px"}}>
+            <div style={{padding:"4px 20px 6px"}}>
+              <div style={{fontSize:10,fontWeight:700,color:C.text.s,letterSpacing:1,textTransform:"uppercase"}}>Navegación</div>
+            </div>
+            {[
+              {icon:"🏠",label:"Inicio",      onClick:()=>{changeTab("home");setMenuOpen(false);}},
+              {icon:"≡", label:"Movimientos", onClick:()=>{changeTab("mov");setMenuOpen(false);}},
+              {icon:"⭐",label:"Metas",        onClick:()=>{changeTab("metas");setMenuOpen(false);}},
+              {icon:"📅",label:"Agenda",       onClick:()=>{changeTab("cal");setMenuOpen(false);}},
+              {icon:"📊",label:"Resumen anual",onClick:()=>{changeTab("anual");setMenuOpen(false);}},
+              {icon:"🏆",label:"Logros",       onClick:()=>{changeTab("logros");setMenuOpen(false);}},
+            ].map(o=>(
+              <button key={o.label} onClick={o.onClick}
+                style={{width:"100%",padding:"12px 20px",background:"none",border:"none",cursor:"pointer",
+                  display:"flex",alignItems:"center",gap:14,fontSize:14,fontWeight:600,color:C.text.h,textAlign:"left"}}>
+                <span style={{fontSize:18,width:24,textAlign:"center"}}>{o.icon}</span>{o.label}
+              </button>
+            ))}
+            <div style={{height:1,background:C.border,margin:"8px 20px"}}/>
+            <div style={{padding:"4px 20px 6px"}}>
+              <div style={{fontSize:10,fontWeight:700,color:C.text.s,letterSpacing:1,textTransform:"uppercase"}}>Acciones</div>
+            </div>
+            {[
+              {icon:"🤝",label:"Préstamos",badge:prestamos.filter(p=>!p.devuelto).length||null,onClick:()=>{setPrestamosModal(true);setMenuOpen(false);}},
+              {icon:"📤",label:"Exportar",  onClick:()=>{setExportModal(true);setMenuOpen(false);}},
+              {icon:"🎨",label:`Tema: ${TEMAS[tema]?.label||"Navy"}`,onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
+              {icon:"⚙️",label:"Configuración",onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
+            ].map(o=>(
+              <button key={o.label} onClick={o.onClick}
+                style={{width:"100%",padding:"12px 20px",background:"none",border:"none",cursor:"pointer",
+                  display:"flex",alignItems:"center",gap:14,fontSize:14,fontWeight:600,color:C.text.h,textAlign:"left"}}>
+                <span style={{fontSize:18,width:24,textAlign:"center"}}>{o.icon}</span>
+                <span style={{flex:1}}>{o.label}</span>
+                {o.badge&&<span style={{background:"#f43f5e",color:"#fff",borderRadius:99,padding:"2px 8px",fontSize:11,fontWeight:800}}>{o.badge}</span>}
+              </button>
+            ))}
+            <div style={{height:1,background:C.border,margin:"8px 20px"}}/>
+            <button onClick={()=>{handleLogout();setMenuOpen(false);}}
+              style={{width:"100%",padding:"12px 20px",background:"none",border:"none",cursor:"pointer",
+                display:"flex",alignItems:"center",gap:14,fontSize:14,fontWeight:600,color:C.red,textAlign:"left"}}>
+              <span style={{fontSize:18,width:24,textAlign:"center"}}>🚪</span>Cerrar sesión
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </>;
+}
+
 export default function App(){
   const [user,setUser]=useState(null),[authLoading,setAL]=useState(true),[loginLoading,setLL]=useState(false);
   const [salario,setSalario]=useState(null),[showOnb,setShowOnb]=useState(false);
   const [salarioHistory,setSalarioHistory]=useState({}); // {"YYYY-M": monto}
   const [tx,setTx]=useState([]),[goals,setGoals]=useState([]);
   const [month,setMonth]=useState(now.getMonth()),[tab,setTab]=useState("home");
+  const SC=useScreenSize(); // SC.fs(n) escala fuente, SC.pad(n) escala padding
   const [selectedYear,setSelectedYear]=useState(now.getFullYear());
   const [filtroMainCat,setFiltroMainCat]=useState(null); // id de MAIN_CAT para filtrar en MovTab desde Análisis
   const [filtroMainCatOrigen,setFiltroMainCatOrigen]=useState(null); // de dónde vino: "analisis" | null
@@ -2120,7 +2223,7 @@ export default function App(){
       if(s.tab!=="home"){s.setTab("home");history.pushState({mfApp:"top"},"");return;}
       clearTimeout(exitTimer.current);
       s.setExitConfirm(true);
-      exitTimer.current=setTimeout(()=>s.setExitConfirm(false),3500);
+      exitTimer.current=setTimeout(()=>s.setExitConfirm(false),5000);
       history.pushState({mfApp:"top"},"");
     };
     window.addEventListener("popstate",handler);
@@ -2236,7 +2339,7 @@ export default function App(){
         const pctDelIngreso=t.amount/(salario||1);
         if(pctDelIngreso>=0.3){
           setAlertaGasto({monto:t.amount, pct:pctDelIngreso, desc:t.desc||"este gasto"});
-          setTimeout(()=>setAlertaGasto(null), 6000);
+          setTimeout(()=>setAlertaGasto(null), 10000);
         }
       }
     }
@@ -2987,7 +3090,7 @@ export default function App(){
     setBadgesGuardados(updated);
     setBadgesNuevos(nuevos);
     setDoc(doc(db,"usuarios",user.uid),{badges:updated},{merge:true});
-    setTimeout(()=>setBadgesNuevos([]),4000);
+    setTimeout(()=>setBadgesNuevos([]),6000);
   },[badgesDesbloqueados,user]);
   function getAportado(gid){
     // Acumulado histórico = saldo inicial (ahorros previos) + aportes registrados en la app
@@ -3256,7 +3359,7 @@ export default function App(){
     if(txLoading) return <ShimmerHome/>;
 
     // ── Vista compacta ──────────────────────────────────────────────────────
-    if(compacto) return <div style={{padding:"16px 20px 80px"}}>
+    if(compacto) return <div style={{padding:`${SC.pad(16)}px ${SC.pad(20)}px 80px`}}>
       <MonthSelector/>
       {/* Card única tipo Apple Wallet */}
       <div style={{
@@ -3270,7 +3373,7 @@ export default function App(){
         <GradientOrbs color={pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo}/>
         <div style={{position:"relative"}}>
           <div style={{fontSize:11,color:C.text.s,letterSpacing:1.5,fontWeight:600,textTransform:"uppercase",marginBottom:8}}>Disponible · {MONTHS_S[month]}</div>
-          <div style={{fontSize:48,fontWeight:700,letterSpacing:-1,color:pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.emerald,fontVariantNumeric:"tabular-nums",marginBottom:20,lineHeight:1}}>
+          <div style={{fontSize:SC.fs(48),fontWeight:700,letterSpacing:-1,color:pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.emerald,fontVariantNumeric:"tabular-nums",marginBottom:20,lineHeight:1}}>
             {COP(animSaldo)}
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:1,background:ink(0.08),borderRadius:14,overflow:"hidden"}}>
@@ -3324,7 +3427,7 @@ export default function App(){
       </>}
     </div>;
 
-    return <div style={{padding:"16px 20px 80px"}}>
+    return <div style={{padding:`${SC.pad(16)}px ${SC.pad(20)}px 80px`}}>
       <MonthSelector/>
       <ResumenSemanal/>
       <AlertasAvanzadas
@@ -3364,7 +3467,7 @@ export default function App(){
           <div style={{fontSize:11,color:C.text.s,letterSpacing:1.8,fontWeight:600,textTransform:"uppercase"}}>Disponible · {MONTHS_S[month]}</div>
           {saldoAnterior>0&&<div style={{background:ink(0.06),borderRadius:99,padding:"3px 10px",fontSize:11,color:C.emeraldLight,fontWeight:600}}>+{COP(saldoAnterior)}</div>}
         </div>
-        <div style={{fontSize:56,fontWeight:700,letterSpacing:-1,lineHeight:1,color:pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.emerald,fontVariantNumeric:"tabular-nums",marginBottom:28,transition:"color 0.4s"}}>
+        <div style={{fontSize:SC.fs(56),fontWeight:700,letterSpacing:-1,lineHeight:1,color:pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.emerald,fontVariantNumeric:"tabular-nums",marginBottom:28,transition:"color 0.4s"}}>
           {COP(animSaldo)}
         </div>
         <div style={{background:ink(0.06),borderRadius:99,height:3,overflow:"hidden",marginBottom:12}}>
@@ -3389,7 +3492,7 @@ export default function App(){
       ):(
         <>
           {/* ── 2. Stats ── */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:24}}>
+          <div style={{display:"grid",gridTemplateColumns:SC.isSmall?"1fr":"1fr 1fr",gap:SC.isSmall?8:12,marginBottom:24}}>
             <div style={{...cardSurface(C.red),borderRadius:20,padding:"20px 18px",boxShadow:cardShadow(C.red)}}>
               <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}>
                 <div style={{width:6,height:6,borderRadius:99,background:C.red,opacity:0.7}}/>
@@ -3418,7 +3521,7 @@ export default function App(){
           {/* ── 2.6 Racha ── */}
           <RachaWidget/>
           {/* ── 3. Insights ── */}
-          <InsightsEngine txAll={tx} monthTx={monthTx} gastosTx={gastosTx} totalGasto={totalGasto} totalIng={totalIngresoMes} totalAhorr={totalAportes} month={month} C={C} COP={COP} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} isSavingsLegacy={isSavingsLegacy} isMonth={isMonth} presupuestos={presupuestos} goals={goals} pagos={pagos} saldo={saldo}/>
+          <InsightsEngine txAll={tx} monthTx={monthTx} gastosTx={gastosTx} totalGasto={totalGasto} totalIng={totalIngresoMes} totalAhorr={totalAportes} month={month} C={C} COP={COP} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} isSavingsLegacy={isSavingsLegacy} isMonth={isMonth} presupuestos={presupuestos} goals={goals} pagos={pagos} saldo={saldo} disponibleGastar={disponibleGastar} totalAportesMes={totalAportes}/>
           {/* ── 3.5 Salud del plan (si hay desbalance) ── */}
           <BudgetHealth
             salario={salario||0}
@@ -3446,7 +3549,7 @@ export default function App(){
   };
   const MetasTab=()=>{
     const tot=goals.reduce((s,g)=>s+g.monto,0), ap=goals.reduce((s,g)=>s+getAportado(g.id),0);
-    return <div style={{padding:"16px 20px 80px"}}>
+    return <div style={{padding:`${SC.pad(16)}px ${SC.pad(20)}px 80px`}}>
       {goals.length>0&&<div style={{background:C.card,borderRadius:20,padding:"20px",marginBottom:16,boxShadow:elev("card")}}>
         <div style={{display:"flex",alignItems:"center",gap:16}}>
           <Ring pct={tot>0?ap/tot:0} size={52} stroke={4} color={C.indigo} label={`${Math.round(Math.min(tot>0?ap/tot:0,1)*100)}%`}/>
@@ -3775,7 +3878,7 @@ export default function App(){
     // Gráfica con scroll horizontal — cada mes ocupa 52px, cómodo para dedo
     const COL=52, H=130, BW=18, SVG_W=COL*12, SVG_H=H+32;
 
-    return <div style={{padding:"16px 20px 80px"}}>
+    return <div style={{padding:`${SC.pad(16)}px ${SC.pad(20)}px 80px`}}>
       {/* Header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
         <div>
@@ -4758,7 +4861,9 @@ export default function App(){
           borderRadius:18,padding:"16px 18px",
           border:`1px solid ${C.amber}55`,
           boxShadow:`0 8px 32px rgba(0,0,0,0.6)`,
+          position:"relative",
         }}>
+          <button onClick={()=>setAlertaGasto(null)} style={{position:"absolute",top:8,right:10,background:"none",border:"none",color:C.text.s,fontSize:18,cursor:"pointer",lineHeight:1,padding:4}}>×</button>
           <div style={{display:"flex",alignItems:"flex-start",gap:14}}>
             <div style={{fontSize:32,flexShrink:0,lineHeight:1}}>
               {alertaGasto.pct>=1?"🚨":alertaGasto.pct>=0.5?"⚠️":"💡"}
@@ -4789,13 +4894,13 @@ export default function App(){
     </div>
   ) : null;
 
-  return <div style={{minHeight:"100vh",background:C.bg,color:C.text.h,fontFamily:"'DM Sans','Segoe UI',sans-serif",maxWidth:430,margin:"0 auto",paddingBottom:88}}>
+  return <div style={{minHeight:"100vh",background:C.bg,color:C.text.h,fontFamily:"'DM Sans','Segoe UI',sans-serif",maxWidth:430,margin:"0 auto",paddingBottom:88,fontSize:SC.fs(15)}}>
     <style>{CSS}</style>
     {/* Topbar */}
-    <div style={{padding:"16px 20px 14px",background:`${C.bg}f0`,position:"sticky",top:0,zIndex:20,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+    <div style={{padding:`${SC.pad(16)}px ${SC.pad(20)}px 14px`,background:`${C.bg}f0`,position:"sticky",top:0,zIndex:20,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
       <div>
         <div style={{fontSize:10,color:C.text.s,letterSpacing:1.8,fontWeight:600,marginBottom:2,opacity:0.7}}>MIS FINANZAS PRO</div>
-        <div style={{fontSize:21,fontWeight:700,letterSpacing:-0.5,color:C.text.h}}>{user.displayName?.split(" ")[0]} 👋</div>
+        <div style={{fontSize:SC.fs(21),fontWeight:700,letterSpacing:-0.5,color:C.text.h}}>{user.displayName?.split(" ")[0]} 👋</div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         {tab==="home"&&<button onClick={toggleCompacto} style={{
@@ -4833,73 +4938,8 @@ export default function App(){
         </button>
       </div>
     </div>
-    {/* Menú hamburguesa */}
-    {menuOpen&&<div onClick={()=>setMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:19,background:"rgba(0,0,0,0.5)",animation:"fadeIn 0.18s ease"}}/>}
-    {menuOpen&&<div style={{position:"fixed",top:72,right:20,zIndex:21,background:C.card,borderRadius:18,border:`1px solid ${C.border}`,padding:"0",minWidth:220,boxShadow:"0 16px 48px rgba(0,0,0,0.4)",animation:"slideDown 0.18s ease",overflow:"hidden"}}>
-      {/* Info usuario */}
-      <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,background:C.surface}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-          <img src={user.photoURL} alt="" style={{width:38,height:38,borderRadius:"50%",border:`2px solid ${C.indigo}44`}}/>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:13,fontWeight:700,color:C.text.h,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.displayName?.split(" ")[0]}</div>
-            <div style={{fontSize:10,color:C.text.s,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.email}</div>
-          </div>
-        </div>
-        {/* Resumen financiero rápido */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-          <div style={{background:`${C.emerald}12`,border:`1px solid ${C.emerald}25`,borderRadius:10,padding:"8px 10px"}}>
-            <div style={{fontSize:9,color:C.emerald,fontWeight:700,letterSpacing:0.8,marginBottom:2}}>DISPONIBLE</div>
-            <div style={{fontSize:13,fontWeight:800,color:C.emeraldLight}}>{COP(Math.max(saldo,0))}</div>
-          </div>
-          <div style={{background:`${C.red}10`,border:`1px solid ${C.red}20`,borderRadius:10,padding:"8px 10px"}}>
-            <div style={{fontSize:9,color:C.red,fontWeight:700,letterSpacing:0.8,marginBottom:2}}>GASTOS</div>
-            <div style={{fontSize:13,fontWeight:800,color:C.red}}>{COP(totalGasto)}</div>
-          </div>
-        </div>
-      </div>
-      {/* Opciones */}
-      <div style={{padding:"6px 0"}}>
-        {[
-          {icon:"🏠", label:"Inicio",        onClick:()=>{changeTab("home");setMenuOpen(false);}},
-          {icon:"≡",  label:"Movimientos",   onClick:()=>{changeTab("mov");setMenuOpen(false);}},
-          {icon:"⭐", label:"Metas",          onClick:()=>{changeTab("metas");setMenuOpen(false);}},
-          {icon:"📅", label:"Agenda",         onClick:()=>{changeTab("cal");setMenuOpen(false);}},
-        ].map(o=>(
-          <button key={o.label} onClick={o.onClick}
-            style={{width:"100%",padding:"10px 16px",background:"none",border:"none",cursor:"pointer",
-              display:"flex",alignItems:"center",gap:12,fontSize:13,fontWeight:600,
-              color:C.text.h,textAlign:"left"}}>
-            <span style={{fontSize:16,width:20,textAlign:"center"}}>{o.icon}</span>{o.label}
-          </button>
-        ))}
-        <div style={{height:1,background:C.border,margin:"4px 16px"}}/>
-        {[
-          {icon:"🤝", label:"Préstamos",            badge:prestamos.filter(p=>!p.devuelto).length||null, color:"#f43f5e", onClick:()=>{setPrestamosModal(true);setMenuOpen(false);}},
-          {icon:"📊", label:"Resumen anual",         onClick:()=>{changeTab("anual");setMenuOpen(false);}},
-          {icon:"🏆", label:"Logros",                  onClick:()=>{changeTab("logros");setMenuOpen(false);}},
-          {icon:"📤", label:"Exportar",              onClick:()=>{setExportModal(true);setMenuOpen(false);}},
-          {icon:"🎨", label:`Tema: ${TEMAS[tema]?.label||"Navy"}`, onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
-          {icon:"⚙️", label:"Configuración",        onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
-        ].map(o=>(
-          <button key={o.label} onClick={o.onClick}
-            style={{width:"100%",padding:"10px 16px",background:"none",border:"none",cursor:"pointer",
-              display:"flex",alignItems:"center",gap:12,fontSize:13,fontWeight:600,
-              color:C.text.h,textAlign:"left"}}>
-            <span style={{fontSize:16,width:20,textAlign:"center"}}>{o.icon}</span>
-            <span style={{flex:1}}>{o.label}</span>
-            {o.badge&&<span style={{background:"#f43f5e",color:"#fff",borderRadius:99,padding:"1px 7px",fontSize:10,fontWeight:800}}>{o.badge}</span>}
-          </button>
-        ))}
-      </div>
-      <div style={{borderTop:`1px solid ${C.border}`}}/>
-      <div style={{padding:"6px 0"}}>
-        <button onClick={()=>{handleLogout();setMenuOpen(false);}}
-          style={{width:"100%",padding:"10px 16px",background:"none",border:"none",cursor:"pointer",
-            display:"flex",alignItems:"center",gap:12,fontSize:13,fontWeight:600,color:C.red,textAlign:"left"}}>
-          <span style={{fontSize:16,width:20,textAlign:"center"}}>🚪</span> Cerrar sesión
-        </button>
-      </div>
-    </div>}
+    {/* Menú hamburguesa — bottom sheet */}
+    {menuOpen&&<MenuSheet onClose={()=>setMenuOpen(false)} user={user} disponibleGastar={disponibleGastar} totalGasto={totalGasto} prestamos={prestamos} tema={tema} TEMAS={TEMAS} changeTab={changeTab} setMenuOpen={setMenuOpen} setPrestamosModal={setPrestamosModal} setExportModal={setExportModal} handleLogout={handleLogout} C={C} COP={COP}/>}
     {tab==="home"&&<HomeTab/>}{tab==="metas"&&<MetasTab/>}{tab==="cal"&&<CalendarioTab/>}{tab==="mov"&&<MovTab/>}{tab==="anal"&&<AnalisisTab/>}{tab==="cfg"&&<ConfigTab/>}{tab==="anual"&&<ResumenAnualTab/>}{tab==="logros"&&<LogrosTab badgesDesbloqueados={badgesDesbloqueados} badgesGuardados={badgesGuardados} totalPts={totalPts} tx={tx} goals={goals} presupuestos={presupuestos} prestamos={prestamos} rachaActual={rachaActualLogros} totalMesesConDatos={totalMesesConDatos} mesesResumen={mesesResumen} mesesPerfectos={mesesPerfectos} getAportado={getAportado} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} C={C} COP={COP}/>}
     {/* FAB */}
     {!modal&&!goalModal&&!pagoModal&&tab!=="anual"&&tab!=="logros"&&<button onClick={()=>{
@@ -5012,7 +5052,9 @@ export default function App(){
         width:"calc(100% - 32px)",maxWidth:390,zIndex:600,animation:"slideUp 0.35s cubic-bezier(0.34,1.56,0.64,1)"}}>
         <div style={{background:C.card,borderRadius:18,padding:"14px 16px",
           border:`1px solid ${C.indigo}40`,boxShadow:`0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px ${C.indigo}20`,
-          display:"flex",alignItems:"center",gap:12}}>
+          display:"flex",alignItems:"center",gap:12,position:"relative"}}>
+          <button onClick={()=>setBadgesNuevos([])} style={{position:"absolute",top:6,right:8,
+            background:"none",border:"none",color:C.text.s,fontSize:18,cursor:"pointer",lineHeight:1,padding:4}}>×</button>
           <div style={{width:44,height:44,borderRadius:13,flexShrink:0,
             background:`${C.indigo}22`,border:`1px solid ${C.indigo}44`,
             display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>{b.icon}</div>

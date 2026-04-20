@@ -58,7 +58,10 @@ const PRIORIDAD = {
 
 // Familias: si dos insights comparten familia, solo pasa el de mayor prioridad
 const FAMILIAS = {
-  alerta_critica:       ["pago_proximo_sin_saldo", "deudas_desbocadas"],
+  alerta_critica:       ["pago_proximo_sin_saldo", "deudas_desbocadas",
+                         "disponible_agotado", "disponible_bajo", "gasto_supera_ingreso",
+                         "dias_sin_registrar", "fin_mes_poco_disponible", "racha_en_riesgo",
+                         "mes_tranquilo"],
   comparacion_mes:      ["vs_anterior_sube", "vs_anterior_baja"],
   top_gasto:            ["top_cat", "cat_subida"],
   presupuesto:          ["presupuesto_cerca_limite", "presupuesto_sobrado"],
@@ -78,6 +81,7 @@ export function InsightsEngine({
   month, C, COP, MAIN_CATS, isGasto, isAporteMeta, isSavingsLegacy, isMonth,
   // Props nuevos (Fase 2C)
   presupuestos = {}, goals = [], pagos = [], saldo = 0,
+  disponibleGastar = 0, totalAportesMes = 0,
 }) {
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -434,6 +438,143 @@ export function InsightsEngine({
         });
       }
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CRÍTICA A: Disponible agotado — $0 disponible pero hay metas
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (disponibleGastar <= 0 && totalAportesMes > 0 && totalIng > 0) {
+    insights.push({
+      id: "disponible_agotado", icon: "🚫", color: C.red,
+      title: "Tu disponible se agotó",
+      body: `Tienes ${COP(totalAportesMes)} en metas — bájale el monto a una meta para liberar dinero.`,
+      tipo: "alerta_critica",
+      prioridad: PRIORIDAD.alerta_critica,
+      bgType: "danger",
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CRÍTICA B: Disponible bajo — menos del 10% disponible (sin contar metas)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const pctDisponible = totalIng > 0 ? disponibleGastar / totalIng : 0;
+  if (disponibleGastar > 0 && pctDisponible < 0.1 && totalIng > 0) {
+    const diasRestantesCrit = daysInCurr - today;
+    insights.push({
+      id: "disponible_bajo", icon: "⚠️", color: C.amber,
+      title: `Solo te quedan ${COP(disponibleGastar)} disponibles`,
+      body: diasRestantesCrit > 0
+        ? `Faltan ${diasRestantesCrit} días del mes — cada gasto cuenta ahora.`
+        : "Estás en el último día del mes. Cierra con cuidado.",
+      tipo: "alerta_critica",
+      prioridad: PRIORIDAD.alerta_critica + 1,
+      bgType: "warning",
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CRÍTICA C: Gastaste más que tu ingreso del mes (pctUsado > 100%)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const pctGastado = totalIng > 0 ? totalGasto / totalIng : 0;
+  if (pctGastado > 1 && totalIng > 0) {
+    insights.push({
+      id: "gasto_supera_ingreso", icon: "🚨", color: C.red,
+      title: `Gastaste el ${Math.round(pctGastado * 100)}% de tu ingreso`,
+      body: totalAportesMes > 0
+        ? `Los extras cubrieron el resto. Si es un patrón, revisa tus gastos.`
+        : `Gastaste más de lo que ganaste este mes.`,
+      tipo: "alerta_critica",
+      prioridad: PRIORIDAD.alerta_critica + 2,
+      bgType: "danger",
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 4. DÍAS SIN REGISTRAR — 5+ días sin ninguna transacción en el mes actual
+  // Solo aplica si es el mes actual real y ya pasaron 5+ días del mes
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (month === now.getMonth() && today >= 6) {
+    const txMesActual = monthTx.filter(t => {
+      const d = new Date(t.date);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === currentYear;
+    });
+    if (txMesActual.length > 0) {
+      // Encontrar la fecha del último movimiento
+      const ultimaFecha = txMesActual
+        .map(t => new Date(t.date))
+        .sort((a, b) => b - a)[0];
+      const diasSinReg = Math.floor((now - ultimaFecha) / (1000 * 60 * 60 * 24));
+      if (diasSinReg >= 5) {
+        insights.push({
+          id: "dias_sin_registrar", icon: "📭", color: C.amber,
+          title: `Llevas ${diasSinReg} días sin registrar`,
+          body: "Los gastos sin anotar se acumulan. ¿Qué pasó estos días?",
+          tipo: "alerta_suave",
+          prioridad: PRIORIDAD.alerta_suave,
+          bgType: "warning",
+        });
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 5. FIN DE MES CON POCO DISPONIBLE — últimos 5 días, < 15% disponible
+  // ═══════════════════════════════════════════════════════════════════════════
+  const diasRestantesFin = daysInCurr - today;
+  const pctDisponibleFin = totalIng > 0 ? disponibleGastar / totalIng : 0;
+  if (diasRestantesFin <= 5 && diasRestantesFin >= 1 && pctDisponibleFin < 0.15 && disponibleGastar > 0 && totalIng > 0) {
+    insights.push({
+      id: "fin_mes_poco_disponible", icon: "🏁", color: C.amber,
+      title: `Quedan ${diasRestantesFin} días y tienes ${COP(disponibleGastar)}`,
+      body: "Poco margen para cerrar el mes. Mejor no improvisar.",
+      tipo: "alerta_suave",
+      prioridad: PRIORIDAD.alerta_suave + 1,
+      bgType: "warning",
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 6. RACHA EN RIESGO — llevas racha activa pero este mes vas por encima del ingreso
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (pctGastado > 0.9 && totalGasto > 0 && today >= 20) {
+    // Solo si quedan pocos días y vas muy ajustado
+    insights.push({
+      id: "racha_en_riesgo", icon: "🔥", color: C.amber,
+      title: "Tu racha de meses en verde está en riesgo",
+      body: `Llevas el ${Math.round(pctGastado * 100)}% gastado — cuidado con los últimos días.`,
+      tipo: "alerta_suave",
+      prioridad: PRIORIDAD.alerta_suave + 2,
+      bgType: "warning",
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 7. MES TRANQUILO — a mitad de mes llevas menos del 30% gastado
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (today >= 14 && today <= 18 && pctGastado < 0.3 && totalGasto > 0 && totalIng > 0) {
+    insights.push({
+      id: "mes_tranquilo", icon: "😌", color: C.emerald,
+      title: "Mes tranquilo por ahora",
+      body: `Solo ${Math.round(pctGastado * 100)}% gastado a mitad de mes. Buen ritmo.`,
+      tipo: "logro",
+      prioridad: PRIORIDAD.logro,
+      bgType: "success",
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 8. GASTOS MÁS ALTOS QUE EL MES PASADO EN GENERAL
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (today >= 10 && prevTotal > 5000 && totalGasto > prevTotal * 1.2) {
+    const diferencia = totalGasto - prevTotal;
+    insights.push({
+      id: "gastos_subieron_general", icon: "📈", color: C.amber,
+      title: `Gastos ${Math.round((totalGasto / prevTotal - 1) * 100)}% más altos que el mes pasado`,
+      body: `${COP(Math.round(diferencia))} más que el período equivalente anterior.`,
+      tipo: "alerta_suave",
+      prioridad: PRIORIDAD.alerta_suave + 3,
+      bgType: "warning",
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
