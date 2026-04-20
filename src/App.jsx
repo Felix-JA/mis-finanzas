@@ -519,6 +519,7 @@ function useSheetDismiss(onClose){
   const startT=useRef(null);
   const curY=useRef(0);
   const isDragging=useRef(false);
+  const fromHandle=useRef(false); // true si el drag viene del handle
 
   function setTransform(y){
     if(cardRef.current){
@@ -527,11 +528,12 @@ function useSheetDismiss(onClose){
     }
   }
 
-  function onStart(clientY){
+  function onStart(clientY, isHandle=false){
     startY.current=clientY;
     startT.current=Date.now();
     curY.current=0;
     isDragging.current=true;
+    fromHandle.current=isHandle;
   }
   function onMove(clientY){
     if(!isDragging.current||startY.current===null) return;
@@ -544,8 +546,11 @@ function useSheetDismiss(onClose){
     const elapsed=Date.now()-startT.current;
     const dist=curY.current;
     const velocity=dist/Math.max(elapsed,1)*1000;
-    if(dist>100||velocity>400){
-      // Animar salida y cerrar
+    // Desde el handle: umbral normal (150px o velocidad 500)
+    // Desde el contenido: umbral más exigente (220px o velocidad 700)
+    const distThreshold=fromHandle.current?150:220;
+    const velThreshold=fromHandle.current?500:700;
+    if(dist>distThreshold||velocity>velThreshold){
       setTransform(window.innerHeight);
       setTimeout(onClose,220);
     } else {
@@ -553,29 +558,37 @@ function useSheetDismiss(onClose){
     }
     startY.current=null;
     curY.current=0;
+    fromHandle.current=false;
   }
 
+  // handleProps — solo para la barrita, cierre fácil
   const handleProps={
-    onTouchStart:e=>onStart(e.touches[0].clientY),
-    onTouchMove:e=>onMove(e.touches[0].clientY),
-    onTouchEnd:onEnd,
+    onTouchStart:e=>{e.stopPropagation();onStart(e.touches[0].clientY,true);},
+    onTouchMove:e=>{e.stopPropagation();onMove(e.touches[0].clientY);},
+    onTouchEnd:e=>{e.stopPropagation();onEnd();},
     style:{cursor:"grab",touchAction:"none"},
   };
 
+  // dragProps — distingue scroll suave de swipe intencional de cierre
   const dragProps={
     onTouchStart:e=>{
       const el=e.currentTarget;
-      if(el.scrollTop===0) onStart(e.touches[0].clientY);
+      if(el.scrollTop===0) onStart(e.touches[0].clientY,false);
     },
     onTouchMove:e=>{
       if(startY.current===null) return;
       const d=e.touches[0].clientY-startY.current;
-      if(d>8) onMove(e.touches[0].clientY);
+      const elapsed=Date.now()-startT.current;
+      // Velocidad instantánea del movimiento
+      const speed=d/Math.max(elapsed,1)*1000;
+      // Solo activar drag si es un gesto RÁPIDO (velocidad >600px/s)
+      // Un scroll normal es lento (~200-300px/s), un swipe intencional es >600
+      if(d>15&&speed>600) onMove(e.touches[0].clientY);
+      else if(d<-5){ startY.current=null; setTransform(0); }
     },
     onTouchEnd:onEnd,
   };
 
-  // cardStyle solo para la animación de entrada — el drag lo maneja el ref directamente
   const cardStyle={animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)"};
   return {handleProps,dragProps,cardStyle,cardRef,dragY:0};
 }
@@ -633,7 +646,7 @@ function CatPersonalModal({main, catsCustom, handleCatCustomSave, onClose}){
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:500,animation:"fadeIn 0.18s ease"}}>
     <div onClick={e=>e.stopPropagation()}
       style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
-        border:`1px solid ${C.border}`,padding:"20px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"85vh",overflowY:"auto",position:"relative",...sheet.cardStyle}} ref={sheet.cardRef} {...sheet.dragProps}>
+        border:`1px solid ${C.border}`,padding:"20px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"85vh",overflowY:"auto",overscrollBehavior:"contain",position:"relative",...sheet.cardStyle}} ref={sheet.cardRef} {...sheet.dragProps}>
       <SheetCloseBtn onClose={onClose}/>
       <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",marginBottom:14,padding:"4px 0 8px"}}>
         <div style={{width:40,height:4,borderRadius:99,background:C.border}}/>
@@ -872,7 +885,7 @@ function GoalModal({initial,onClose,onSave,onDelete}){
   }
   return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
-    <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto",position:"relative",...sheet.cardStyle}} ref={sheet.cardRef} {...sheet.dragProps}>
+    <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto",overscrollBehavior:"contain",position:"relative",...sheet.cardStyle}} ref={sheet.cardRef} {...sheet.dragProps}>
       <SheetCloseBtn onClose={onClose}/>
       <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
       <div style={{padding:"0 20px 28px"}}>
@@ -1527,7 +1540,7 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
   }
   return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:300,animation:"fadeIn 0.18s ease"}}>
-    <div ref={el=>{scrollRef.current=el;sheet.cardRef.current=el;}} style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto",position:"relative",...sheet.cardStyle}} {...sheet.dragProps}>
+    <div ref={el=>{scrollRef.current=el;sheet.cardRef.current=el;}} style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto",overscrollBehavior:"contain",position:"relative",...sheet.cardStyle}} {...sheet.dragProps}>
       <SheetCloseBtn onClose={onClose}/>
       <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
       <div style={{padding:"0 20px"}}>
@@ -1869,7 +1882,7 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
       style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:600,animation:"fadeIn 0.18s ease"}}>
       <div onClick={e=>e.stopPropagation()} ref={sheet2.cardRef}
         style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
-          border:`1px solid rgba(244,63,94,0.3)`,padding:"20px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"90vh",overflowY:"auto",position:"relative",...sheet2.cardStyle}}>
+          border:`1px solid rgba(244,63,94,0.3)`,padding:"20px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"90vh",overflowY:"auto",overscrollBehavior:"contain",position:"relative",...sheet2.cardStyle}}>
         <SheetCloseBtn onClose={onClose2}/>
         <div {...sheet2.handleProps} style={{...sheet2.handleProps.style,display:"flex",justifyContent:"center",marginBottom:14,padding:"4px 0 8px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,paddingRight:40}}>
@@ -1928,7 +1941,7 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
     <div onClick={e=>e.stopPropagation()}
       style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
         border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",
-        maxHeight:"90vh",overflowY:"auto",position:"relative",...sheet.cardStyle}} ref={sheet.cardRef} {...sheet.dragProps}>
+        maxHeight:"90vh",overflowY:"auto",overscrollBehavior:"contain",position:"relative",...sheet.cardStyle}} ref={sheet.cardRef} {...sheet.dragProps}>
       <SheetCloseBtn onClose={onClose}/>
       <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
       <div style={{padding:"0 20px 36px"}}>
@@ -2083,7 +2096,7 @@ function MenuSheet({onClose,user,disponibleGastar,totalGasto,prestamos,tema,TEMA
           </div>
         </div>
         {/* Lista scrolleable */}
-        <div style={{overflowY:"auto",WebkitOverflowScrolling:"touch",flex:1}}>
+        <div style={{overflowY:"auto",WebkitOverflowScrolling:"touch",flex:1,overscrollBehavior:"contain"}}>
           <div style={{padding:"8px 0 32px"}}>
             <div style={{padding:"4px 20px 6px"}}>
               <div style={{fontSize:10,fontWeight:700,color:C.text.s,letterSpacing:1,textTransform:"uppercase"}}>Navegación</div>
@@ -3186,7 +3199,7 @@ export default function App(){
       </div>}
       {/* Scroll de meses */}
       <div ref={monthScrollRef} style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:14,paddingTop:2,
-        scrollbarWidth:"none",WebkitOverflowScrolling:"touch",alignItems:"center"}}>
+        scrollbarWidth:"none",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",alignItems:"center"}}>
         {mesesVisibles.map(i=>{
           const isNext=selectedYear===currentY&&i===currentM+1;
           const isActive=month===i;
@@ -4051,7 +4064,7 @@ export default function App(){
     const ci=getCatInfo(cat);
     return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
       style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:300,animation:"fadeIn 0.18s ease"}}>
-      <div {...sheet.dragProps} ref={sheet.cardRef} style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto",scrollBehavior:"auto",position:"relative",...sheet.cardStyle}}>
+      <div {...sheet.dragProps} ref={sheet.cardRef} style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto",overscrollBehavior:"contain",scrollBehavior:"auto",position:"relative",...sheet.cardStyle}}>
         <SheetCloseBtn onClose={onClose}/>
         <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
         <div style={{padding:"0 20px 28px"}}>
