@@ -1457,7 +1457,10 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
   }
   const esEdicion=!!initial?.id;
   const montoDiff=esEdicion?(raw-initial.amount):raw;
-  const sinSaldo=!esIngreso&&!esIngresoExtra&&!esEdicion&&saldoDisponible<raw&&saldoDisponible>=0;
+  // sinDisponible: bloquea si el disponible no alcanza para este gasto
+  const sinDisponible=!esIngreso&&!esIngresoExtra&&!esEdicion&&!isEdit&&saldoDisponible<raw;
+  // sinSaldo ya no se usa por separado — sinDisponible lo cubre todo
+  const sinSaldo=false;
 
   // ── Validaciones de campos requeridos ──────────────────────────────────────
   // 1. Monto obligatorio siempre
@@ -1625,18 +1628,22 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
           <Lbl>Fecha</Lbl>
           <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"13px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box"}}/>
         </div>
-        {/* Alerta saldo insuficiente */}
-        {sinSaldo&&raw>0&&!esIngreso&&(
-          <div style={{marginBottom:12,padding:"12px 14px",background:`${C.amber}15`,border:`1px solid ${C.amber}40`,borderRadius:12,display:"flex",gap:10,alignItems:"flex-start",animation:"fadeIn 0.18s ease"}}>
-            <span style={{fontSize:20,flexShrink:0}}>💭</span>
+        {/* Bloqueo: no alcanza el disponible para este gasto */}
+        {sinDisponible&&raw>0&&!esIngreso&&!esIngresoExtra&&(
+          <div style={{marginBottom:12,padding:"12px 14px",
+            background:saldoDisponible<=0?`${C.red}15`:`${C.amber}15`,
+            border:`1px solid ${saldoDisponible<=0?C.red:C.amber}40`,
+            borderRadius:12,display:"flex",gap:10,alignItems:"flex-start",animation:"fadeIn 0.18s ease"}}>
+            <span style={{fontSize:20,flexShrink:0}}>{saldoDisponible<=0?"🚫":"⚠️"}</span>
             <div>
-              <div style={{fontSize:13,fontWeight:800,color:C.amber,marginBottom:3}}>
-                {saldoDisponible<=0?"Este mes quedaste sin margen":"Excede tu disponible este mes"}
+              <div style={{fontSize:13,fontWeight:800,
+                color:saldoDisponible<=0?C.red:C.amber,marginBottom:3}}>
+                {saldoDisponible<=0?"Sin disponible":"No alcanza para este gasto"}
               </div>
               <div style={{fontSize:12,color:C.text.b,lineHeight:1.6}}>
                 {saldoDisponible<=0
-                  ?`Tu disponible es ${COP(saldoDisponible)}. Puedes registrarlo igual si es real, solo ten en cuenta el impacto.`
-                  :`Disponible: ${COP(saldoDisponible)} · Este gasto: ${COP(raw)}`}
+                  ?"Registra un ingreso, un extra, o bájale el monto a una meta para liberar dinero."
+                  :`Tienes ${COP(saldoDisponible)} disponibles y este gasto es ${COP(raw)}.`}
               </div>
             </div>
           </div>
@@ -1644,14 +1651,14 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
         <div style={{display:"flex",gap:8,marginBottom:28}}>
           {isEdit&&!conf&&<button onClick={()=>setConf(true)} style={{padding:"16px 18px",borderRadius:14,border:`1px solid ${C.red}44`,background:"transparent",color:C.red,cursor:"pointer",fontSize:22,flexShrink:0}}>🗑</button>}
           {isEdit&&conf&&<button onClick={()=>{onDelete(initial.id);onClose();}} style={{padding:"16px 18px",borderRadius:14,border:"none",background:C.red,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:800,flexShrink:0,animation:"shake 0.3s ease"}}>¿Borrar?</button>}
-          <button onClick={(hayError||sinSaldo||sinMetas)?undefined:save}
+          <button onClick={(hayError||sinSaldo||sinDisponible||sinMetas)?undefined:save}
             style={{flex:1,padding:16,borderRadius:14,border:"none",
-              cursor:(hayError||sinSaldo||sinMetas)?"not-allowed":"pointer",
+              cursor:(hayError||sinSaldo||sinDisponible||sinMetas)?"not-allowed":"pointer",
               fontSize:raw>=1000000?13:raw>=100000?14:16,fontWeight:800,transition:"all 0.2s",
-              background:(hayError||sinMetas)?C.surface:sinSaldo?`${C.red}20`:isEdit&&!changed?`${C.sky}18`:`linear-gradient(135deg,${acc},${acc}cc)`,
-              color:(hayError||sinMetas)?C.text.s:sinSaldo?C.red:isEdit&&!changed?C.sky:"#fff",
-              opacity:(hayError||sinSaldo||sinMetas)?0.65:1}}>
-            {getMensajeError() ?? (sinSaldo?"Excede tu disponible":isEdit&&!changed?"Sin cambios":isEdit?"✓ Guardar":esIngreso?`Registrar salario ${COP(raw)} →`:esIngresoExtra?`Registrar extra ${COP(raw)} →`:`Registrar ${COP(raw)} →`)}
+              background:(hayError||sinMetas)?C.surface:sinDisponible?(saldoDisponible<=0?`${C.red}20`:`${C.amber}20`):isEdit&&!changed?`${C.sky}18`:`linear-gradient(135deg,${acc},${acc}cc)`,
+              color:(hayError||sinMetas)?C.text.s:sinDisponible?(saldoDisponible<=0?C.red:C.amber):isEdit&&!changed?C.sky:"#fff",
+              opacity:(hayError||sinSaldo||sinDisponible||sinMetas)?0.65:1}}>
+            {getMensajeError() ?? (sinDisponible?(saldoDisponible<=0?"Sin disponible":"No alcanza — tienes "+COP(saldoDisponible)):isEdit&&!changed?"Sin cambios":isEdit?"✓ Guardar":esIngreso?`Registrar salario ${COP(raw)} →`:esIngresoExtra?`Registrar extra ${COP(raw)} →`:`Registrar ${COP(raw)} →`)}
           </button>
         </div>
       </div>
@@ -2901,13 +2908,18 @@ export default function App(){
   }
 
   const saldoAnterior=getSaldoAcumulado();
+  // saldo real: incluye metas (para acumulado histórico correcto)
   const saldo=totalIngresoMes+saldoAnterior-totalGasto-totalAportes-totalPrestamos+totalDevoluciones+totalExtras;
+  // disponible para gastar: ingresos + extras - gastos - metas - préstamos (metas son intocables)
+  const disponibleGastar=Math.max(totalIngresoMes+saldoAnterior+totalExtras+totalDevoluciones-totalGasto-totalAportes-totalPrestamos,0);
   const tasaAhorr=totalIngresoMes>0?totalAportes/totalIngresoMes:0;
+  // "de $X" muestra el salario puro — referencia fija del mes
   const totalDisponibleBase=totalIngresoMes+saldoAnterior;
-  const pctUsado=totalDisponibleBase>0?totalGasto/totalDisponibleBase:0;
+  // % gastado = gastos / salario — cuánto del sueldo se fue en gastos
+  const pctUsado=totalIngresoMes>0?totalGasto/totalIngresoMes:totalGasto>0?1:0;
   const totalEnMetas=tx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat)).reduce((s,t)=>s+t.amount,0);
-  const saldoColor=saldo>sal*0.4?C.emerald:saldo>sal*0.15?C.amber:C.red;
-  const animSaldo=useCountUp(Math.max(saldo,0));
+  const saldoColor=pctUsado<0.7?C.emerald:pctUsado<0.9?C.amber:C.red;
+  const animSaldo=useCountUp(disponibleGastar);
   const animGasto=useCountUp(totalGasto,800);
   const animAportes=useCountUp(totalAportes,850);
   // Compartidos entre HomeTab y AnalisisTab — subidos al scope de App()
@@ -3248,24 +3260,24 @@ export default function App(){
       <MonthSelector/>
       {/* Card única tipo Apple Wallet */}
       <div style={{
-        ...cardSurface(pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo),
+        ...cardSurface(pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo),
         borderRadius:24, padding:"24px 22px",
-        boxShadow:cardShadow(pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo),
+        boxShadow:cardShadow(pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo),
         marginBottom:16, animation:"fadeIn 0.25s ease",
-        border:`1px solid ${pctUsado>=1?C.red+"44":pctUsado>=0.8?C.amber+"33":"transparent"}`,
+        border:`1px solid ${pctUsado>=0.9?C.red+"44":pctUsado>=0.7?C.amber+"33":"transparent"}`,
         position:"relative", overflow:"hidden",
       }}>
-        <GradientOrbs color={pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo}/>
+        <GradientOrbs color={pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo}/>
         <div style={{position:"relative"}}>
           <div style={{fontSize:11,color:C.text.s,letterSpacing:1.5,fontWeight:600,textTransform:"uppercase",marginBottom:8}}>Disponible · {MONTHS_S[month]}</div>
-          <div style={{fontSize:48,fontWeight:700,letterSpacing:-1,color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.emerald,fontVariantNumeric:"tabular-nums",marginBottom:20,lineHeight:1}}>
+          <div style={{fontSize:48,fontWeight:700,letterSpacing:-1,color:pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.emerald,fontVariantNumeric:"tabular-nums",marginBottom:20,lineHeight:1}}>
             {COP(animSaldo)}
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:1,background:ink(0.08),borderRadius:14,overflow:"hidden"}}>
             {[
               {label:"Gastos",value:COP(animGasto),color:C.red},
               {label:"En metas",value:COP(animAportes),color:C.indigoLight},
-              {label:"Libre",value:`${Math.round(totalDisponibleBase>0?saldo/totalDisponibleBase*100:0)}%`,color:pctUsado>=1?C.red:C.emerald},
+              {label:"Libre",value:`${Math.round(totalDisponibleBase>0?totalIngresoMes>0?Math.max((totalIngresoMes-totalGasto)/totalIngresoMes*100,0):0:0)}%`,color:pctUsado>=0.9?C.red:C.emerald},
             ].map(item=><div key={item.label} style={{background:C.isLight?"rgba(255,255,255,0.7)":C.card,padding:"12px 10px",textAlign:"center"}}>
               <div style={{fontSize:10,color:C.text.s,fontWeight:500,marginBottom:4}}>{item.label}</div>
               <div style={{fontSize:13,fontWeight:700,color:item.color,letterSpacing:-0.3}}>{item.value}</div>
@@ -3336,31 +3348,31 @@ export default function App(){
         background: CS.style==="glass"
           ? surface("glassHi")
           : CS.style==="gradient"
-            ? `linear-gradient(145deg,${pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo}28 0%,${C.card} 55%)`
+            ? `linear-gradient(145deg,${pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo}28 0%,${C.card} 55%)`
             : CS.style==="classic"
-              ? `linear-gradient(135deg,${pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo}32 0%,${pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo}12 50%,${C.bg} 100%)`
+              ? `linear-gradient(135deg,${pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo}32 0%,${pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo}12 50%,${C.bg} 100%)`
               : C.card,
         ...(CS.style==="glass"?{backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)"}:{}),
-        border:CS.style==="solid"?`1px solid ${pctUsado>=1?C.red+"44":pctUsado>=0.8?C.amber+"33":"transparent"}`:cardBorder(pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo),
-        boxShadow: cardShadow(pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo),
+        border:CS.style==="solid"?`1px solid ${pctUsado>=0.9?C.red+"44":pctUsado>=0.7?C.amber+"33":"transparent"}`:cardBorder(pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo),
+        boxShadow: cardShadow(pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo),
         transition:"box-shadow 0.5s ease,border-color 0.5s ease",
         position:"relative", overflow:"hidden",
       }}>
-        <GradientOrbs color={pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.indigo}/>
+        <GradientOrbs color={pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo}/>
         <div style={{position:"relative"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <div style={{fontSize:11,color:C.text.s,letterSpacing:1.8,fontWeight:600,textTransform:"uppercase"}}>Disponible · {MONTHS_S[month]}</div>
           {saldoAnterior>0&&<div style={{background:ink(0.06),borderRadius:99,padding:"3px 10px",fontSize:11,color:C.emeraldLight,fontWeight:600}}>+{COP(saldoAnterior)}</div>}
         </div>
-        <div style={{fontSize:56,fontWeight:700,letterSpacing:-1,lineHeight:1,color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.emerald,fontVariantNumeric:"tabular-nums",marginBottom:28,transition:"color 0.4s"}}>
+        <div style={{fontSize:56,fontWeight:700,letterSpacing:-1,lineHeight:1,color:pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.emerald,fontVariantNumeric:"tabular-nums",marginBottom:28,transition:"color 0.4s"}}>
           {COP(animSaldo)}
         </div>
         <div style={{background:ink(0.06),borderRadius:99,height:3,overflow:"hidden",marginBottom:12}}>
-          <div style={{height:3,borderRadius:99,background:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.emerald,width:`${Math.min(pctUsado*100,100)}%`,transition:"width 0.8s ease",opacity:0.7}}/>
+          <div style={{height:3,borderRadius:99,background:pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.emerald,width:`${Math.min(pctUsado*100,100)}%`,transition:"width 0.8s ease",opacity:0.7}}/>
         </div>
         <div style={{display:"flex",justifyContent:"space-between"}}>
-          <span style={{fontSize:12,color:C.text.b,fontWeight:500}}>{totalDisponibleBase>0?`de ${COP(totalDisponibleBase)}`:"Sin ingresos"}</span>
-          <span style={{fontSize:12,fontWeight:600,color:pctUsado>=1?C.red:pctUsado>=0.8?C.amber:C.text.s}}>{Math.round(pctUsado*100)}% gastado</span>
+          <span style={{fontSize:12,color:C.text.b,fontWeight:500}}>{totalIngresoMes>0?`de ${COP(totalIngresoMes)}`:"Sin ingresos"}</span>
+          <span style={{fontSize:12,fontWeight:600,color:pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.text.s}}>{Math.round(pctUsado*100)}% gastado</span>
         </div>
         {!sinDatos&&<MonthlyProjection gastosTx={gastosTx} saldo={saldo} month={month} C={C} COP={COP} MONTHS_S={MONTHS_S}/>}
         </div>
@@ -4912,7 +4924,7 @@ export default function App(){
       zIndex:100,lineHeight:1,
       transition:"all 0.3s ease",
     }}>＋</button>}
-    {modal&&<TxModal initial={modal==="new"||modal==="meta_aporte"?null:modal} initialCat={modal==="meta_aporte"?"meta_aporte":undefined} goals={goals} saldoDisponible={saldo} onClose={()=>setModal(null)} onSave={handleSave} onDelete={handleDelete} catsCustom={catsCustom} onEditCustom={m=>setCatPersonalModal(m)} onOpenPrestamo={()=>{setPrestamosModal(true);setPrestamoForm("new");}} txHistorial={tx}/>}
+    {modal&&<TxModal initial={modal==="new"||modal==="meta_aporte"?null:modal} initialCat={modal==="meta_aporte"?"meta_aporte":undefined} goals={goals} saldoDisponible={disponibleGastar} onClose={()=>setModal(null)} onSave={handleSave} onDelete={handleDelete} catsCustom={catsCustom} onEditCustom={m=>setCatPersonalModal(m)} onOpenPrestamo={()=>{setPrestamosModal(true);setPrestamoForm("new");}} txHistorial={tx}/>}
     {goalModal&&<GoalModal initial={goalModal==="new"?null:goalModal} onClose={()=>setGoalModal(null)} onSave={handleGoalSave} onDelete={handleGoalDelete}/>}
     {catPersonalModal&&<CatPersonalModal
       main={catPersonalModal}
