@@ -5,6 +5,7 @@ import { FinancialScore } from "./FinancialScore";
 import { MonthlyProjection } from "./MonthlyProjection";
 import { getSuggestedBudgets, BudgetSetupBanner, BudgetHealth } from "./BudgetEngine";
 import { BudgetSetupModal } from "./BudgetSetupModal";
+import { SimuladorDecision } from "./SimuladorDecision";
 import { auth, provider, db } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import {
@@ -2097,7 +2098,7 @@ function MenuSheet({onClose,user,disponibleGastar,totalGasto,prestamos,tema,TEMA
         </div>
         {/* Lista scrolleable */}
         <div style={{overflowY:"auto",WebkitOverflowScrolling:"touch",flex:1,overscrollBehavior:"contain"}}>
-          <div style={{padding:"8px 0 32px"}}>
+          <div style={{padding:"8px 0 96px"}}>
             <div style={{padding:"4px 20px 6px"}}>
               <div style={{fontSize:10,fontWeight:700,color:C.text.s,letterSpacing:1,textTransform:"uppercase"}}>Navegación</div>
             </div>
@@ -2167,6 +2168,9 @@ export default function App(){
   const [pagoModalDia,setPagoModalDia]=useState(null); // día preseleccionado
   const [presupuestoModal,setPresupuestoModal]=useState(null); // cat obj
   const [budgetSetupOpen,setBudgetSetupOpen]=useState(false); // modal plan inteligente
+  const [simuladorOpen,setSimuladorOpen]=useState(false); // simulador de decisión
+  const [calMes,setCalMes]=useState(now.getMonth()); // mes visible en el calendario
+  const [calAnio,setCalAnio]=useState(now.getFullYear()); // año visible en el calendario
   const [bannerDismissTick,setBannerDismissTick]=useState(0); // re-render al dismiss
   const [exportModal,setExportModal]=useState(false);
   const [catsCustom,setCatsCustom]=useState({}); // {mainId:[{id,label,icon}]}
@@ -3531,6 +3535,15 @@ export default function App(){
             mesesDatos={totalMesesConDatos||0}
             C={C} COP={COP}
             onActivate={()=>setBudgetSetupOpen(true)}/>
+          {/* ── 2.45 Chip simulador ── */}
+          {disponibleGastar>0&&<button onClick={()=>setSimuladorOpen(true)} style={{
+            display:"flex",alignItems:"center",gap:6,marginBottom:16,
+            background:"none",border:"none",cursor:"pointer",padding:0,
+          }}>
+            <span style={{fontSize:13}}>🔮</span>
+            <span style={{fontSize:12,color:C.text.s,fontWeight:500}}>¿Qué pasa si compro algo hoy?</span>
+            <span style={{fontSize:11,color:C.indigo,fontWeight:700}}>Simular →</span>
+          </button>}
           {/* ── 2.6 Racha ── */}
           <RachaWidget/>
           {/* ── 3. Insights ── */}
@@ -4047,6 +4060,7 @@ export default function App(){
     const [dia,setDia]=useState(initial?.dia||diaInicial||1);
     const [frecuencia,setFrecuencia]=useState(initial?.frecuencia||"mensual");
     const [conf,setConf]=useState(false);
+    const [showSugP,setShowSugP]=useState(false);
     const ref=useRef(null);
     const sheet=useSheetDismiss(onClose);
     useEffect(()=>{const t=setTimeout(()=>ref.current?.focus(),120);return()=>clearTimeout(t);},[]);
@@ -4061,6 +4075,35 @@ export default function App(){
       });
       onClose();
     }
+    // ── Sugerencias para nombre de pago ────────────────────────────────────────
+    // Fuente 1: pagos programados ya existentes (excluye el que se está editando)
+    // Fuente 2: transacciones históricas (mismo nombre/desc)
+    const sugerenciasPago=useMemo(()=>{
+      if(!nombre.trim()||nombre.length<2||isEdit) return [];
+      const q=nombre.toLowerCase().trim();
+      const vistos=new Map();
+      // Pagos programados existentes
+      pagos.filter(p=>p.nombre&&p.id!==initial?.id&&p.nombre.toLowerCase().includes(q))
+        .forEach(p=>{
+          const key=`${p.nombre}|${p.cat}`;
+          if(!vistos.has(key)) vistos.set(key,{nombre:p.nombre,cat:p.cat,monto:p.monto,count:2,fuente:"pago"});
+          else vistos.get(key).count+=2;
+        });
+      // Transacciones históricas
+      tx.filter(t=>t.desc&&t.cat&&t.desc.toLowerCase().includes(q))
+        .forEach(t=>{
+          const key=`${t.desc}|${t.cat}`;
+          if(!vistos.has(key)) vistos.set(key,{nombre:t.desc,cat:t.cat,monto:t.amount,count:1,fuente:"tx"});
+          else vistos.get(key).count++;
+        });
+      return [...vistos.values()].sort((a,b)=>b.count-a.count).slice(0,4);
+    },[nombre,isEdit]);
+    function aplicarSugP(sug){
+      setNombre(sug.nombre);
+      setCat(sug.cat);
+      if(sug.monto>0) setMonto(Number(sug.monto).toLocaleString("es-CO"));
+      setShowSugP(false);
+    }
     const ci=getCatInfo(cat);
     return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
       style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:300,animation:"fadeIn 0.18s ease"}}>
@@ -4072,8 +4115,29 @@ export default function App(){
             <div style={{fontSize:17,fontWeight:800,color:C.text.h}}>{isEdit?"Editar pago":"Nuevo pago programado"}</div>
           </div>
           <Lbl>Nombre del pago</Lbl>
-          <input ref={ref} placeholder="ej: Arriendo, Gym, Netflix, Seguro..." value={nombre} onChange={e=>setNombre(e.target.value)}
-            style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"13px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:14}}/>
+          <div style={{position:"relative",marginBottom:14}}>
+            <input ref={ref} placeholder="ej: Arriendo, Gym, Netflix, Seguro..." value={nombre}
+              onChange={e=>{setNombre(e.target.value);setShowSugP(true);}}
+              onFocus={()=>setShowSugP(true)}
+              onBlur={()=>setTimeout(()=>setShowSugP(false),150)}
+              style={{width:"100%",background:C.surface,border:`1px solid ${showSugP&&sugerenciasPago.length>0?C.sky+"55":C.border}`,borderRadius:12,padding:"13px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box",transition:"border-color 0.2s"}}/>
+            {showSugP&&sugerenciasPago.length>0&&(
+              <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:C.card,border:`1px solid ${C.sky}44`,borderRadius:12,overflow:"hidden",zIndex:10,boxShadow:elev("raised")}}>
+                {sugerenciasPago.map((sug,i)=>{
+                  const ci2=getCatInfo(sug.cat);
+                  return <button key={i} onMouseDown={e=>e.preventDefault()} onClick={()=>aplicarSugP(sug)}
+                    style={{width:"100%",padding:"11px 14px",background:"none",border:"none",borderBottom:i<sugerenciasPago.length-1?`1px solid ${C.border}`:"none",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:10}}>
+                    <span style={{fontSize:18,flexShrink:0}}>{ci2.icon}</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:700,color:C.text.h,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sug.nombre}</div>
+                      <div style={{fontSize:11,color:C.text.s,marginTop:1}}>{ci2.label}{sug.monto>0?` · ${COP(sug.monto)}`:""}</div>
+                    </div>
+                    <span style={{fontSize:10,color:C.sky,fontWeight:700,flexShrink:0}}>↵ usar</span>
+                  </button>;
+                })}
+              </div>
+            )}
+          </div>
           <Lbl>Monto (COP)</Lbl>
           <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:14,overflow:"hidden",border:`2px solid ${raw>0?C.sky:C.border}`,marginBottom:14}}>
             <span style={{padding:"0 14px",fontSize:20,lineHeight:"56px"}}>{ci.icon}</span>
@@ -4353,8 +4417,7 @@ export default function App(){
   // ── Pestaña Calendario + Pagos Programados ───────────────────────────────
   const CalendarioTab=()=>{
     const currentM=now.getMonth(), currentY=now.getFullYear();
-    const [calMes,setCalMes]=useState(currentM);
-    const [calAnio,setCalAnio]=useState(currentY);
+    // calMes/calAnio viven en App() para que PagoModal pueda leerlos al crear pagos
     const [diaSelec,setDiaSelec]=useState(now.getDate());
     const [confirmPago,setConfirmPago]=useState(null); // pago a confirmar
 
@@ -5025,8 +5088,8 @@ export default function App(){
     {pagoModal&&<PagoModal
       initial={pagoModal==="new"?null:pagoModal}
       diaInicial={pagoModalDia||now.getDate()}
-      mesInicial={tab==="cal"?undefined:now.getMonth()}
-      anioInicial={tab==="cal"?undefined:now.getFullYear()}
+      mesInicial={tab==="cal"?calMes:now.getMonth()}
+      anioInicial={tab==="cal"?calAnio:now.getFullYear()}
       onClose={()=>{setPagoModal(null);setPagoModalDia(null);}}
       onSave={handlePagoSave}
       onDelete={handlePagoDelete}/>}
@@ -5035,6 +5098,19 @@ export default function App(){
       onClose={()=>setExportModal(false)}
       exportarCSV={exportarCSV} exportarPDF={exportarPDF}
       tx={tx} now={now} isMonth={isMonth} MONTHS={MONTHS}/>}
+    {/* Simulador de decisión */}
+    {simuladorOpen&&<SimuladorDecision
+      open={simuladorOpen}
+      onClose={()=>setSimuladorOpen(false)}
+      disponibleGastar={disponibleGastar}
+      salario={salario||0}
+      gastosTx={gastosTx}
+      goals={goals}
+      getAportado={getAportado}
+      presupuestos={presupuestos}
+      MAIN_CATS={MAIN_CATS}
+      month={month}
+      C={C} COP={COP}/>}
     {/* Banner in-app pagos pendientes hoy */}
     {pagosPendientesHoy.length>0&&!modal&&!goalModal&&!pagoModal&&(
       <div style={{position:"fixed",top:74,left:"50%",transform:"translateX(-50%)",width:"calc(100% - 32px)",maxWidth:398,zIndex:18,animation:"slideDown 0.3s ease"}}>
