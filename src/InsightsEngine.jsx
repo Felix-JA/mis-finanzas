@@ -81,7 +81,7 @@ export function InsightsEngine({
   month, C, COP, MAIN_CATS, isGasto, isAporteMeta, isSavingsLegacy, isMonth,
   // Props nuevos (Fase 2C)
   presupuestos = {}, goals = [], pagos = [], saldo = 0,
-  disponibleGastar = 0, totalAportesMes = 0,
+  disponibleGastar = 0, totalAportesMes = 0, rachaActual = 0,
 }) {
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -115,14 +115,15 @@ export function InsightsEngine({
   const prevTotal = prevTotalRaw * factor;
 
   // Gastos por categoría (mes actual) + (mes anterior normalizado)
+  const gastosSinDeudas = gastosTx.filter(t => !t.deudaId);
   const byCat = MAIN_CATS.map(m => ({
     ...m,
-    total: gastosTx.filter(t => m.subs.some(s => s.id === t.cat)).reduce((s, t) => s + t.amount, 0),
+    total: gastosSinDeudas.filter(t => m.subs.some(s => s.id === t.cat)).reduce((s, t) => s + t.amount, 0),
   })).filter(c => c.total > 0).sort((a, b) => b.total - a.total);
 
   const byCatPrev = MAIN_CATS.map(m => ({
     ...m,
-    total: prevGastos.filter(t => m.subs.some(s => s.id === t.cat)).reduce((s, t) => s + t.amount, 0) * factor,
+    total: prevGastos.filter(t => m.subs.some(s => s.id === t.cat) && !t.deudaId).reduce((s, t) => s + t.amount, 0) * factor,
   }));
 
   const insights = [];
@@ -146,7 +147,7 @@ export function InsightsEngine({
   }
 
   // 2. vs mes anterior (sube)
-  if (prevTotal > 100 && totalGasto > 0) {
+  if (prevTotal > 100 && totalGasto > 0 && today >= 8) {
     const diff = totalGasto - prevTotal;
     const pct = Math.abs(diff / prevTotal) * 100;
     if (pct >= 8) {
@@ -255,7 +256,7 @@ export function InsightsEngine({
       if (ahorroMeses >= 1 && mesesActuales < 120) {
         insights.push({
           id: "meta_aceleracion", icon: "🚀", color: C.indigo,
-          title: `Bajar ${catRecortable.label} un 25% te ahorra ${ahorroMeses} mes${ahorroMeses > 1 ? "es" : ""} hacia ${meta.nombre || "tu meta"}`,
+          title: `Bajar ${catRecortable.label} un 25% te ahorra ${ahorroMeses} mes${ahorroMeses > 1 ? "es" : ""} hacia ${meta.name || "tu meta"}`,
           body: `Recortar ${COP(recorte)} de ${catRecortable.label} acelera tu meta`,
           tipo: "oportunidad",
           prioridad: PRIORIDAD.oportunidad,
@@ -328,7 +329,11 @@ export function InsightsEngine({
   if (pagos && pagos.length > 0 && saldo != null) {
     const pagosMes = pagos.filter(p => {
       if (!p.activo) return false;
-      if (p.frecuencia === "mensual") return true;
+      if (p.frecuencia === "mensual") {
+        const mesI = p.mesInicio ?? 0;
+        const anioI = p.anioInicio ?? 2000;
+        return (currentYear * 12 + month) >= (anioI * 12 + mesI);
+      }
       if (p.frecuencia === "unico") {
         return (p.mesUnico ?? month) === month && (p.anioUnico ?? currentYear) === currentYear;
       }
@@ -528,19 +533,18 @@ export function InsightsEngine({
       title: `Quedan ${diasRestantesFin} días y tienes ${COP(disponibleGastar)}`,
       body: "Poco margen para cerrar el mes. Mejor no improvisar.",
       tipo: "alerta_suave",
-      prioridad: PRIORIDAD.alerta_suave + 1,
+      prioridad: PRIORIDAD.alerta_critica + 0.5, // más prioritario que disponible_bajo genérico
       bgType: "warning",
     });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 6. RACHA EN RIESGO — llevas racha activa pero este mes vas por encima del ingreso
+  // 6. RACHA EN RIESGO — solo si hay racha activa (≥2 meses) y vas >90%
   // ═══════════════════════════════════════════════════════════════════════════
-  if (pctGastado > 0.9 && totalGasto > 0 && today >= 20) {
-    // Solo si quedan pocos días y vas muy ajustado
+  if (pctGastado > 0.9 && totalGasto > 0 && today >= 20 && (rachaActual || 0) >= 2) {
     insights.push({
       id: "racha_en_riesgo", icon: "🔥", color: C.amber,
-      title: "Tu racha de meses en verde está en riesgo",
+      title: `Tu racha de ${rachaActual} meses en verde está en riesgo`,
       body: `Llevas el ${Math.round(pctGastado * 100)}% gastado — cuidado con los últimos días.`,
       tipo: "alerta_suave",
       prioridad: PRIORIDAD.alerta_suave + 2,
@@ -561,21 +565,8 @@ export function InsightsEngine({
       bgType: "success",
     });
   }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 8. GASTOS MÁS ALTOS QUE EL MES PASADO EN GENERAL
-  // ═══════════════════════════════════════════════════════════════════════════
-  if (today >= 10 && prevTotal > 5000 && totalGasto > prevTotal * 1.2) {
-    const diferencia = totalGasto - prevTotal;
-    insights.push({
-      id: "gastos_subieron_general", icon: "📈", color: C.amber,
-      title: `Gastos ${Math.round((totalGasto / prevTotal - 1) * 100)}% más altos que el mes pasado`,
-      body: `${COP(Math.round(diferencia))} más que el período equivalente anterior.`,
-      tipo: "alerta_suave",
-      prioridad: PRIORIDAD.alerta_suave + 3,
-      bgType: "warning",
-    });
-  }
+  // NOTA: insight 8 "gastos_subieron_general" eliminado — redundante con vs_anterior (insight 2)
+  // vs_anterior normaliza por días y es más preciso
 
   // ═══════════════════════════════════════════════════════════════════════════
   // FILTRADO: dismissed + familias + prioridad

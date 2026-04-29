@@ -100,27 +100,6 @@ export function SimuladorDecision({
     const gastoDiario = vals.length >= 3 ? vals[Math.min(idx, vals.length - 1)] : 0;
     const diasEquivalentes = gastoDiario > 0 ? raw / gastoDiario : 0;
 
-    // 5. ¿Afecta algún presupuesto?
-    // Solo mostrar categorías que la compra empuja significativamente:
-    // - estaban bien (<85%) y la compra las lleva a >85%, O
-    // - estaban entre 85-100% y la compra las hace superar el límite
-    // Excluir categorías ya pasadas antes de la compra (no es culpa de esta compra)
-    const presupAlerta = MAIN_CATS
-      .filter(cat => (presupuestos[cat.id] || 0) > 0)
-      .map(cat => {
-        const gastadoCat = gastosTx
-          .filter(t => cat.subs.some(s => s.id === t.cat))
-          .reduce((s, t) => s + t.amount, 0);
-        const limite = presupuestos[cat.id];
-        const pct = gastadoCat / limite;
-        const pctDespues = (gastadoCat + raw) / limite;
-        return { ...cat, gastadoCat, limite, pct, pctDespues };
-      })
-      // Solo si antes estaba OK (<100%) y la compra la empuja >85%
-      .filter(c => c.pct < 1.0 && c.pctDespues > 0.85)
-      .sort((a, b) => b.pctDespues - a.pctDespues)
-      .slice(0, 2);
-
     return {
       disponibleDespues,
       alcanza,
@@ -129,9 +108,8 @@ export function SimuladorDecision({
       impactoMetas,
       gastoDiario,
       diasEquivalentes,
-      presupAlerta,
     };
-  }, [raw, disponibleGastar, salario, goals, getAportado, gastosTx, presupuestos, MAIN_CATS]);
+  }, [raw, disponibleGastar, salario, goals, getAportado, gastosTx, presupuestos, MAIN_CATS, month]);
 
   if (!open) return null;
 
@@ -336,75 +314,34 @@ export function SimuladorDecision({
               </div>
             )}
 
-            {/* 4. Alertas de presupuesto */}
-            {resultado.presupAlerta.length > 0 && (
-              <div style={{
-                borderRadius: 18, padding: "14px 16px",
-                background: `${C.red}10`,
-                border: `1px solid ${C.red}28`,
-                marginBottom: 10,
-                animation: "fadeIn 0.4s ease",
-              }}>
-                <div style={{ fontSize: 11, color: C.text.s, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 }}>
-                  Presupuestos en riesgo
-                </div>
-                {resultado.presupAlerta.map(cat => (
-                  <div key={cat.id} style={{
-                    display: "flex", alignItems: "center", gap: 10, marginBottom: 6,
-                  }}>
-                    <span style={{ fontSize: 16 }}>{cat.icon}</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: C.text.h }}>
-                        {cat.label}: {COP(cat.gastadoCat)} / {COP(cat.limite)}
-                      </div>
-                      <div style={{
-                        height: 4, borderRadius: 99,
-                        background: `${C.red}20`,
-                        marginTop: 4, overflow: "hidden",
-                      }}>
-                        <div style={{
-                          height: 4, borderRadius: 99,
-                          background: cat.pctDespues > 1 ? C.red : C.amber,
-                          width: `${Math.min(cat.pctDespues * 100, 100)}%`,
-                          transition: "width 0.4s",
-                        }} />
-                      </div>
-                    </div>
-                    <div style={{
-                      fontSize: 11, fontWeight: 800,
-                      color: cat.pctDespues > 1 ? C.red : C.amber,
-                    }}>
-                      {Math.round(cat.pctDespues * 100)}%
-                    </div>
+            {/* 4. Veredicto final */}
+            {(() => {
+              const pctCompra = disponibleGastar > 0 ? raw / disponibleGastar : 1;
+              const dispDespues = resultado.disponibleDespues;
+              let icono, texto;
+              if (dispDespues < 0) {
+                icono = "❌"; texto = `No alcanza — te faltan ${COP(Math.abs(dispDespues))} este mes.`;
+              } else if (pctCompra >= 0.9) {
+                icono = "🔴"; texto = "Casi vacía tu disponible. Solo te quedaría para emergencias.";
+              } else if (pctCompra >= 0.7) {
+                icono = "🤔"; texto = "Gasto grande — usarías más del 70% de tu disponible. ¿Es urgente?";
+              } else if (pctCompra >= 0.3) {
+                icono = "⚡"; texto = "Te deja ajustado para el resto del mes.";
+              } else {
+                icono = "✅"; texto = "Lo puedes cubrir sin afectar tu mes.";
+              }
+              return (
+                <div style={{
+                  borderRadius: 18, padding: "14px 16px",
+                  background: C.surface, border: `1px solid ${C.border}`,
+                  marginBottom: 4, animation: "fadeIn 0.45s ease",
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text.h, lineHeight: 1.6 }}>
+                    {icono} {texto}
                   </div>
-                ))}
-                <div style={{ fontSize: 10, color: C.text.s, marginTop: 4, lineHeight: 1.5 }}>
-                  Estimado si el gasto fuera en {resultado.presupAlerta.map(c => c.label).join(" o ")}
                 </div>
-              </div>
-            )}
-
-            {/* Veredicto final */}
-            <div style={{
-              borderRadius: 18, padding: "14px 16px",
-              background: C.surface,
-              border: `1px solid ${C.border}`,
-              marginBottom: 4,
-              animation: "fadeIn 0.45s ease",
-            }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.text.h, lineHeight: 1.6 }}>
-                {resultado.disponibleDespues < 0
-                  ? "❌ No alcanza este mes — considera esperar al próximo ingreso."
-                  : resultado.pctSalario >= 0.3
-                    ? "🤔 Es un gasto grande. ¿Es urgente o puede esperar?"
-                    : resultado.mesesAhorro >= 2
-                      ? "💡 Ese dinero podría acelerar tus metas varios meses."
-                      : resultado.disponibleDespues / Math.max(disponibleGastar, 1) < 0.15
-                        ? "⚡ Te deja muy ajustado para el resto del mes."
-                        : "✅ Lo puedes cubrir sin afectar tu mes."
-                }
-              </div>
-            </div>
+              );
+            })()}
           </div>
         )}
       </div>
