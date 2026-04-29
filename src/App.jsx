@@ -7,6 +7,7 @@ import { getSuggestedBudgets, BudgetSetupBanner, BudgetHealth } from "./BudgetEn
 import { BudgetSetupModal } from "./BudgetSetupModal";
 import { SimuladorDecision } from "./SimuladorDecision";
 import { DeudasModal } from "./DeudasModal";
+import { PatrimonioWidget } from "./PatrimonioWidget";
 import { auth, provider, db } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import {
@@ -1202,19 +1203,117 @@ function LoginScreen({onLogin,loading}){
 }
 
 function OnboardingScreen({user,onSave}){
-  const [salary,setSalary]=useState(""), [error,setError]=useState(false);
+  const [paso,setPaso]=useState(1);
+  const [modo,setModo]=useState("mensual");
+  const [salary,setSalary]=useState("");
+  const [dia1,setDia1]=useState(1);
+  const [dia2,setDia2]=useState(15);
+  const [error,setError]=useState(false);
   const val=parseFloat(salary.replace(/\./g,"").replace(",","."))||0;
+
   function hi(e){const r=e.target.value.replace(/\D/g,"");setSalary(r?Number(r).toLocaleString("es-CO"):"");setError(false);}
-  function sub(){if(!val||val<10000){setError(true);return;}onSave(val);}
+  function sub(){
+    if(!val||val<10000){setError(true);return;}
+    onSave(val,modo,modo==="quincenal"?{dia1,dia2}:null);
+  }
+
+  // Paso 1 — frecuencia
+  if(paso===1) return <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
+    <div style={{width:"100%",maxWidth:380}}>
+      <div style={{textAlign:"center",marginBottom:36}}>
+        <div style={{fontSize:52,marginBottom:14}}>👋</div>
+        <div style={{fontSize:26,fontWeight:900,color:C.text.h,letterSpacing:-0.5}}>Bienvenido, {user.displayName?.split(" ")[0]}!</div>
+        <div style={{fontSize:15,color:C.text.b,marginTop:10,lineHeight:1.7}}>Primero cuéntame,<br/><b style={{color:C.text.h}}>¿cada cuánto te pagan?</b></div>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:24}}>
+        {[
+          {id:"mensual",  icon:"📅", label:"Una vez al mes",     sub:"Recibes tu pago completo mensualmente"},
+          {id:"quincenal",icon:"📆", label:"Dos veces al mes",   sub:"Recibes dos pagos iguales al mes"},
+        ].map(o=>(
+          <button key={o.id} onClick={()=>setModo(o.id)}
+            style={{display:"flex",alignItems:"center",gap:14,padding:"18px 20px",borderRadius:18,
+              border:`2px solid ${modo===o.id?C.indigo:C.border}`,
+              background:modo===o.id?`${C.indigo}12`:C.card,
+              cursor:"pointer",textAlign:"left",transition:"all 0.2s"}}>
+            <span style={{fontSize:28,flexShrink:0}}>{o.icon}</span>
+            <div>
+              <div style={{fontSize:15,fontWeight:800,color:modo===o.id?C.indigo:C.text.h}}>{o.label}</div>
+              <div style={{fontSize:12,color:C.text.s,marginTop:2,lineHeight:1.4}}>{o.sub}</div>
+            </div>
+            {modo===o.id&&<span style={{marginLeft:"auto",color:C.indigo,fontSize:20}}>✓</span>}
+          </button>
+        ))}
+      </div>
+      <button onClick={()=>setPaso(2)}
+        style={{width:"100%",padding:17,borderRadius:14,border:"none",cursor:"pointer",
+          fontSize:16,fontWeight:800,
+          background:`linear-gradient(135deg,${C.indigo},#4338ca)`,color:"#fff"}}>
+        Continuar →
+      </button>
+    </div>
+  </div>;
+
+  // Paso 2 — días de quincena (solo si quincenal)
+  if(paso===2&&modo==="quincenal") return <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
+    <div style={{width:"100%",maxWidth:380}}>
+      <button onClick={()=>setPaso(1)} style={{background:"none",border:"none",color:C.text.s,cursor:"pointer",fontSize:13,fontWeight:600,marginBottom:20,padding:0,display:"flex",alignItems:"center",gap:6}}>← Atrás</button>
+      <div style={{textAlign:"center",marginBottom:28}}>
+        <div style={{fontSize:52,marginBottom:14}}>📆</div>
+        <div style={{fontSize:24,fontWeight:900,color:C.text.h,letterSpacing:-0.5}}>¿Qué días te pagan?</div>
+        <div style={{fontSize:13,color:C.text.s,marginTop:8,lineHeight:1.6}}>La app te avisará cuando llegue cada quincena</div>
+      </div>
+      <div style={{background:C.card,borderRadius:20,padding:24,border:`1px solid ${C.border}`,marginBottom:16}}>
+        {[
+          {label:"Primera quincena — día",val:dia1,set:setDia1,hint:"Normalmente el 1 o el 15"},
+          {label:"Segunda quincena — día",val:dia2,set:setDia2,hint:"Normalmente el 15 o el último día"},
+        ].map((q,i)=>(
+          <div key={i} style={{marginBottom:i===0?20:0}}>
+            <div style={{fontSize:11,color:C.text.s,fontWeight:700,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>{q.label}</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:4}}>
+              {[1,5,10,15,20,25,28,30].map(d=>(
+                <button key={d} onClick={()=>q.set(d)}
+                  style={{width:44,height:40,borderRadius:10,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,
+                    background:q.val===d?C.indigo:C.surface,
+                    color:q.val===d?"#fff":C.text.b,
+                    outline:`2px solid ${q.val===d?C.indigo:"transparent"}`,
+                    transition:"all 0.15s"}}>
+                  {d}
+                </button>
+              ))}
+            </div>
+            <div style={{fontSize:11,color:C.text.s,opacity:0.6}}>{q.hint}</div>
+          </div>
+        ))}
+      </div>
+      <button onClick={()=>setPaso(3)}
+        style={{width:"100%",padding:17,borderRadius:14,border:"none",cursor:"pointer",
+          fontSize:16,fontWeight:800,
+          background:`linear-gradient(135deg,${C.indigo},#4338ca)`,color:"#fff"}}>
+        Continuar →
+      </button>
+    </div>
+  </div>;
+
+  // Paso 2/3 — monto
+  const pasoMonto=modo==="quincenal"?3:2;
+  const salMensualEst=modo==="quincenal"?val*2:val;
+
   return <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
     <div style={{width:"100%",maxWidth:380}}>
-      <div style={{textAlign:"center",marginBottom:32}}>
-        <div style={{fontSize:52,marginBottom:14}}>⭐</div>
-        <div style={{fontSize:26,fontWeight:900,color:C.text.h,letterSpacing:-0.5}}>Bienvenido, {user.displayName?.split(" ")[0]}!</div>
-        <div style={{fontSize:15,color:C.text.b,marginTop:10,lineHeight:1.7}}>Para empezar, cuéntame cuánto<br/>recibes al mes.</div>
+      <button onClick={()=>setPaso(modo==="quincenal"?2:1)} style={{background:"none",border:"none",color:C.text.s,cursor:"pointer",fontSize:13,fontWeight:600,marginBottom:20,padding:0,display:"flex",alignItems:"center",gap:6}}>← Atrás</button>
+      <div style={{textAlign:"center",marginBottom:28}}>
+        <div style={{fontSize:52,marginBottom:14}}>{modo==="quincenal"?"📆":"📅"}</div>
+        <div style={{fontSize:24,fontWeight:900,color:C.text.h,letterSpacing:-0.5}}>
+          {modo==="quincenal"?"¿Cuánto recibes cada vez?":"¿Cuánto recibes al mes?"}
+        </div>
+        <div style={{fontSize:13,color:C.text.s,marginTop:8,lineHeight:1.6}}>
+          {modo==="quincenal"
+            ?`El monto que te llega el día ${dia1} y el día ${dia2}`
+            :"Tu salario o ingreso mensual total"}
+        </div>
       </div>
-      <div style={{background:C.surface,borderRadius:20,padding:24,border:`1px solid ${C.border}`}}>
-        <Lbl>Sueldo o ingreso mensual (COP)</Lbl>
+      <div style={{background:C.card,borderRadius:20,padding:24,border:`1px solid ${C.border}`}}>
+        <Lbl>{modo==="quincenal"?"Monto por quincena (COP)":"Sueldo o ingreso mensual (COP)"}</Lbl>
         <div style={{display:"flex",alignItems:"center",background:"rgba(255,255,255,0.06)",borderRadius:14,overflow:"hidden",border:`2px solid ${error?C.red:val>0?C.indigo:C.border}`,transition:"border-color 0.2s",marginBottom:12}}>
           <span style={{padding:"0 16px",color:C.text.b,fontSize:22,lineHeight:"62px"}}>$</span>
           <input inputMode="numeric" placeholder="0" value={salary} onChange={hi} autoFocus
@@ -1222,19 +1321,104 @@ function OnboardingScreen({user,onSave}){
         </div>
         {error&&<div style={{fontSize:13,color:C.red,marginBottom:10}}>Ingresa un monto válido (mínimo $10.000)</div>}
         {val>0&&<div style={{background:"rgba(255,255,255,0.04)",borderRadius:12,padding:"14px 16px",marginBottom:16,fontSize:13,color:C.text.b,lineHeight:2}}>
-          Sugerido con <b style={{color:C.text.h}}>{COP(val)}</b>:<br/>
-          <span style={{color:C.sky}}>🛡️ {COP(Math.round(val*0.05))} Emergencias (5%)</span><br/>
-          <span style={{color:C.indigo}}>⭐ {COP(Math.round(val*0.10))} Metas (10%)</span><br/>
-          <span style={{color:C.text.b}}>🛒 {COP(Math.round(val*0.85))} Gastos libres</span>
+          {modo==="quincenal"&&<div style={{fontSize:12,color:C.indigo,marginBottom:6,fontWeight:700}}>
+            📆 {COP(val)} × 2 = <b>{COP(salMensualEst)}/mes</b>
+          </div>}
+          Sugerido con <b style={{color:C.text.h}}>{COP(salMensualEst)}/mes</b>:<br/>
+          <span style={{color:C.sky}}>🛡️ {COP(Math.round(salMensualEst*0.05))} Emergencias (5%)</span><br/>
+          <span style={{color:C.indigo}}>⭐ {COP(Math.round(salMensualEst*0.10))} Metas (10%)</span><br/>
+          <span style={{color:C.text.b}}>🛒 {COP(Math.round(salMensualEst*0.85))} Gastos libres</span>
         </div>}
         <button onClick={sub} style={{width:"100%",padding:17,borderRadius:14,border:"none",cursor:val>0?"pointer":"not-allowed",fontSize:16,fontWeight:800,background:val>0?`linear-gradient(135deg,${C.indigo},#4338ca)`:C.surface,color:val>0?"#fff":C.text.s,transition:"all 0.2s"}}>
-          {val>0?`Empezar con ${COP(val)} →`:"Ingresa tu sueldo"}
+          {val>0?"Empezar →":"Ingresa tu monto"}
         </button>
       </div>
     </div>
   </div>;
 }
 
+
+// ─── BANNER QUINCENA ──────────────────────────────────────────────────────────
+// Aparece en home cuando es el día de cobro de una quincena
+// y el usuario aún no la ha registrado ni dismissado
+function BannerQuincena({modoSalario,quincenas,salario,tx,month,now,onConfirmar,onPosponer,onNoRecordar,C,COP}){
+  if(modoSalario!=="quincenal"||!salario) return null;
+  const today=now.getDate();
+  const currentM=now.getMonth(), currentY=now.getFullYear();
+  const {dia1=1,dia2=15,dismissed={},creadoEn=null}=quincenas;
+
+  // No mostrar si el usuario se registró hace menos de 1 día
+  // (creadoEn se guarda en quincenas al hacer onboarding)
+  if(creadoEn){
+    const msDesdeCreacion=Date.now()-creadoEn;
+    if(msDesdeCreacion<86400000) return null; // menos de 24h
+  }
+
+  // Solo mostrar el día EXACTO de pago (o días siguientes si fue pospuesta)
+  // dia1: mostrar en día dia1 y hasta 2 días después si fue pospuesto
+  // dia2: mostrar en día dia2 y hasta 2 días después si fue pospuesto
+  let quincenaActiva=null;
+  if(today>=dia1&&today<=dia1+2&&today<dia2){
+    quincenaActiva={num:1,dia:dia1,key:`${currentY}-${currentM}-Q1`};
+  } else if(today>=dia2&&today<=dia2+2){
+    quincenaActiva={num:2,dia:dia2,key:`${currentY}-${currentM}-Q2`};
+  }
+
+  if(!quincenaActiva) return null;
+
+  // Ya fue dismissada
+  const dis=dismissed[quincenaActiva.key];
+  if(dis==="no_recordar") return null;
+  // Pospuesta: solo volver a mostrar al día siguiente
+  if(typeof dis==="number"&&dis>=today) return null;
+
+  // Ya registró ingreso en el período de esta quincena
+  const yaRegistro=tx.some(t=>{
+    if(t.cat!=="ingreso") return false;
+    const[ty,tm,td]=t.date.split("-").map(Number);
+    if(ty!==currentY||(tm-1)!==currentM) return false;
+    if(quincenaActiva.num===1) return td>=dia1&&td<dia2;
+    return td>=dia2;
+  });
+  if(yaRegistro) return null;
+
+  return <div style={{
+    borderRadius:18,padding:"14px 16px",marginBottom:16,
+    background:`linear-gradient(135deg,${C.emerald}15,${C.indigo}10)`,
+    border:`1px solid ${C.emerald}35`,
+    animation:"fadeIn 0.3s ease",
+  }}>
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+      <span style={{fontSize:24}}>📆</span>
+      <div>
+        <div style={{fontSize:14,fontWeight:800,color:C.text.h}}>
+          ¿Te llegó tu quincena {quincenaActiva.num===1?"1ª":"2ª"}?
+        </div>
+        <div style={{fontSize:12,color:C.text.b,marginTop:1}}>
+          {COP(salario)} esperados hoy (día {quincenaActiva.dia})
+        </div>
+      </div>
+    </div>
+    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+      <button onClick={()=>onConfirmar(quincenaActiva)}
+        style={{flex:2,padding:"10px 0",borderRadius:10,border:"none",cursor:"pointer",
+          background:`linear-gradient(135deg,${C.emerald},#059669)`,
+          color:"#000",fontSize:13,fontWeight:800}}>
+        ✅ Sí, llegó — registrar
+      </button>
+      <button onClick={()=>onPosponer(quincenaActiva)}
+        style={{flex:1,padding:"10px 0",borderRadius:10,border:`1px solid ${C.amber}44`,cursor:"pointer",
+          background:`${C.amber}12`,color:C.amber,fontSize:12,fontWeight:700}}>
+        ⏰ Mañana
+      </button>
+      <button onClick={()=>onNoRecordar(quincenaActiva)}
+        style={{flex:1,padding:"10px 0",borderRadius:10,border:`1px solid ${C.border}`,cursor:"pointer",
+          background:"none",color:C.text.s,fontSize:11,fontWeight:600}}>
+        ✕ No recordar
+      </button>
+    </div>
+  </div>;
+}
 
 // ─── ALERTAS INTELIGENTES AVANZADAS ──────────────────────────────────────────
 // Extiende BudgetAlert sin romperlo — detecta 3 situaciones nuevas:
@@ -1527,7 +1711,7 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
     const deudaObj=esCuota&&deudaId?{deudaId}:{};
     onSave({
       id:initial?.id||null,
-      desc:desc.trim()||(isMeta&&goalId?goals.find(g=>g.id===goalId)?.name||"Aporte meta":esCuota&&deudaId?deudasActivas.find(d=>d.id===deudaId)?.nombre||"Cuota":esIngreso?"Ingreso del mes":esIngresoExtra?"Ingreso extra":catLabel),
+      desc:desc.trim()||(isMeta&&goalId?goals.find(g=>g.id===goalId)?.name||"Aporte meta":esCuota&&deudaId?deudasActivas.find(d=>d.id===deudaId)?.nombre||"Cuota":esIngreso?(modoSalario==="quincenal"?"Quincena":"Ingreso del mes"):esIngresoExtra?"Ingreso extra":catLabel),
       amount:raw,cat,date,...(isMeta&&goalId?{goalId}:{}), ...deudaObj
     });
     onClose();
@@ -2195,6 +2379,8 @@ function MenuSheet({onClose,user,disponibleGastar,totalGasto,prestamos,deudas,te
 export default function App(){
   const [user,setUser]=useState(null),[authLoading,setAL]=useState(true),[loginLoading,setLL]=useState(false);
   const [salario,setSalario]=useState(null),[showOnb,setShowOnb]=useState(false);
+  const [modoSalario,setModoSalario]=useState("mensual");
+  const [quincenas,setQuincenas]=useState({dia1:1,dia2:15,dismissed:{}});
   const [salarioHistory,setSalarioHistory]=useState({}); // {"YYYY-M": monto}
   const [tx,setTx]=useState([]),[goals,setGoals]=useState([]);
   const [month,setMonth]=useState(now.getMonth()),[tab,setTab]=useState("home");
@@ -2224,6 +2410,7 @@ export default function App(){
   const [prestamosModal,setPrestamosModal]=useState(false);
   const [deudas,setDeudas]=useState([]);
   const [deudasModal,setDeudasModal]=useState(false);
+  const [patrimonio,setPatrimonio]=useState({activos:[],pasivosExternos:[]});
   const [notifSheetOpen,setNotifSheetOpen]=useState(false);
   const [prestamoForm,setPrestamoForm]=useState(null);
   const [badgesGuardados,setBadgesGuardados]=useState({});
@@ -2309,6 +2496,8 @@ export default function App(){
         setSalario(snap.data().salario);
         setSalarioHistory(snap.data().salarioHistory||{});
         setCatsCustom(snap.data().catsCustom||{});
+        setModoSalario(snap.data().modoSalario||"mensual");
+        setQuincenas(snap.data().quincenas||{dia1:1,dia2:15,dismissed:{}});
         setShowOnb(false);
       }else{setSalario(0);setShowOnb(true);}
     });},[user]);
@@ -2341,6 +2530,14 @@ export default function App(){
       setDeudas(snap.docs.map(d=>({id:d.id,...d.data()})));
     });},[user]);
 
+  useEffect(()=>{if(!user){setPatrimonio({activos:[],pasivosExternos:[]});return;}
+    const unsub=onSnapshot(doc(db,"usuarios",user.uid),snap=>{
+      if(snap.exists()&&snap.data().patrimonio){
+        setPatrimonio(snap.data().patrimonio);
+      }
+    });
+    return unsub;},[user]);
+
   // Cargar badges guardados desde Firestore
   useEffect(()=>{if(!user){setBadgesGuardados({});return;}
     getDoc(doc(db,"usuarios",user.uid)).then(snap=>{
@@ -2371,9 +2568,7 @@ export default function App(){
     let best=salario||0;
     Object.entries(salarioHistory).forEach(([key,val])=>{
       const [ky,km]=key.split("-").map(Number);
-      // Si esta entrada es anterior o igual al mes pedido, y más reciente que la anterior best
       if(ky<y||(ky===y&&km<=m)){
-        // Comparar con el best actual
         const bestKey=Object.keys(salarioHistory).filter(k=>{
           const [by,bm]=k.split("-").map(Number);
           return by<y||(by===y&&bm<=m);
@@ -2385,16 +2580,37 @@ export default function App(){
           best=val;
       }
     });
+    // Si modo quincenal: calcular cuántas quincenas han llegado este mes
+    if(modoSalario==="quincenal"){
+      const currentM2=now.getMonth(), currentY2=now.getFullYear();
+      const isCurrentMonth=y===currentY2&&m===currentM2;
+      if(isCurrentMonth){
+        // Solo contar quincenas que ya llegaron (según día actual)
+        const today2=now.getDate();
+        const {dia1=1,dia2=15}=quincenas;
+        const q1Llegó=today2>=dia1;
+        const q2Llegó=today2>=dia2;
+        const qCount=(q1Llegó?1:0)+(q2Llegó?1:0);
+        return best*(qCount||1); // mínimo 1 quincena para no mostrar $0
+      }
+      return best*2; // meses pasados → salario completo
+    }
     return best;
   }
 
   async function handleLogin(){setLL(true);try{await signInWithPopup(auth,provider);}catch(e){console.error(e);}setLL(false);}
   async function handleLogout(){await signOut(auth);setTx([]);setGoals([]);setTab("home");setSalario(null);setShowOnb(false);}
-  function handleOnbSave(v){
+  function handleOnbSave(v,modo="mensual",diasQ=null){
     setSalario(v);
+    setModoSalario(modo);
+    if(diasQ){
+      const q={dia1:diasQ.dia1,dia2:diasQ.dia2,dismissed:{},creadoEn:Date.now()};
+      setQuincenas(q);
+      setDoc(doc(db,"usuarios",user.uid),{salario:v,modoSalario:modo,quincenas:q},{merge:true});
+    } else {
+      setDoc(doc(db,"usuarios",user.uid),{salario:v,modoSalario:modo},{merge:true});
+    }
     setShowOnb(false);
-    setDoc(doc(db,"usuarios",user.uid),{salario:v},{merge:true});
-    // Crear Fondo Emergencias por defecto (se ejecuta después de que goals cargue)
     setTimeout(()=>crearMetaEmergencias(),800);
   }
   const handleSave=useCallback(async t=>{
@@ -3015,6 +3231,11 @@ export default function App(){
     await deleteDoc(doc(db,"usuarios",user.uid,"deudas",deudaId));
   },[user]);
 
+  const handlePatrimonioSave=useCallback(async(p)=>{
+    if(!user)return;
+    await setDoc(doc(db,"usuarios",user.uid),{patrimonio:p},{merge:true});
+  },[user]);
+
   // CRUD pagos programados
   const handlePagoSave=useCallback(async p=>{
     if(!user)return;
@@ -3082,6 +3303,8 @@ export default function App(){
   const totalPrestamos=prestamosTx.reduce((s,t)=>s+t.amount,0);
   const totalAportes=aporteMesAll.reduce((s,t)=>s+t.amount,0);
   const sal=salario||0;
+  // Salario mensual efectivo: si quincenal, el usuario recibe sal×2 al mes
+  const salMensualEfectivo=modoSalario==="quincenal"?sal*2:sal;
   const salDelMes=getSalarioDelMes(selectedYear,month);
   const ingresosExtra=ingresosTx.reduce((s,t)=>s+t.amount,0);
   const totalIngresoMes=salDelMes+ingresosExtra; // solo salario + ingresos reales de trabajo
@@ -3574,6 +3797,37 @@ export default function App(){
     return <div style={{padding:`${SC.pad(16)}px ${SC.pad(20)}px 80px`}}>
       <MonthSelector/>
       <ResumenSemanal/>
+      {/* Banner quincena */}
+      <BannerQuincena
+        modoSalario={modoSalario}
+        quincenas={quincenas}
+        salario={sal}
+        tx={tx}
+        month={month}
+        now={now}
+        onConfirmar={async(q)=>{
+          // Registrar ingreso automáticamente
+          await addDoc(collection(db,"usuarios",user.uid,"transacciones"),{
+            desc:`Quincena ${q.num===1?"1ª":"2ª"}`,amount:sal,cat:"ingreso",
+            date:todayStr(),createdAt:serverTimestamp(),
+          });
+          // Marcar como no mostrar más esta quincena
+          const newQ={...quincenas,dismissed:{...quincenas.dismissed,[q.key]:"no_recordar"}};
+          setQuincenas(newQ);
+          setDoc(doc(db,"usuarios",user.uid),{quincenas:newQ},{merge:true});
+        }}
+        onPosponer={(q)=>{
+          const newQ={...quincenas,dismissed:{...quincenas.dismissed,[q.key]:now.getDate()}};
+          setQuincenas(newQ);
+          setDoc(doc(db,"usuarios",user.uid),{quincenas:newQ},{merge:true});
+        }}
+        onNoRecordar={(q)=>{
+          const newQ={...quincenas,dismissed:{...quincenas.dismissed,[q.key]:"no_recordar"}};
+          setQuincenas(newQ);
+          setDoc(doc(db,"usuarios",user.uid),{quincenas:newQ},{merge:true});
+        }}
+        C={C} COP={COP}
+      />
       <AlertasAvanzadas
         gastosTx={gastosTx}
         totalGasto={totalGasto}
@@ -3622,8 +3876,11 @@ export default function App(){
             totalAportes>0
               ? <span style={{fontSize:11,color:C.text.b,fontWeight:500}}>
                   de {COP(totalIngresoMes-totalAportes)} para gastar · <span style={{color:C.indigoLight}}>{COP(totalAportes)} en metas</span>
+                  {modoSalario==="quincenal"&&<span style={{color:C.text.s}}> · quincenal</span>}
                 </span>
-              : <span style={{fontSize:12,color:C.text.b,fontWeight:500}}>de {COP(totalIngresoMes)}</span>
+              : <span style={{fontSize:12,color:C.text.b,fontWeight:500}}>
+                  de {COP(totalIngresoMes)}{modoSalario==="quincenal"?" · quincenal":""}
+                </span>
           ):<span style={{fontSize:12,color:C.text.b}}>Sin ingresos</span>}
           <span style={{fontSize:12,fontWeight:600,color:pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.text.s}}>{Math.round(pctUsado*100)}% gastado</span>
         </div>
@@ -4342,6 +4599,12 @@ export default function App(){
         </div>
       )}
       <FinancialScore totalIng={totalIngresoMes} totalGasto={totalGasto} totalAhorr={totalAportes} goals={goals} tx={tx} saldo={saldo} month={month} C={C} COP={COP} isMonth={isMonth} isAporteMeta={isAporteMeta} isSavingsLegacy={isSavingsLegacy} MONTHS_S={MONTHS_S} onNavigate={changeTab} onAddTx={()=>setModal("new")} onAportarMeta={()=>setModal("meta_aporte")} totalMesesConDatos={totalMesesConDatos}/>
+      {/* ── Patrimonio neto ── */}
+      <PatrimonioWidget
+        patrimonio={patrimonio}
+        deudasApp={deudas.filter(d=>!d.liquidada).reduce((s,d)=>s+(d.saldoRestante||0),0)}
+        onSave={handlePatrimonioSave}
+        C={C} COP={COP}/>
       {byMain.length>0&&<>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:18,marginBottom:10}}>
           <Lbl style={{marginBottom:0}}>Gastos por categoría</Lbl>
@@ -5164,19 +5427,35 @@ export default function App(){
         <button onClick={handleLogout} style={{background:"none",border:`1px solid ${C.red}44`,borderRadius:8,padding:"7px 14px",color:C.red,cursor:"pointer",fontSize:12,fontWeight:700}}>Salir</button>
       </Card>
       <Card style={{marginBottom:12}}>
-        <Lbl>Ingreso mensual de referencia (COP)</Lbl>
+        <Lbl>{modoSalario==="quincenal"?"Ingreso por quincena (COP)":"Ingreso mensual de referencia (COP)"}</Lbl>
+        {/* Modo de pago */}
+        <div style={{display:"flex",gap:8,marginBottom:10}}>
+          {[{id:"mensual",label:"📅 Mensual"},{id:"quincenal",label:"📆 Quincenal"}].map(o=>(
+            <button key={o.id} onClick={async()=>{
+              setModoSalario(o.id);
+              await setDoc(doc(db,"usuarios",user.uid),{modoSalario:o.id},{merge:true});
+            }} style={{
+              flex:1,padding:"8px 0",borderRadius:10,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,
+              background:modoSalario===o.id?`${C.indigo}22`:C.surface,
+              outline:`2px solid ${modoSalario===o.id?C.indigo:"transparent"}`,
+              color:modoSalario===o.id?C.indigo:C.text.s,transition:"all 0.15s",
+            }}>{o.label}</button>
+          ))}
+        </div>
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <input type="number" value={tmp} onChange={e=>setTmp(e.target.value)}
             style={{flex:1,background:"rgba(255,255,255,0.06)",border:`1px solid ${C.border}`,borderRadius:10,padding:"11px 14px",color:C.text.h,fontSize:16,outline:"none"}}/>
           <button onClick={()=>handleSalarioChange(parseFloat(tmp)||sal)} style={{background:`linear-gradient(135deg,${C.emerald},#059669)`,border:"none",borderRadius:10,padding:"0 20px",color:"#000",fontWeight:800,cursor:"pointer",fontSize:18}}>✓</button>
         </div>
         <div style={{fontSize:12,color:C.text.b,background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"12px 14px",lineHeight:2}}>
-          El cambio aplica desde el mes siguiente — los meses anteriores conservan su valor original.<br/>
+          {modoSalario==="quincenal"
+            ?<>Modo quincena — recibes <b style={{color:C.text.h}}>{COP(parseFloat(tmp)||sal)}</b> dos veces al mes ({COP((parseFloat(tmp)||sal)*2)}/mes).<br/></>
+            :<>El cambio aplica desde el mes siguiente — los meses anteriores conservan su valor original.<br/></>}
           Puedes registrar ingresos extra con <b style={{color:C.emerald}}>+ Ingreso</b> en el botón +.<br/>
-          Con {COP(parseFloat(tmp)||sal)} te sugiero:<br/>
-          <span style={{color:C.sky}}>→ {COP(Math.round((parseFloat(tmp)||sal)*0.05))} Emergencias (5%)</span><br/>
-          <span style={{color:C.indigo}}>→ {COP(Math.round((parseFloat(tmp)||sal)*0.10))} Aportes a metas (10%)</span><br/>
-          <span style={{color:C.text.b}}>→ {COP(Math.round((parseFloat(tmp)||sal)*0.85))} Gastos libres</span>
+          Con {COP((parseFloat(tmp)||sal)*(modoSalario==="quincenal"?2:1))}/mes te sugiero:<br/>
+          <span style={{color:C.sky}}>→ {COP(Math.round((parseFloat(tmp)||sal)*(modoSalario==="quincenal"?2:1)*0.05))} Emergencias (5%)</span><br/>
+          <span style={{color:C.indigo}}>→ {COP(Math.round((parseFloat(tmp)||sal)*(modoSalario==="quincenal"?2:1)*0.10))} Aportes a metas (10%)</span><br/>
+          <span style={{color:C.text.b}}>→ {COP(Math.round((parseFloat(tmp)||sal)*(modoSalario==="quincenal"?2:1)*0.85))} Gastos libres</span>
         </div>
       </Card>
       <Card style={{marginBottom:12,background:"linear-gradient(135deg,rgba(2,44,34,0.75),rgba(6,95,70,0.85))",borderColor:`${C.emerald}55`}}>

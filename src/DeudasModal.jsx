@@ -19,20 +19,23 @@
 //   onDelete       → (deudaId) => Promise<void>
 //   C, COP         → theme + formatter
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 
 // Emojis sugeridos para deudas
 const EMOJIS_DEUDA = ["📱","🏠","🚗","💻","📺","🎮","✈️","🏥","📚","💍","🛋️","🔧","💳","🏦","🎓"];
 
 export function DeudasModal({ deudas, onClose, onSave, onPagar, onDelete, disponibleGastar, C, COP }) {
-  const [vista, setVista] = useState("lista"); // "lista" | "nueva" | "pagar"
+  const [vista, setVista] = useState("lista");
   const [deudaSelec, setDeudaSelec] = useState(null);
   const [dragY, setDragY] = useState(0);
   const [dragStartY, setDragStartY] = useState(null);
+  const scrollRef = useRef(null);
 
   function onTouchStart(e) { setDragStartY(e.touches[0].clientY); }
   function onTouchMove(e) {
     if (dragStartY === null) return;
+    const scrollTop = scrollRef.current?.scrollTop || 0;
+    if (scrollTop > 4) { setDragY(0); return; } // no swipe si hay scroll
     const d = e.touches[0].clientY - dragStartY;
     if (d > 0) setDragY(d);
   }
@@ -47,7 +50,7 @@ export function DeudasModal({ deudas, onClose, onSave, onPagar, onDelete, dispon
 
   // ── Vista: lista principal ─────────────────────────────────────────────────
   const ListaView = () => (
-    <div style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain" }}>
+    <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain" }}>
       {/* Resumen */}
       {activas.length > 0 && (
         <div style={{
@@ -599,17 +602,18 @@ export function DeudasModal({ deudas, onClose, onSave, onPagar, onDelete, dispon
         animation: "fadeIn 0.18s ease",
       }}
     >
-      <div style={{
-        width: "100%", maxWidth: 430, margin: "0 auto",
-        background: C.card, borderRadius: "22px 22px 0 0",
-        border: `1px solid ${C.border}`,
-        padding: "0 20px 36px",
-        maxHeight: "92vh", display: "flex", flexDirection: "column",
-        animation: dragY === 0 ? "slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)" : "none",
-        transform: `translateY(${dragY}px)`,
-        transition: dragStartY === null ? "transform 0.2s ease" : "none",
-        position: "relative",
-      }}>
+      <div
+        style={{
+          width: "100%", maxWidth: 430, margin: "0 auto",
+          background: C.card, borderRadius: "22px 22px 0 0",
+          border: `1px solid ${C.border}`,
+          padding: "0 20px 36px",
+          maxHeight: "92vh", display: "flex", flexDirection: "column",
+          animation: dragY === 0 ? "slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)" : "none",
+          transform: `translateY(${dragY}px)`,
+          transition: dragStartY === null ? "transform 0.2s ease" : "none",
+          position: "relative",
+        }}>
         {/* × */}
         <button onClick={onClose} aria-label="Cerrar" style={{
           position: "absolute", top: 14, right: 14,
@@ -619,11 +623,22 @@ export function DeudasModal({ deudas, onClose, onSave, onPagar, onDelete, dispon
           display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2,
         }}>×</button>
 
-        {/* Handle */}
-        <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-          style={{ display: "flex", justifyContent: "center", padding: "12px 0 6px", cursor: "grab", touchAction: "none" }}>
-          <div style={{ width: 40, height: 4, borderRadius: 99, background: C.border }} />
+        {/* Handle zone — área de swipe dedicada, captura touch antes que los hijos */}
+        <div
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          style={{
+            position:"absolute", top:0, left:0, right:0, height:60,
+            zIndex:10, touchAction:"none", cursor:"grab",
+            display:"flex", alignItems:"flex-start", justifyContent:"center",
+            paddingTop:12,
+          }}>
+          <div style={{width:40,height:4,borderRadius:99,background:C.border}}/>
         </div>
+        {/* Espaciador para el handle */}
+        <div style={{height:28}}/>
+
 
         {/* Título */}
         <div style={{ paddingRight: 36, marginBottom: 18 }}>
