@@ -1314,13 +1314,13 @@ function OnboardingScreen({user,onSave}){
       </div>
       <div style={{background:C.card,borderRadius:20,padding:24,border:`1px solid ${C.border}`}}>
         <Lbl>{modo==="quincenal"?"Monto por quincena (COP)":"Sueldo o ingreso mensual (COP)"}</Lbl>
-        <div style={{display:"flex",alignItems:"center",background:"rgba(255,255,255,0.06)",borderRadius:14,overflow:"hidden",border:`2px solid ${error?C.red:val>0?C.indigo:C.border}`,transition:"border-color 0.2s",marginBottom:12}}>
+        <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:14,overflow:"hidden",border:`2px solid ${error?C.red:val>0?C.indigo:C.border}`,transition:"border-color 0.2s",marginBottom:12}}>
           <span style={{padding:"0 16px",color:C.text.b,fontSize:22,lineHeight:"62px"}}>$</span>
           <input inputMode="numeric" placeholder="0" value={salary} onChange={hi} autoFocus
             style={{flex:1,background:"none",border:"none",outline:"none",fontSize:30,fontWeight:800,color:C.text.h,padding:"0 8px",height:62,letterSpacing:-0.5}}/>
         </div>
         {error&&<div style={{fontSize:13,color:C.red,marginBottom:10}}>Ingresa un monto válido (mínimo $10.000)</div>}
-        {val>0&&<div style={{background:"rgba(255,255,255,0.04)",borderRadius:12,padding:"14px 16px",marginBottom:16,fontSize:13,color:C.text.b,lineHeight:2}}>
+        {val>0&&<div style={{background:C.surface,borderRadius:12,padding:"14px 16px",marginBottom:16,fontSize:13,color:C.text.b,lineHeight:2}}>
           {modo==="quincenal"&&<div style={{fontSize:12,color:C.indigo,marginBottom:6,fontWeight:700}}>
             📆 {COP(val)} × 2 = <b>{COP(salMensualEst)}/mes</b>
           </div>}
@@ -1845,7 +1845,7 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
                 onClick={()=>setDeudaId(sel?"":d.id)}
                 style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderRadius:12,
                   border:"none",cursor:"pointer",textAlign:"left",
-                  background:sel?"rgba(244,63,94,0.12)":"rgba(255,255,255,0.04)",
+                  background:sel?"rgba(244,63,94,0.12)":C.surface,
                   outline:sel?"2px solid #f43f5e":"2px solid transparent",
                   transition:"all 0.12s"}}>
                 <span style={{fontSize:22,flexShrink:0}}>{d.emoji||"💳"}</span>
@@ -1982,7 +1982,7 @@ function TxRow({t,onEdit,catsCustom={}}){
       </div>
     </div>
     <div style={{textAlign:"right",flexShrink:0}}>
-      <div style={{fontSize:15,fontWeight:600,color:esPos?C.emeraldLight:C.text.h,letterSpacing:-0.3}}>
+      <div style={{fontSize:15,fontWeight:600,color:esPos?(C.isLight?C.emerald:C.emeraldLight):C.text.h,letterSpacing:-0.3}}>
         {esPos?"+":"-"}{COP(t.amount)}
       </div>
       {!bloqueado&&<div style={{fontSize:10,color:C.text.s,marginTop:2,opacity:0.6}}>editar</div>}
@@ -2008,7 +2008,7 @@ function ExportModalSheet({onClose,exportarCSV,exportarPDF,tx,now,isMonth,MONTHS
       <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
         <button onClick={()=>exportarCSV(true)} style={{padding:"14px 16px",borderRadius:12,border:`1px solid ${C.emerald}44`,cursor:"pointer",background:`${C.emerald}12`,color:C.text.h,fontSize:14,fontWeight:700,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
           <span style={{fontSize:22}}>📅</span>
-          <div><div style={{color:C.emeraldLight}}>Solo {MONTHS[now.getMonth()]} {now.getFullYear()}</div>
+          <div><div style={{color:C.isLight?C.emerald:C.emeraldLight}}>Solo {MONTHS[now.getMonth()]} {now.getFullYear()}</div>
           <div style={{fontSize:11,color:C.text.s,marginTop:2}}>{tx.filter(t=>isMonth(t.date,now.getMonth(),now.getFullYear())).length} movimientos</div></div>
         </button>
         <button onClick={()=>exportarCSV(false)} style={{padding:"14px 16px",borderRadius:12,border:`1px solid ${C.border}`,cursor:"pointer",background:C.surface,color:C.text.h,fontSize:14,fontWeight:700,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
@@ -3751,7 +3751,7 @@ export default function App(){
                 <div style={{fontSize:13,fontWeight:600,color:C.text.h,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc}</div>
                 <div style={{fontSize:11,color:C.text.s,marginTop:1}}>{t.date?.slice(5).replace("-","/")} · {cat.label}</div>
               </div>
-              <div style={{fontSize:13,fontWeight:700,color:esPos?C.emeraldLight:C.text.h,flexShrink:0}}>
+              <div style={{fontSize:13,fontWeight:700,color:esPos?(C.isLight?C.emerald:C.emeraldLight):C.text.h,flexShrink:0}}>
                 {esPos?"+":"-"}{COP(t.amount)}
               </div>
             </div>;
@@ -3838,7 +3838,7 @@ export default function App(){
         <div style={{position:"relative"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <div style={{fontSize:11,color:C.text.s,letterSpacing:1.8,fontWeight:600,textTransform:"uppercase"}}>Disponible · {MONTHS_S[month]}</div>
-          {saldoAnterior>0&&<div style={{background:ink(0.06),borderRadius:99,padding:"3px 10px",fontSize:11,color:C.emeraldLight,fontWeight:600}}>+{COP(saldoAnterior)}</div>}
+          {saldoAnterior>0&&<div style={{background:ink(0.06),borderRadius:99,padding:"3px 10px",fontSize:11,color:C.isLight?C.emerald:C.emeraldLight,fontWeight:600}}>+{COP(saldoAnterior)}</div>}
         </div>
         <div style={{fontSize:SC.fs(56),fontWeight:700,letterSpacing:-1,lineHeight:1,color:pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.emerald,fontVariantNumeric:"tabular-nums",marginBottom:28,transition:"color 0.4s"}}>
           {COP(animSaldo)}
@@ -3982,7 +3982,7 @@ export default function App(){
                 <div style={{fontSize:13,fontWeight:600,color:C.text.h,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.desc||cat.label}</div>
                 <div style={{fontSize:11,color:C.text.s,marginTop:1}}>{t.date?.slice(5).replace("-","/")} · {cat.label}</div>
               </div>
-              <div style={{fontSize:13,fontWeight:700,color:esPos?C.emeraldLight:C.text.h,flexShrink:0}}>
+              <div style={{fontSize:13,fontWeight:700,color:esPos?(C.isLight?C.emerald:C.emeraldLight):C.text.h,flexShrink:0}}>
                 {esPos?"+":"-"}{COP(t.amount)}
               </div>
             </div>;
@@ -4076,7 +4076,7 @@ export default function App(){
           </div>
         </div>
         {/* Preview progreso */}
-        {val>0&&<div style={{marginBottom:16,padding:"12px 14px",background:"rgba(255,255,255,0.03)",borderRadius:12,border:`1px solid ${C.border}`}}>
+        {val>0&&<div style={{marginBottom:16,padding:"12px 14px",background:C.surface,borderRadius:12,border:`1px solid ${C.border}`}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
             <span style={{fontSize:12,color:C.text.b}}>Progreso del mes</span>
             <span style={{fontSize:12,fontWeight:800,color:col}}>{Math.round(pct*100)}%</span>
@@ -4518,8 +4518,8 @@ export default function App(){
             {Array.from({length:28},(_,i)=>i+1).map(d=>(
               <button key={d} onClick={()=>setDia(d)}
                 style={{width:40,height:40,borderRadius:10,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,
-                  background:dia===d?C.sky:"rgba(255,255,255,0.06)",
-                  color:dia===d?"#000":C.text.b,transition:"all 0.1s"}}>
+                  background:dia===d?C.sky:C.surface,
+                  color:dia===d?"#fff":C.text.b,transition:"all 0.1s"}}>
                 {d}
               </button>
             ))}
@@ -5123,7 +5123,7 @@ export default function App(){
       </div>
 
       {/* Cuadrícula calendario */}
-      <div style={{background:"rgba(255,255,255,0.03)",borderRadius:18,padding:"14px 12px",border:`1px solid ${C.border}`,marginBottom:14}}>
+      <div style={{background:C.surface,borderRadius:18,padding:"14px 12px",border:`1px solid ${C.border}`,marginBottom:14}}>
         {/* Headers días semana */}
         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:8}}>
           {DIAS_S2.map(d=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:C.text.s,padding:"4px 0"}}>{d}</div>)}
@@ -5250,7 +5250,7 @@ export default function App(){
           const venceHoy=p.dia===now.getDate()&&calMes===currentM&&calAnio===currentY;
           return <div key={p.id} onClick={()=>setPagoModal(p)}
             style={{display:"flex",alignItems:"center",gap:12,marginBottom:8,
-              background:venceHoy&&!confirmado?`${C.amber}10`:"rgba(255,255,255,0.03)",
+              background:venceHoy&&!confirmado?`${C.amber}10`:C.surface,
               borderRadius:14,padding:"12px 14px",cursor:"pointer",
               border:`1px solid ${venceHoy&&!confirmado?C.amber+"44":confirmado?C.emerald+"22":C.border}`}}>
             <div style={{width:40,height:40,borderRadius:12,background:`${ci.color}20`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{ci.icon}</div>
@@ -5511,10 +5511,10 @@ export default function App(){
         </div>
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <input type="number" value={tmp} onChange={e=>setTmp(e.target.value)}
-            style={{flex:1,background:"rgba(255,255,255,0.06)",border:`1px solid ${C.border}`,borderRadius:10,padding:"11px 14px",color:C.text.h,fontSize:16,outline:"none"}}/>
+            style={{flex:1,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"11px 14px",color:C.text.h,fontSize:16,outline:"none"}}/>
           <button onClick={()=>handleSalarioChange(parseFloat(tmp)||sal)} style={{background:`linear-gradient(135deg,${C.emerald},#059669)`,border:"none",borderRadius:10,padding:"0 20px",color:"#000",fontWeight:800,cursor:"pointer",fontSize:18}}>✓</button>
         </div>
-        <div style={{fontSize:12,color:C.text.b,background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"12px 14px",lineHeight:2}}>
+        <div style={{fontSize:12,color:C.text.b,background:C.surface,borderRadius:8,padding:"12px 14px",lineHeight:2}}>
           {modoSalario==="quincenal"
             ?<>Modo quincena — recibes <b style={{color:C.text.h}}>{COP(parseFloat(tmp)||sal)}</b> dos veces al mes ({COP((parseFloat(tmp)||sal)*2)}/mes).<br/></>
             :<>El cambio aplica desde el mes siguiente — los meses anteriores conservan su valor original.<br/></>}
@@ -5550,7 +5550,7 @@ export default function App(){
                 transition:"all 0.15s",textAlign:"left"}}>
               {/* Preview colores */}
               <div style={{display:"flex",gap:3,flexShrink:0}}>
-                <div style={{width:16,height:16,borderRadius:4,background:t.bg,border:"1px solid rgba(255,255,255,0.15)"}}/>
+                <div style={{width:16,height:16,borderRadius:4,background:t.bg,border:`1px solid ${t.isLight?"rgba(15,23,42,0.18)":"rgba(255,255,255,0.2)"}`}}/>
                 <div style={{width:16,height:16,borderRadius:4,background:t.indigo}}/>
                 <div style={{width:16,height:16,borderRadius:4,background:t.emerald}}/>
               </div>
