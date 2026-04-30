@@ -90,51 +90,38 @@ export function AsistenteIA({
       .map(d => `${d.nombre}: ${COP(d.saldoRestante)} restante`)
       .join(", ");
 
-    return `Eres un asistente financiero personal para la app "Mis Finanzas Pro". 
-Hablas en español colombiano, eres amigable, directo y empático. Usas emojis moderadamente.
-Conoces las finanzas reales del usuario:
+    return `Eres un asistente financiero para "Mis Finanzas Pro". Español colombiano, conciso, máximo 2-3 líneas de texto.
 
-SITUACIÓN ACTUAL (${mesNombre} ${now.getFullYear()}):
-- Ingreso del mes: ${COP(totalIngresoMes)}
-- Salario base: ${COP(salario)} (${modoSalario})
-- Gastos totales: ${COP(totalGasto)}
-- Disponible ahora: ${COP(disponibleGastar)}
-- Porcentaje gastado: ${totalIngresoMes > 0 ? Math.round(totalGasto / totalIngresoMes * 100) : 0}%
+FINANZAS ACTUALES (${mesNombre} ${now.getFullYear()}):
+- Disponible: ${COP(disponibleGastar)} | Gastado: ${COP(totalGasto)} (${totalIngresoMes > 0 ? Math.round(totalGasto / totalIngresoMes * 100) : 0}%) | Ingreso: ${COP(totalIngresoMes)}
+- Por categoría: ${topCats || "Sin gastos"}
+- Metas: ${metasActivas || "ninguna"} | Deudas: ${deudasActivas || "ninguna"}
 
-GASTOS POR CATEGORÍA este mes: ${topCats || "Sin gastos aún"}
-METAS ACTIVAS: ${metasActivas || "Sin metas"}
-DEUDAS: ${deudasActivas || "Sin deudas"}
+CATEGORÍAS (usa el id exacto en el JSON):
+Comida→desayuno,almuerzo,domicilios,mercado,snacks | Hogar→arriendo,servicios,aseo,reparaciones | Transporte→bus,taxi,peaje | Salud→medico,medicamentos,gym | Ocio→salidas,eventos,viajes,hobbies | Estilo→ropa,calzado,peluqueria,cuidado | Digital→streaming,apps,tecnologia,ia | Deudas→tarjeta,cuotas,credito | Vehículo→gasolina,soat,mecanica
 
-CATEGORÍAS DISPONIBLES para registrar:
-${MAIN_CATS.map(m => `${m.label}: ${m.subs.map(s => s.label).join(", ")}`).join("\n")}
+REGLA CRÍTICA — SIEMPRE al detectar una acción, incluye el JSON AL FINAL del mensaje. NUNCA preguntes la categoría, INFIERE la mejor opción:
+- "dulce/snack/golosina" → cat:"snacks"
+- "almuerzo/comida/restaurante" → cat:"almuerzo"  
+- "domicilio/rappi/uber eats" → cat:"domicilios"
+- "gym/ejercicio" → cat:"gym"
+- "netflix/spotify/suscripción" → cat:"streaming"
+- Si no estás seguro, usa la más cercana
 
-ACCIONES QUE PUEDES EJECUTAR — usa el JSON correspondiente al final del mensaje:
-
-1. REGISTRAR gasto o ingreso:
-[REGISTRAR:{"desc":"descripción","amount":50000,"cat":"almuerzo","tipo":"gasto"}]
-tipo puede ser: "gasto" | "ingreso" | "ingreso_extra"
-
-2. CREAR pago programado (suscripción, servicio recurrente, cuota mensual):
+FORMATOS JSON:
+[REGISTRAR:{"desc":"Dulce","amount":1500,"cat":"snacks","tipo":"gasto"}]
 [PAGO_PROGRAMADO:{"nombre":"Netflix","monto":16000,"cat":"streaming","dia":3,"frecuencia":"mensual"}]
-frecuencia: "mensual" | "quincenal"
+[APORTE_META:{"goalId":"ID","amount":50000,"desc":"Aporte"}]
 
-3. APORTAR a una meta existente:
-[APORTE_META:{"goalId":"ID_DE_LA_META","amount":50000,"desc":"Aporte a meta"}]
-Metas disponibles: ${goals.map(g => `${g.name} (id:${g.id})`).join(", ") || "ninguna"}
+MONTOS: 1k=1000, 1.5k=1500, 10k=10000, 1m=1000000, 1.5m=1500000
 
-PARSEO DE MONTOS — interpreta siempre así:
-- "1k"=1000, "10k"=10000, "500k"=500000
-- "1m"=1000000, "1.5m"=1500000
-- Siempre número exacto en el JSON
+VALIDACIÓN: Si monto > disponible (${COP(disponibleGastar)}), NO registres, avisa. Para ingresos, siempre registra.
 
-VALIDACIÓN OBLIGATORIA antes de registrar un GASTO:
-- Si el monto supera el disponible actual (${COP(disponibleGastar)}), NO registres y advierte claramente
-- Si el disponible es $0 o negativo, rechaza cualquier gasto
-- Para INGRESOS no hay límite, registra siempre
-
-Si el usuario CONFIRMA ("sí", "dale", "ok", "listo", "claro", "va"), repite el mismo JSON para ejecutar.
-Para CONSULTAS usa los datos reales. Para SIMULACIONES analiza el impacto.
-Usa siempre COP con formato $X.XXX.XXX. Sé conciso — máximo 3-4 líneas.`;
+EJEMPLOS:
+Usuario: "compré un snack 1.5k" → Respuesta: "Registré tu snack ✅ [REGISTRAR:{"desc":"Snack","amount":1500,"cat":"snacks","tipo":"gasto"}]"
+Usuario: "gasté 50k en almuerzo" → Respuesta: "Listo, almuerzo anotado 🍽️ [REGISTRAR:{"desc":"Almuerzo","amount":50000,"cat":"almuerzo","tipo":"gasto"}]"
+Usuario: "recibí 500k de salario" → Respuesta: "Ingreso registrado 💰 [REGISTRAR:{"desc":"Salario","amount":500000,"cat":"ingreso","tipo":"ingreso"}]"
+Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ninguna"}`;
   }
 
   // ── Parsear monto con K y M ───────────────────────────────────────────────
@@ -168,167 +155,120 @@ Usa siempre COP con formato $X.XXX.XXX. Sé conciso — máximo 3-4 líneas.`;
   }
 
   // ── Enviar mensaje ────────────────────────────────────────────────────────
-  async function enviar() {
-    const txt = input.trim();
-    if (!txt || loading) return;
+  // ── Umbrales confirmación ────────────────────────────────────────────────
+  const UMBRAL_GRANDE = 500000;
+  const UMBRAL_MEDIO  = 100000;
 
-    // Si hay transacción pendiente y el usuario confirma
-    const currentPending = pendingTxRef.current;
-    if (currentPending) {
-      const confirmWords = ["sí", "si", "dale", "ok", "confirma", "confirmar", "correcto", "listo", "yes", "claro", "perfecto", "va"];
-      const cancelWords = ["no", "cancel", "cancela", "mejor no", "espera", "para"];
-      const txtLower = txt.toLowerCase().trim();
-
-      if (confirmWords.some(w => txtLower === w || txtLower.startsWith(w + " ") || txtLower.endsWith(" " + w))) {
-        setMsgs(m => [...m, { role: "user", text: txt, ts: Date.now() }]);
-        setInput("");
-        const montoFinal = parsearMonto(currentPending.amount);
-        const esGasto = currentPending.tipo !== "ingreso";
-
-        if (esGasto && montoFinal > disponibleGastar) {
-          // Calcular total en metas
-          const totalEnMetas = goals.reduce((s, g) => s + getAportado(g.id), 0);
-          const deficit = montoFinal - disponibleGastar;
-
-          pendingTxRef.current = null;
-          setPendingTx(null);
-
-          if (totalEnMetas >= deficit) {
-            // Tiene metas de donde sacar
-            const metaSugerida = goals
-              .filter(g => getAportado(g.id) >= deficit)
-              .sort((a, b) => getAportado(b.id) - getAportado(a.id))[0]
-              || goals[0];
-            setMsgs(m => [...m, {
-              role: "assistant",
-              text: `⚠️ No te alcanza el disponible`,
-              ts: Date.now(),
-              alerta: {
-                tipo: "sin_fondos_metas",
-                color: "#f59e0b",
-                monto: montoFinal,
-                deficit,
-                disponible: disponibleGastar,
-                meta: metaSugerida,
-                metaAportado: getAportado(metaSugerida?.id),
-              }
-            }]);
-          } else {
-            // No hay de dónde
-            setMsgs(m => [...m, {
-              role: "assistant",
-              text: `No hay fondos suficientes`,
-              ts: Date.now(),
-              alerta: {
-                tipo: "sin_fondos",
-                color: "#ef4444",
-                monto: montoFinal,
-                disponible: disponibleGastar,
-              }
-            }]);
-          }
-          return;
-        }
-
-        onRegistrarTx({...currentPending, amount: montoFinal});
-        pendingTxRef.current = null;
-        setPendingTx(null);
-        // Mensaje según tipo de acción
-        const tipoAccion = currentPending._tipo;
-        if (tipoAccion === "PAGO_PROGRAMADO") {
-          onCrearPago && onCrearPago(currentPending);
-          setMsgs(m => [...m, { role:"assistant", text:"pago_programado", ts:Date.now(),
-            alerta:{ tipo:"exito", color:"#10b981", desc:`Pago programado: ${currentPending.nombre}`, monto: parsearMonto(currentPending.monto) }
-          }]);
-        } else if (tipoAccion === "APORTE_META") {
-          onAporteMeta && onAporteMeta(currentPending);
-          setMsgs(m => [...m, { role:"assistant", text:"aporte", ts:Date.now(),
-            alerta:{ tipo:"exito", color:"#6366f1", desc:`Aporte registrado`, monto: montoFinal }
-          }]);
-        } else {
-          setMsgs(m => [...m, { role:"assistant", text:"registrado", ts:Date.now(),
-            alerta:{ tipo:"exito", color:"#10b981", desc: currentPending.desc, monto: montoFinal }
-          }]);
-        }
-        return;
-      }
-      if (cancelWords.some(w => txtLower === w || txtLower.startsWith(w + " ") || txtLower.endsWith(" " + w))) {
-        setMsgs(m => [...m, { role: "user", text: txt, ts: Date.now() }]);
-        setInput("");
-        pendingTxRef.current = null;
-        setPendingTx(null);
-        setMsgs(m => [...m, {
-          role: "assistant",
-          text: "Entendido, no lo registré. ¿En qué más te ayudo?",
-          ts: Date.now()
-        }]);
-        return;
-      }
-    }
-
-    const userMsg = { role: "user", text: txt, ts: Date.now() };
-    setMsgs(m => [...m, userMsg]);
-    setInput("");
-    setLoading(true);
-
-    try {
-      // Construir historial para la API (últimos 8 mensajes)
-      const history = msgs.slice(-8).map(m => ({
-        role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: m.text }]
-      }));
-
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": ANTHROPIC_KEY,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 500,
-          system: buildContext(),
-          messages: [
-            ...msgs.slice(-8).map(m => ({
-              role: m.role === "assistant" ? "assistant" : "user",
-              content: m.text,
-            })),
-            { role: "user", content: txt }
-          ],
-        })
-      });
-
-      const data = await res.json();
-      const rawText = data.content?.[0]?.text || "No pude procesar tu consulta. Intenta de nuevo.";
-      const { text: cleanText, txData } = parsearRespuesta(rawText);
-
-      if (txData) {
-        pendingTxRef.current = txData;
-        setPendingTx(txData);
-        setMsgs(m => [...m, {
-          role: "assistant",
-          text: cleanText,
-          ts: Date.now(),
-          pendingTx: txData
-        }]);
-      } else {
-        setMsgs(m => [...m, { role: "assistant", text: cleanText, ts: Date.now() }]);
-      }
-    } catch (e) {
-      setMsgs(m => [...m, {
-        role: "assistant",
-        text: "Tuve un problema conectándome. Verifica tu conexión e intenta de nuevo. 🔄",
-        ts: Date.now()
-      }]);
-    } finally {
-      setLoading(false);
-      setTimeout(() => inputRef.current?.focus(), 100);
+  async function ejecutarAccion(txData, montoFinal) {
+    const tipo = txData._tipo;
+    if (tipo === "PAGO_PROGRAMADO") {
+      onCrearPago && await onCrearPago(txData);
+      return { desc:`Pago programado: ${txData.nombre}`, monto:parsearMonto(txData.monto), color:"#10b981" };
+    } else if (tipo === "APORTE_META") {
+      onAporteMeta && await onAporteMeta({...txData, amount:montoFinal});
+      return { desc:"Aporte registrado", monto:montoFinal, color:"#6366f1" };
+    } else {
+      await onRegistrarTx({...txData, amount:montoFinal});
+      return { desc:txData.desc, monto:montoFinal, color:"#10b981" };
     }
   }
 
-  const [escuchando, setEscuchando] = useState(false);
+  async function enviarTexto(txt) {
+    if (!txt || loading) return;
+
+    const currentPending = pendingTxRef.current;
+    if (currentPending) {
+      const confirmW = ["sí","si","dale","ok","confirma","confirmar","correcto","listo","yes","claro","perfecto","va"];
+      const cancelW  = ["no","cancel","cancela","mejor no","espera","para"];
+      const tl = txt.toLowerCase().trim();
+
+      if (confirmW.some(w => tl===w || tl.startsWith(w+" ") || tl.endsWith(" "+w))) {
+        setMsgs(m=>[...m,{role:"user",text:txt,ts:Date.now()}]);
+        const montoFinal = parsearMonto(currentPending.amount||currentPending.monto);
+        const esGasto = currentPending._tipo!=="PAGO_PROGRAMADO" && currentPending.tipo!=="ingreso" && currentPending.tipo!=="ingreso_extra";
+
+        if (esGasto && montoFinal > disponibleGastar) {
+          const totalEnMetas = goals.reduce((s,g)=>s+getAportado(g.id),0);
+          const deficit = montoFinal - disponibleGastar;
+          pendingTxRef.current=null; setPendingTx(null);
+          const meta = goals.filter(g=>getAportado(g.id)>=deficit).sort((a,b)=>getAportado(b.id)-getAportado(a.id))[0]||goals[0];
+          setMsgs(m=>[...m,{role:"assistant",text:"",ts:Date.now(),
+            alerta: totalEnMetas>=deficit
+              ?{tipo:"sin_fondos_metas",color:"#f59e0b",monto:montoFinal,deficit,disponible:disponibleGastar,meta,metaAportado:getAportado(meta?.id)}
+              :{tipo:"sin_fondos",color:"#ef4444",monto:montoFinal,disponible:disponibleGastar}
+          }]);
+          return;
+        }
+        pendingTxRef.current=null; setPendingTx(null);
+        const resultado = await ejecutarAccion(currentPending, montoFinal);
+        setMsgs(m=>[...m,{role:"assistant",text:"",ts:Date.now(),alerta:{tipo:"exito",...resultado}}]);
+        return;
+      }
+      if (cancelW.some(w => tl===w || tl.startsWith(w+" ") || tl.endsWith(" "+w))) {
+        setMsgs(m=>[...m,{role:"user",text:txt,ts:Date.now()}]);
+        pendingTxRef.current=null; setPendingTx(null);
+        setMsgs(m=>[...m,{role:"assistant",text:"Cancelado. ¿En qué más te ayudo?",ts:Date.now()}]);
+        return;
+      }
+    }
+
+    setMsgs(m=>[...m,{role:"user",text:txt,ts:Date.now()}]);
+    setLoading(true);
+    try {
+      const res = await fetch(API_URL, {
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body: JSON.stringify({
+          model:"claude-haiku-4-5-20251001", max_tokens:500,
+          system:buildContext(),
+          messages:[
+            ...msgs.slice(-8).map(m=>({role:m.role==="assistant"?"assistant":"user",content:m.text||" "})),
+            {role:"user",content:txt}
+          ],
+        })
+      });
+      const data = await res.json();
+      const rawText = data.content?.[0]?.text||"No pude procesar tu consulta. Intenta de nuevo.";
+      const {text:cleanText, txData} = parsearRespuesta(rawText);
+
+      if (txData) {
+        const montoFinal = parsearMonto(txData.amount||txData.monto);
+        const esPagoProgr = txData._tipo==="PAGO_PROGRAMADO";
+        const esGasto = !esPagoProgr && txData.tipo!=="ingreso" && txData.tipo!=="ingreso_extra";
+        const sinFondos = esGasto && montoFinal > disponibleGastar;
+        const necesitaConfirm = esPagoProgr || sinFondos || montoFinal>=UMBRAL_GRANDE;
+        const necesitaToast   = !necesitaConfirm && esGasto && montoFinal>=UMBRAL_MEDIO;
+
+        if (necesitaConfirm) {
+          pendingTxRef.current=txData; setPendingTx(txData);
+          setMsgs(m=>[...m,{role:"assistant",text:cleanText,ts:Date.now(),pendingTx:txData}]);
+        } else if (necesitaToast) {
+          const resultado = await ejecutarAccion(txData, montoFinal);
+          setMsgs(m=>[...m,{role:"assistant",text:cleanText||"",ts:Date.now(),
+            alerta:{tipo:"exito_aviso",...resultado,aviso:`${Math.round(montoFinal/Math.max(totalIngresoMes,1)*100)}% de tu ingreso mensual`}}]);
+        } else {
+          const resultado = await ejecutarAccion(txData, montoFinal);
+          setMsgs(m=>[...m,{role:"assistant",text:cleanText||"",ts:Date.now(),alerta:{tipo:"exito",...resultado}}]);
+        }
+      } else {
+        setMsgs(m=>[...m,{role:"assistant",text:cleanText,ts:Date.now()}]);
+      }
+    } catch {
+      setMsgs(m=>[...m,{role:"assistant",text:"Tuve un problema. Intenta de nuevo. 🔄",ts:Date.now()}]);
+    } finally {
+      setLoading(false);
+      setTimeout(()=>inputRef.current?.focus(),100);
+    }
+  }
+
+  function enviar() {
+    const txt = input.trim();
+    if (!txt) return;
+    setInput("");
+    enviarTexto(txt);
+  }
+
+    const [escuchando, setEscuchando] = useState(false);
   const recognitionRef = useRef(null);
 
   function toggleVoz() {
@@ -354,10 +294,14 @@ Usa siempre COP con formato $X.XXX.XXX. Sé conciso — máximo 3-4 líneas.`;
     };
     rec.onend = () => {
       setEscuchando(false);
-      // Auto-enviar si hay texto
+      // Auto-enviar con el valor actual del ref
       setTimeout(() => {
-        if (inputRef.current?.value?.trim()) enviar();
-      }, 300);
+        const val = inputRef.current?.value?.trim();
+        if (val) {
+          enviarTexto(val);
+          setInput("");
+        }
+      }, 400);
     };
     rec.onerror = () => setEscuchando(false);
 
@@ -365,17 +309,6 @@ Usa siempre COP con formato $X.XXX.XXX. Sé conciso — máximo 3-4 líneas.`;
     rec.start();
   }
   // ── Parsear montos con K y M ─────────────────────────────────────────────
-  function parsearMonto(texto) {
-    if (!texto) return 0;
-    const str = String(texto).toLowerCase().trim()
-      .replace(/\./g, "").replace(/,/g, ".");
-    const match = str.match(/^([\d.]+)\s*([km]?)$/);
-    if (!match) return Number(str) || 0;
-    const num = parseFloat(match[1]);
-    if (match[2] === "k") return Math.round(num * 1000);
-    if (match[2] === "m") return Math.round(num * 1000000);
-    return Math.round(num);
-  }
 
   function formatText(text) {
     return text
@@ -433,7 +366,7 @@ Usa siempre COP con formato $X.XXX.XXX. Sé conciso — máximo 3-4 líneas.`;
           }}>🤖</div>
           <div style={{ flex: 1, marginTop: 8 }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: C.text.h }}>Asistente IA</div>
-            <div style={{ fontSize: 11, color: C.emerald, fontWeight: 600 }}>● En línea · Gemini</div>
+            <div style={{ fontSize: 11, color: C.emerald, fontWeight: 600 }}>● En línea · Claude</div>
           </div>
           <button
             onClick={onClose}
@@ -478,14 +411,15 @@ Usa siempre COP con formato $X.XXX.XXX. Sé conciso — máximo 3-4 líneas.`;
                 overflow: "hidden",
               }}>
                 {/* Alerta visual */}
-                {m.alerta && m.alerta.tipo === "exito" && (
-                  <div style={{padding:"14px 16px", background:`#10b98115`, borderLeft:`4px solid #10b981`}}>
+                {m.alerta && (m.alerta.tipo === "exito" || m.alerta.tipo === "exito_aviso") && (
+                  <div style={{padding:"14px 16px", background:`${m.alerta.color}15`, borderLeft:`4px solid ${m.alerta.color}`}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
                       <span style={{fontSize:20}}>✅</span>
-                      <span style={{fontSize:14,fontWeight:800,color:"#10b981"}}>¡Registrado!</span>
+                      <span style={{fontSize:14,fontWeight:800,color:m.alerta.color}}>¡Registrado!</span>
                     </div>
                     <div style={{fontSize:13,color:C.text.h,fontWeight:600}}>{m.alerta.desc}</div>
-                    <div style={{fontSize:18,fontWeight:900,color:"#10b981",marginTop:2}}>{COP(m.alerta.monto)}</div>
+                    <div style={{fontSize:18,fontWeight:900,color:m.alerta.color,marginTop:2}}>{COP(m.alerta.monto)}</div>
+                    {m.alerta.aviso && <div style={{marginTop:6,padding:"6px 8px",background:`${m.alerta.color}22`,borderRadius:6,fontSize:11,color:m.alerta.color,fontWeight:700}}>⚡ {m.alerta.aviso}</div>}
                     <div style={{fontSize:11,color:C.text.s,marginTop:4}}>Ya aparece en tus movimientos</div>
                   </div>
                 )}

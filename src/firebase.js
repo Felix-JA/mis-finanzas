@@ -17,3 +17,6 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const provider = new GoogleAuthProvider();
 export const db = getFirestore(app);
+// AÑADIR estas dos líneas al final de firebase.js:
+import { getFunctions } from "firebase/functions";
+export const functions = getFunctions(app);
