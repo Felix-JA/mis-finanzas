@@ -135,6 +135,9 @@ export function SimuladorDecision({
       }}
     >
       <div
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
         style={{
           width: "100%", maxWidth: 430, margin: "0 auto",
           background: C.card, borderRadius: "22px 22px 0 0",
@@ -163,9 +166,6 @@ export function SimuladorDecision({
 
         {/* Handle */}
         <div
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
           style={{
             display: "flex", justifyContent: "center",
             marginBottom: 14, padding: "4px 0 8px",

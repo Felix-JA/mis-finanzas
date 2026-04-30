@@ -53,7 +53,7 @@ export function AsistenteIA({
     }
   }
   function swipeEnd() {
-    if (curY.current > 120) { onClose(); return; }
+    if (curY.current > 80) { onClose(); return; }
     if (cardRef.current) {
       cardRef.current.style.transition = "transform 0.25s ease";
       cardRef.current.style.transform = "translateY(0)";
@@ -340,6 +340,9 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
     >
       <div
         ref={cardRef}
+        onTouchStart={e=>swipeStart(e.touches[0].clientY)}
+        onTouchMove={e=>swipeMove(e.touches[0].clientY)}
+        onTouchEnd={swipeEnd}
         style={{
           width: "100%", maxWidth: 430, margin: "0 auto",
           background: C.card, borderRadius: "22px 22px 0 0",
@@ -351,9 +354,6 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
       >
         {/* Header con swipe */}
         <div
-          onTouchStart={e => swipeStart(e.touches[0].clientY)}
-          onTouchMove={e => swipeMove(e.touches[0].clientY)}
-          onTouchEnd={swipeEnd}
           style={{
             padding: "12px 20px 10px", borderBottom: `1px solid ${C.border}`,
             display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
