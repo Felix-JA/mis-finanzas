@@ -3892,6 +3892,46 @@ export default function App(){
               <div style={{fontSize:11,color:C.text.s,fontWeight:500}}>{totalAportes>0?`${Math.round(tasaAhorr*100)}% guardado`:"Empieza cuando quieras"}</div>
             </div>
           </div>
+          {/* ── 2.3 Bienvenida usuario nuevo ── */}
+          {tx.length===0&&(
+            <div style={{
+              borderRadius:20,padding:"24px 20px",marginBottom:24,
+              background:`linear-gradient(135deg,${C.indigo}18,${C.violet}10)`,
+              border:`1px solid ${C.indigo}30`,
+              animation:"fadeIn 0.4s ease",
+            }}>
+              <div style={{textAlign:"center",marginBottom:20}}>
+                <div style={{fontSize:42,marginBottom:10}}>🚀</div>
+                <div style={{fontSize:17,fontWeight:900,color:C.text.h,marginBottom:8}}>
+                  ¡Todo listo para empezar!
+                </div>
+                <div style={{fontSize:13,color:C.text.b,lineHeight:1.7}}>
+                  Registra tu primer movimiento<br/>y la app empieza a trabajar para ti.
+                </div>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <button onClick={()=>setModal("new")} style={{
+                  width:"100%",padding:"14px 0",borderRadius:14,border:"none",cursor:"pointer",
+                  background:`linear-gradient(135deg,${C.indigo},#4338ca)`,
+                  color:"#fff",fontSize:14,fontWeight:800,
+                }}>💸 Registrar mi primer gasto</button>
+                <div style={{display:"flex",gap:10}}>
+                  <button onClick={()=>setGoalModal("new")} style={{
+                    flex:1,padding:"12px 0",borderRadius:12,
+                    border:`1px solid ${C.indigo}33`,
+                    background:`${C.indigo}10`,color:C.indigoLight,
+                    fontSize:13,fontWeight:700,cursor:"pointer",
+                  }}>⭐ Crear meta</button>
+                  <button onClick={()=>changeTab("cfg")} style={{
+                    flex:1,padding:"12px 0",borderRadius:12,
+                    border:`1px solid ${C.border}`,
+                    background:C.surface,color:C.text.b,
+                    fontSize:13,fontWeight:700,cursor:"pointer",
+                  }}>⚙️ Configurar</button>
+                </div>
+              </div>
+            </div>
+          )}
           {/* ── 2.5 Banner plan inteligente (si no hay presupuestos) ── */}
           <BudgetSetupBanner
             key={bannerDismissTick}
@@ -4533,7 +4573,33 @@ export default function App(){
 
     return <div style={{padding:"16px 20px 0"}}>
       <MonthSelector/>
-      <GraficaMeses/>
+      {monthTx.length===0
+        ? <div style={{
+            borderRadius:20,padding:"32px 20px",marginBottom:20,
+            background:C.card,border:`1px solid ${C.border}`,
+            textAlign:"center",
+            boxShadow:elev("card"),
+            animation:"fadeIn 0.3s ease",
+          }}>
+            <div style={{fontSize:40,marginBottom:12}}>📊</div>
+            <div style={{fontSize:16,fontWeight:800,color:C.text.h,marginBottom:8}}>
+              Sin actividad en {MONTHS[month]}
+            </div>
+            <div style={{fontSize:13,color:C.text.b,lineHeight:1.7,marginBottom:20}}>
+              {month===now.getMonth()&&selectedYear===now.getFullYear()
+                ? "Registra un movimiento y el análisis\nse actualiza automáticamente."
+                : "No hay movimientos registrados\npara este período."}
+            </div>
+            {month===now.getMonth()&&selectedYear===now.getFullYear()&&(
+              <button onClick={()=>setModal("new")} style={{
+                padding:"13px 28px",borderRadius:14,border:"none",cursor:"pointer",
+                background:`linear-gradient(135deg,${C.indigo},#4338ca)`,
+                color:"#fff",fontSize:14,fontWeight:800,
+              }}>+ Registrar movimiento</button>
+            )}
+          </div>
+        : <GraficaMeses/>
+      }
       <Card style={{marginBottom:14}}>
         <Lbl>Resumen del mes</Lbl>
         {[
@@ -4951,12 +5017,38 @@ export default function App(){
           {sorted.length===0?"Sin resultados":`${sorted.length} resultado${sorted.length!==1?"s":""} encontrado${sorted.length!==1?"s":""}`}
         </div>}
       </div>}
-      {sorted.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:C.text.b,fontSize:14,lineHeight:2}}>
-        {hayFiltro
-          ?<><span style={{fontSize:32}}>🔍</span><br/>Sin resultados para esa búsqueda.<br/><span style={{fontSize:12,color:C.text.s}}>Intenta con otra palabra o categoría.</span></>
-          :<>Sin movimientos en {MONTHS[month]}.<br/><span style={{fontSize:11,color:C.text.s}}>Los registros de otros meses están disponibles<br/>seleccionando el mes arriba.</span></>
-        }
-      </div>}
+      {sorted.length===0&&(
+        hayFiltro
+          ? <div style={{textAlign:"center",padding:"36px 0",color:C.text.b,animation:"fadeIn 0.3s ease"}}>
+              <div style={{fontSize:36,marginBottom:10}}>🔍</div>
+              <div style={{fontSize:15,fontWeight:700,color:C.text.h,marginBottom:6}}>Sin resultados</div>
+              <div style={{fontSize:13,color:C.text.s,lineHeight:1.6}}>Intenta con otra palabra o categoría.</div>
+            </div>
+          : <div style={{
+              borderRadius:20,padding:"32px 20px",
+              background:C.card,border:`1px solid ${C.border}`,
+              textAlign:"center",marginTop:8,
+              animation:"fadeIn 0.3s ease",
+              boxShadow:elev("card"),
+            }}>
+              <div style={{fontSize:40,marginBottom:12}}>📭</div>
+              <div style={{fontSize:16,fontWeight:800,color:C.text.h,marginBottom:8}}>
+                Sin movimientos en {MONTHS[month]}
+              </div>
+              <div style={{fontSize:13,color:C.text.b,lineHeight:1.7,marginBottom:20}}>
+                {month===now.getMonth()&&selectedYear===now.getFullYear()
+                  ? "Aún no registraste nada este mes.\nEmpieza cuando quieras."
+                  : "No hay registros para este período.\nPuedes navegar a otro mes arriba."}
+              </div>
+              {month===now.getMonth()&&selectedYear===now.getFullYear()&&(
+                <button onClick={()=>setModal("new")} style={{
+                  padding:"13px 28px",borderRadius:14,border:"none",cursor:"pointer",
+                  background:`linear-gradient(135deg,${C.indigo},#4338ca)`,
+                  color:"#fff",fontSize:14,fontWeight:800,
+                }}>+ Añadir movimiento</button>
+              )}
+            </div>
+      )}
       {sorted.map(t=><TxRow key={t.id} t={t} onEdit={()=>setModal(t)} catsCustom={catsCustom}/>)}
     </div>;
   };
