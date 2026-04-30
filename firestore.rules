@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Cada usuario solo accede a sus propios datos
+    match /usuarios/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      match /transacciones/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+      match /metas/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+      match /pagos_programados/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+      match /presupuestos/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+      match /prestamos/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+      match /deudas/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    // ia_uso — solo Cloud Functions (admin SDK) puede escribir
+    // usuarios no tienen acceso directo
+    match /ia_uso/{docId} {
+      allow read, write: if false;
+    }
+
+    // Todo lo demás: denegado por defecto
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

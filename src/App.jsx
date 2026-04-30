@@ -2483,6 +2483,7 @@ export default function App(){
   const [prestamoForm,setPrestamoForm]=useState(null);
   const [badgesGuardados,setBadgesGuardados]=useState({});
   const [badgesNuevos,setBadgesNuevos]=useState([]);
+  const [badgesLoaded,setBadgesLoaded]=useState(false); // true cuando Firestore terminó de cargar badges
   const [isPro,setIsPro]=useState(false); // true si usuarios/{uid}.plan === "pro"
   const [proGate,setProGate]=useState(null); // null | {titulo,descripcion,features}
   const badgesResettingRef=useRef(false);
@@ -2611,10 +2612,11 @@ export default function App(){
     return unsub;},[user]);
 
   // Cargar badges guardados desde Firestore
-  useEffect(()=>{if(!user){setBadgesGuardados({});return;}
+  useEffect(()=>{if(!user){setBadgesGuardados({});setBadgesLoaded(false);return;}
     getDoc(doc(db,"usuarios",user.uid)).then(snap=>{
       if(snap.exists()&&snap.data().badges) setBadgesGuardados(snap.data().badges);
-    });},[user]);
+      setBadgesLoaded(true);
+    }).catch(()=>setBadgesLoaded(true));},[user]);
 
   // Listener del dismiss del banner de presupuesto (desde BudgetEngine)
   useEffect(()=>{
@@ -3511,7 +3513,7 @@ export default function App(){
 
   // Detectar badges nuevos y guardar en Firestore
   useEffect(()=>{
-    if(!user||!tx.length||badgesResettingRef.current) return;
+    if(!user||!tx.length||!badgesLoaded||badgesResettingRef.current) return;
     const nuevos=Object.entries(badgesDesbloqueados)
       .filter(([id,val])=>val&&!badgesGuardados[id])
       .map(([id])=>id);
@@ -4029,24 +4031,30 @@ export default function App(){
             mesesDatos={totalMesesConDatos||0}
             C={C} COP={COP}
             onActivate={()=>setBudgetSetupOpen(true)}/>
-          {/* ── 2.45 Chip simulador + IA ── */}
-          <div style={{display:"flex",gap:12,marginBottom:16,flexWrap:"wrap"}}>
-            {disponibleGastar>0&&<button onClick={()=>isPro?setSimuladorOpen(true):setProGate({titulo:"Simulador de decisión",descripcion:"Analiza si puedes permitirte una compra sin afectar tus finanzas.",features:[{icon:"🎯",label:"Simulación de impacto",desc:"Ve cómo afecta tu balance"},{icon:"📊",label:"Análisis de cuotas",desc:"Proyección mes a mes"},{icon:"💡",label:"Recomendación inteligente",desc:"Basada en tus datos reales"}]})} style={{
-              display:"flex",alignItems:"center",gap:6,
-              background:"none",border:"none",cursor:"pointer",padding:0,
-            }}>
-              <span style={{fontSize:13}}>🔮</span>
-              <span style={{fontSize:12,color:C.text.s,fontWeight:500}}>¿Qué pasa si compro algo?</span>
-              <span style={{fontSize:11,color:C.indigo,fontWeight:700}}>Simular →</span>
-            </button>}
+          {/* ── 2.45 Accesos rápidos IA + Simulador ── */}
+          <div style={{display:"flex",gap:8,marginBottom:16}}>
             <button onClick={()=>setAsistenteOpen(true)} style={{
-              display:"flex",alignItems:"center",gap:6,
-              background:"none",border:"none",cursor:"pointer",padding:0,
+              flex:1,display:"flex",alignItems:"center",gap:8,
+              background:C.surface,border:`1px solid ${C.border}`,
+              borderRadius:14,padding:"10px 12px",cursor:"pointer",
             }}>
-              <span style={{fontSize:13}}>🤖</span>
-              <span style={{fontSize:12,color:C.text.s,fontWeight:500}}>Pregúntale a la IA</span>
-              <span style={{fontSize:11,color:C.violet,fontWeight:700}}>Chatear →</span>
+              <span style={{fontSize:18,flexShrink:0}}>🤖</span>
+              <div style={{textAlign:"left"}}>
+                <div style={{fontSize:12,fontWeight:700,color:C.text.h,lineHeight:1.2}}>Asistente IA</div>
+                <div style={{fontSize:10,color:C.text.s}}>Pregúntame algo</div>
+              </div>
             </button>
+            {disponibleGastar>0&&<button onClick={()=>isPro?setSimuladorOpen(true):setProGate({titulo:"Simulador de decisión",descripcion:"Analiza si puedes permitirte una compra sin afectar tus finanzas.",features:[{icon:"🎯",label:"Simulación de impacto",desc:"Ve cómo afecta tu balance"},{icon:"📊",label:"Análisis de cuotas",desc:"Proyección mes a mes"},{icon:"💡",label:"Recomendación inteligente",desc:"Basada en tus datos reales"}]})} style={{
+              flex:1,display:"flex",alignItems:"center",gap:8,
+              background:C.surface,border:`1px solid ${C.border}`,
+              borderRadius:14,padding:"10px 12px",cursor:"pointer",
+            }}>
+              <span style={{fontSize:18,flexShrink:0}}>🔮</span>
+              <div style={{textAlign:"left"}}>
+                <div style={{fontSize:12,fontWeight:700,color:C.text.h,lineHeight:1.2}}>Simulador{!isPro&&" ⚡"}</div>
+                <div style={{fontSize:10,color:C.text.s}}>¿Puedo comprarlo?</div>
+              </div>
+            </button>}
           </div>
           {/* ── 2.6 Racha ── */}
           <RachaWidget/>
