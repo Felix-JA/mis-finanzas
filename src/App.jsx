@@ -2292,7 +2292,7 @@ function diasRestantesMes(){
 }
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
-function MenuSheet({onClose,user,disponibleGastar,totalGasto,tema,TEMAS,changeTab,setMenuOpen,setExportModal,handleLogout,C,COP}){
+function MenuSheet({onClose,user,disponibleGastar,totalGasto,tema,TEMAS,changeTab,setMenuOpen,setExportModal,handleLogout,C,COP,isPro,setProGate}){
   return <>
     {/* Backdrop invisible — cierra al tocar fuera */}
     <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:149}}/>
@@ -2332,7 +2332,7 @@ function MenuSheet({onClose,user,disponibleGastar,totalGasto,tema,TEMAS,changeTa
         {[
           {icon:"🎨",label:`Tema: ${TEMAS[tema]?.label||"Navy"}`,onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
           {icon:"⚙️",label:"Configuración",onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
-          {icon:"📤",label:"Exportar movimientos",onClick:()=>{setExportModal(true);setMenuOpen(false);}},
+          {icon:"📤",label:`Exportar movimientos${isPro?"":" ⚡"}`,onClick:()=>{setMenuOpen(false);isPro?setExportModal(true):setProGate({titulo:"Exportar PDF",descripcion:"Descarga un reporte completo de tus finanzas en PDF.",features:[{icon:"📄",label:"Reporte mensual completo"},{icon:"📊",label:"Gráficas y análisis"},{icon:"📋",label:"Tabla de movimientos"}]});}},
         ].map(o=>(
           <button key={o.label} onClick={o.onClick}
             style={{width:"100%",padding:"11px 16px",background:"none",border:"none",cursor:"pointer",
@@ -2350,6 +2350,97 @@ function MenuSheet({onClose,user,disponibleGastar,totalGasto,tema,TEMAS,changeTa
       </div>
     </div>
   </>;
+}
+
+
+// ─── PRO GATE — pantalla de upgrade reutilizable ─────────────────────────────
+function ProGate({titulo, descripcion, features, onClose, C}){
+  const startY=useRef(null);
+  const sheetRef=useRef(null);
+  function swipeStart(y){startY.current=y;}
+  function swipeMove(y){if(startY.current===null)return;const dy=y-startY.current;if(dy>0&&sheetRef.current)sheetRef.current.style.transform=`translateY(${dy}px)`;}
+  function swipeEnd(y){if(startY.current===null)return;const dy=y-startY.current;if(sheetRef.current)sheetRef.current.style.transform="";if(dy>60)onClose();startY.current=null;}
+  return(
+    <div style={{
+      position:"fixed",inset:0,zIndex:1000,
+      background:"rgba(0,0,0,0.7)",backdropFilter:"blur(8px)",
+      display:"flex",alignItems:"flex-end",justifyContent:"center",
+    }} onClick={onClose}>
+      <div ref={sheetRef} onClick={e=>e.stopPropagation()}
+        onTouchStart={e=>swipeStart(e.touches[0].clientY)}
+        onTouchMove={e=>swipeMove(e.touches[0].clientY)}
+        onTouchEnd={e=>swipeEnd(e.changedTouches[0].clientY)}
+        style={{
+          transition:"transform 0.1s",
+          width:"100%",maxWidth:430,
+          background:C.card,borderRadius:"24px 24px 0 0",
+          padding:"28px 24px 40px",
+          border:`1px solid ${C.border}`,
+        }}>
+        {/* Handle */}
+        <div style={{width:36,height:4,borderRadius:99,background:C.border,margin:"0 auto 20px"}}/>
+        {/* Icono y título */}
+        <div style={{textAlign:"center",marginBottom:20}}>
+          <div style={{
+            fontSize:44,marginBottom:12,
+            filter:"drop-shadow(0 4px 12px rgba(99,102,241,0.4))"
+          }}>⚡</div>
+          <div style={{fontSize:20,fontWeight:900,color:C.text.h,marginBottom:6}}>
+            {titulo||"Función Pro"}
+          </div>
+          <div style={{fontSize:14,color:C.text.b,lineHeight:1.5}}>
+            {descripcion||"Esta función está disponible en el plan Pro."}
+          </div>
+        </div>
+        {/* Features */}
+        {features&&features.length>0&&(
+          <div style={{
+            background:C.surface,borderRadius:16,padding:"14px 16px",
+            marginBottom:20,display:"flex",flexDirection:"column",gap:10,
+          }}>
+            {features.map((f,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:18}}>{f.icon}</span>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:C.text.h}}>{f.label}</div>
+                  {f.desc&&<div style={{fontSize:11,color:C.text.b}}>{f.desc}</div>}
+                </div>
+                <span style={{marginLeft:"auto",color:"#10b981",fontSize:18}}>✓</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {/* Precio */}
+        <div style={{
+          background:`linear-gradient(135deg,${C.indigo},${C.violet})`,
+          borderRadius:16,padding:"16px 20px",marginBottom:16,
+          display:"flex",alignItems:"center",justifyContent:"space-between",
+        }}>
+          <div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.7)",fontWeight:700,letterSpacing:1}}>PLAN PRO</div>
+            <div style={{fontSize:24,fontWeight:900,color:"#fff"}}>$9.900 <span style={{fontSize:13,fontWeight:500}}>COP/mes</span></div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.7)"}}>Menos de un tinto al día ☕</div>
+          </div>
+          <div style={{fontSize:36}}>🚀</div>
+        </div>
+        {/* Botón próximamente */}
+        <button style={{
+          width:"100%",padding:"15px",borderRadius:14,border:"none",cursor:"pointer",
+          background:`linear-gradient(135deg,${C.indigo},${C.violet})`,
+          color:"#fff",fontSize:15,fontWeight:800,marginBottom:10,
+          boxShadow:`0 4px 16px ${C.indigo}40`,
+        }}>
+          🚀 Próximamente disponible
+        </button>
+        <button onClick={onClose} style={{
+          width:"100%",padding:"13px",borderRadius:14,border:`1px solid ${C.border}`,
+          background:"transparent",color:C.text.b,fontSize:14,cursor:"pointer",
+        }}>
+          Continuar con plan gratis
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function App(){
@@ -2392,6 +2483,8 @@ export default function App(){
   const [prestamoForm,setPrestamoForm]=useState(null);
   const [badgesGuardados,setBadgesGuardados]=useState({});
   const [badgesNuevos,setBadgesNuevos]=useState([]);
+  const [isPro,setIsPro]=useState(false); // true si usuarios/{uid}.plan === "pro"
+  const [proGate,setProGate]=useState(null); // null | {titulo,descripcion,features}
   const badgesResettingRef=useRef(false);
   const [tema,setTema]=useState(()=>{
     const saved=localStorage.getItem("mf_tema");
@@ -2507,10 +2600,12 @@ export default function App(){
       setDeudas(snap.docs.map(d=>({id:d.id,...d.data()})));
     });},[user]);
 
-  useEffect(()=>{if(!user){setPatrimonio({activos:[],pasivosExternos:[]});return;}
+  useEffect(()=>{if(!user){setPatrimonio({activos:[],pasivosExternos:[]});setIsPro(false);return;}
     const unsub=onSnapshot(doc(db,"usuarios",user.uid),snap=>{
-      if(snap.exists()&&snap.data().patrimonio){
-        setPatrimonio(snap.data().patrimonio);
+      if(snap.exists()){
+        const d=snap.data();
+        if(d.patrimonio) setPatrimonio(d.patrimonio);
+        setIsPro(d.plan==="pro");
       }
     });
     return unsub;},[user]);
@@ -2649,6 +2744,7 @@ export default function App(){
       ...(g.imagen?{imagen:g.imagen}:{imagen:null}),
     };
     if(g.id) await updateDoc(doc(db,"usuarios",user.uid,"metas",g.id),pl);
+    else if(!isPro&&goals.length>=3){setProGate({titulo:"Metas ilimitadas",descripcion:"Con el plan Free puedes tener hasta 3 metas activas.",features:[{icon:"🎯",label:"Metas ilimitadas",desc:"Crea tantas como quieras"},{icon:"🖼️",label:"Imágenes personalizadas"},{icon:"📊",label:"Proyecciones de logro"}]});return;}
     else await addDoc(collection(db,"usuarios",user.uid,"metas"),{...pl,createdAt:serverTimestamp()});
   },[user]);
 
@@ -2825,7 +2921,7 @@ export default function App(){
       /* Página */
       .page{background:#fff;width:210mm;margin:0 auto 20px;border-radius:8px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.18);}
       /* Header degradado */
-      .hdr{background:linear-gradient(135deg,#4338ca 0%,#6366f1 60%,#818cf8 100%);padding:20px 24px 18px;color:#fff;position:relative;overflow:hidden;}
+      .hdr{background:linear-gradient(135deg,#4338ca 0%,#6366f1 60%,#818cf8 100%);padding:20px 18mm 18px;color:#fff;position:relative;overflow:hidden;}
       .hdr::before{content:'';position:absolute;top:-40px;right:-30px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,0.07);}
       .hdr::after{content:'';position:absolute;bottom:-60px;right:60px;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,0.05);}
       .hdr-row{display:flex;justify-content:space-between;align-items:flex-start;position:relative;}
@@ -2835,13 +2931,13 @@ export default function App(){
       .hdr-sub{font-size:10.5px;opacity:0.7;margin-top:3px;position:relative;}
       /* KPIs */
       .kpis{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid #e2e8f0;}
-      .kpi{padding:13px 24px;border-right:1px solid #e2e8f0;}
-      .kpi:last-child{border-right:none;}
+      .kpi{padding:13px 18mm;border-right:1px solid #e2e8f0;}
+      .kpi:last-child{border-right:none;padding-right:18mm;}
       .kpi-lbl{font-size:8.5px;font-weight:700;letter-spacing:1.2px;color:#94a3b8;text-transform:uppercase;margin-bottom:5px;}
       .kpi-val{font-size:15px;font-weight:900;letter-spacing:-0.5px;font-variant-numeric:tabular-nums;}
       .kpi-hint{font-size:8.5px;color:#94a3b8;margin-top:3px;}
       /* Cuerpo */
-      .body{padding:14px 24px 0;}
+      .body{padding:14px 18mm 0;}
       .sec-lbl{font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#94a3b8;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #f1f5f9;}
       /* Gráfica + categorías */
       .analytics{display:grid;grid-template-columns:165px 1fr;gap:18px;margin-bottom:16px;align-items:start;}
@@ -2872,22 +2968,22 @@ export default function App(){
       .ins-val{font-size:14px;font-weight:900;letter-spacing:-0.3px;}
       .ins-hint{font-size:8.5px;color:#94a3b8;margin-top:2px;}
       /* Tabla */
-      .tbl-outer{margin:0;}
+      .tbl-outer{margin:0 -18mm;}
       table{width:100%;border-collapse:collapse;}
       thead tr{background:#4338ca;}
       thead th{color:#fff;padding:8px 10px;font-size:8px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;}
-      th.th-fecha{width:8%;padding-left:24px;}
+      th.th-fecha{width:8%;padding-left:18mm;}
       th.th-desc{width:27%;text-align:left;}
       th.th-cat{width:25%;text-align:left;}
       th.th-tipo{width:10%;text-align:center;}
-      th.th-monto{width:30%;text-align:right;padding-right:24px;}
+      th.th-monto{width:30%;text-align:right;padding-right:18mm;}
       tbody tr:nth-child(even){background:#f8fafc;}
       td{padding:6px 10px;border-bottom:1px solid #f1f5f9;color:#0f172a;font-size:10.5px;vertical-align:middle;}
-      td.td-fecha{padding-left:24px;color:#94a3b8;font-size:9.5px;white-space:nowrap;}
+      td.td-fecha{padding-left:18mm;color:#94a3b8;font-size:9.5px;white-space:nowrap;}
       td.td-desc{font-weight:600;color:#0f172a;}
       td.td-cat{color:#64748b;font-size:10px;}
       td.td-tipo{text-align:center;}
-      td.td-monto{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;padding-right:24px;}
+      td.td-monto{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;padding-right:18mm;}
       td.pos{color:#059669;}
       td.neg{color:#dc2626;}
       /* Badges tipo */
@@ -2898,11 +2994,11 @@ export default function App(){
       /* Fila total */
       .tr-total td{background:#f1f5f9;font-weight:800;color:#334155;border-top:2px solid #e2e8f0;border-bottom:none;}
       /* Footer */
-      .footer{padding:9px 24px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #f1f5f9;}
+      .footer{padding:9px 18mm;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #f1f5f9;}
       .footer-txt{font-size:8.5px;color:#94a3b8;}
       .footer-dot{width:4px;height:4px;border-radius:50%;background:#6366f1;display:inline-block;margin:0 6px;vertical-align:middle;}
       /* Encabezado páginas 2+ */
-      .page-hdr{background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:9px 24px;display:flex;justify-content:space-between;align-items:center;}
+      .page-hdr{background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:9px 18mm;display:flex;justify-content:space-between;align-items:center;}
       .page-hdr-logo{font-size:11px;font-weight:900;color:#4338ca;}
       .page-hdr-info{font-size:9px;color:#94a3b8;}
       /* Print */
@@ -3909,7 +4005,7 @@ export default function App(){
                   color:"#fff",fontSize:14,fontWeight:800,
                 }}>💸 Registrar mi primer gasto</button>
                 <div style={{display:"flex",gap:10}}>
-                  <button onClick={()=>setGoalModal("new")} style={{
+                  <button onClick={()=>{if(!isPro&&goals.length>=3){setProGate({titulo:"Metas ilimitadas",descripcion:"Con el plan Free puedes tener hasta 3 metas activas.",features:[{icon:"🎯",label:"Metas ilimitadas",desc:"Crea tantas como quieras"},{icon:"📊",label:"Proyecciones de logro"}]});}else setGoalModal("new");}} style={{
                     flex:1,padding:"12px 0",borderRadius:12,
                     border:`1px solid ${C.indigo}33`,
                     background:`${C.indigo}10`,color:C.indigoLight,
@@ -3935,7 +4031,7 @@ export default function App(){
             onActivate={()=>setBudgetSetupOpen(true)}/>
           {/* ── 2.45 Chip simulador + IA ── */}
           <div style={{display:"flex",gap:12,marginBottom:16,flexWrap:"wrap"}}>
-            {disponibleGastar>0&&<button onClick={()=>setSimuladorOpen(true)} style={{
+            {disponibleGastar>0&&<button onClick={()=>isPro?setSimuladorOpen(true):setProGate({titulo:"Simulador de decisión",descripcion:"Analiza si puedes permitirte una compra sin afectar tus finanzas.",features:[{icon:"🎯",label:"Simulación de impacto",desc:"Ve cómo afecta tu balance"},{icon:"📊",label:"Análisis de cuotas",desc:"Proyección mes a mes"},{icon:"💡",label:"Recomendación inteligente",desc:"Basada en tus datos reales"}]})} style={{
               display:"flex",alignItems:"center",gap:6,
               background:"none",border:"none",cursor:"pointer",padding:0,
             }}>
@@ -4030,9 +4126,9 @@ export default function App(){
       {goals.length===0&&<div style={{textAlign:"center",padding:"48px 20px",color:C.text.s,fontSize:14,lineHeight:2.4}}>
         <div style={{fontSize:44,marginBottom:10}}>⭐</div>
         Aún no tienes metas.<br/>¡Crea una y empieza a ahorrar<br/>para lo que siempre quisiste!<br/>
-        <button onClick={()=>setGoalModal("new")} style={{marginTop:18,padding:"12px 28px",borderRadius:12,border:"none",background:`linear-gradient(135deg,${C.indigo},#4338ca)`,color:"#fff",fontWeight:800,fontSize:14,cursor:"pointer"}}>+ Crear mi primera meta</button>
+        <button onClick={()=>{if(!isPro&&goals.length>=3){setProGate({titulo:"Metas ilimitadas",descripcion:"Con el plan Free puedes tener hasta 3 metas activas.",features:[{icon:"🎯",label:"Metas ilimitadas",desc:"Crea tantas como quieras"},{icon:"📊",label:"Proyecciones de logro"}]});}else setGoalModal("new");}} style={{marginTop:18,padding:"12px 28px",borderRadius:12,border:"none",background:`linear-gradient(135deg,${C.indigo},#4338ca)`,color:"#fff",fontWeight:800,fontSize:14,cursor:"pointer"}}>+ Crear mi primera meta</button>
       </div>}
-      {goals.length>0&&<button onClick={()=>setGoalModal("new")} style={{width:"100%",padding:16,borderRadius:16,border:"none",background:C.card,boxShadow:elev("card"),color:C.text.b,cursor:"pointer",fontSize:14,fontWeight:500,marginBottom:8}}>+ Nueva meta</button>}
+      {goals.length>0&&<button onClick={()=>{if(!isPro&&goals.length>=3){setProGate({titulo:"Metas ilimitadas",descripcion:"Con el plan Free puedes tener hasta 3 metas activas.",features:[{icon:"🎯",label:"Metas ilimitadas",desc:"Crea tantas como quieras"},{icon:"📊",label:"Proyecciones de logro"}]});}else setGoalModal("new");}} style={{width:"100%",padding:16,borderRadius:16,border:"none",background:C.card,boxShadow:elev("card"),color:C.text.b,cursor:"pointer",fontSize:14,fontWeight:500,marginBottom:8}}>+ Nueva meta</button>}
     </div>;
   };
 
@@ -5618,10 +5714,10 @@ export default function App(){
       {icon:"📅", label:"Agenda",        color:C.sky,     onClick:()=>changeTab("cal")},
       {icon:"🏆", label:"Logros",        color:"#f59e0b", onClick:()=>changeTab("logros"),
        badge:totalPts>0?`${totalPts}pts`:null},
-      {icon:"📈", label:"Resumen anual", color:C.emerald, onClick:()=>changeTab("anual")},
-      {icon:"🤝", label:"Préstamos",     color:C.indigo,  onClick:()=>setPrestamosModal(true),
+      {icon:"📈", label:"Resumen anual", color:C.emerald, onClick:()=>isPro?changeTab("anual"):setProGate({titulo:"Resumen anual",descripcion:"Visualiza tus finanzas de los últimos 12 meses con tendencias.",features:[{icon:"📅",label:"Vista 12 meses"},{icon:"📈",label:"Tendencias y comparativas"},{icon:"🏆",label:"Mejor y peor mes"}]})},
+      {icon:"🤝", label:"Préstamos ⚡",  color:C.indigo,  onClick:()=>isPro?setPrestamosModal(true):setProGate({titulo:"Préstamos a terceros",descripcion:"Registra dinero que prestas y controla quién te debe.",features:[{icon:"🤝",label:"Registro de préstamos"},{icon:"💰",label:"Control de cobros"},{icon:"📈",label:"Intereses automáticos"}]}),
        badge:prestamosActivos||null},
-      {icon:"💳", label:"Mis deudas",    color:C.red,     onClick:()=>setDeudasModal(true),
+      {icon:"💳", label:"Mis deudas ⚡", color:C.red,     onClick:()=>isPro?setDeudasModal(true):setProGate({titulo:"Mis deudas",descripcion:"Controla todas tus deudas, cuotas y fechas de pago en un solo lugar.",features:[{icon:"💳",label:"Registro de deudas"},{icon:"📅",label:"Fechas y cuotas"},{icon:"✅",label:"Marca deudas como pagadas"}]}),
        badge:deudasActivas||null},
       {icon:"🏦", label:"Patrimonio",    color:C.violet,  onClick:()=>changeTab("anal")},
     ];
@@ -5780,8 +5876,8 @@ export default function App(){
       </div>
     </div>
     {/* Menú hamburguesa — bottom sheet */}
-    {menuOpen&&<MenuSheet onClose={()=>setMenuOpen(false)} user={user} disponibleGastar={disponibleGastar} totalGasto={totalGasto} tema={tema} TEMAS={TEMAS} changeTab={changeTab} setMenuOpen={setMenuOpen} setExportModal={setExportModal} handleLogout={handleLogout} C={C} COP={COP}/>}
-    {tab==="home"&&<HomeTab/>}{tab==="metas"&&<MetasTab/>}{tab==="cal"&&<CalendarioTab/>}{tab==="mov"&&<MovTab/>}{tab==="anal"&&<AnalisisTab/>}{tab==="cfg"&&<ConfigTab/>}{tab==="anual"&&<ResumenAnualTab/>}{tab==="logros"&&<LogrosTab badgesDesbloqueados={badgesDesbloqueados} badgesGuardados={badgesGuardados} totalPts={totalPts} tx={tx} goals={goals} presupuestos={presupuestos} prestamos={prestamos} rachaActual={rachaActualLogros} totalMesesConDatos={totalMesesConDatos} mesesResumen={mesesResumen} mesesPerfectos={mesesPerfectos} getAportado={getAportado} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} C={C} COP={COP}/>}{tab==="mas"&&<MasTab/>}
+    {menuOpen&&<MenuSheet onClose={()=>setMenuOpen(false)} user={user} disponibleGastar={disponibleGastar} totalGasto={totalGasto} tema={tema} TEMAS={TEMAS} changeTab={changeTab} setMenuOpen={setMenuOpen} setExportModal={setExportModal} handleLogout={handleLogout} C={C} COP={COP} isPro={isPro} setProGate={setProGate}/>}
+    {tab==="home"&&<HomeTab/>}{tab==="metas"&&<MetasTab/>}{tab==="cal"&&<CalendarioTab/>}{tab==="mov"&&<MovTab/>}{tab==="anal"&&<AnalisisTab/>}{tab==="cfg"&&<ConfigTab/>}{tab==="anual"&&(isPro?<ResumenAnualTab/>:<ProGate titulo="Resumen anual" descripcion="Visualiza tus finanzas de los últimos 12 meses con tendencias y comparativas." features={[{icon:"📅",label:"Vista 12 meses"},{icon:"📈",label:"Tendencias y comparativas"},{icon:"🏆",label:"Mejor y peor mes"}]} onClose={()=>changeTab("home")} C={C}/>)}{tab==="logros"&&<LogrosTab badgesDesbloqueados={badgesDesbloqueados} badgesGuardados={badgesGuardados} totalPts={totalPts} tx={tx} goals={goals} presupuestos={presupuestos} prestamos={prestamos} rachaActual={rachaActualLogros} totalMesesConDatos={totalMesesConDatos} mesesResumen={mesesResumen} mesesPerfectos={mesesPerfectos} getAportado={getAportado} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} C={C} COP={COP}/>}{tab==="mas"&&<MasTab/>}
     {/* FABs — stack vertical a la derecha */}
     {!modal&&!goalModal&&!pagoModal&&tab!=="anual"&&tab!=="logros"&&tab!=="mas"&&<>
       {/* FAB Asistente IA — arriba del + */}
@@ -5796,7 +5892,7 @@ export default function App(){
       }}>🤖</button>
       {/* FAB Principal + */}
       <button onClick={()=>{
-        if(tab==="metas") setGoalModal("new");
+        if(tab==="metas"){if(!isPro&&goals.length>=3){setProGate({titulo:"Metas ilimitadas",descripcion:"Con el plan Free puedes tener hasta 3 metas activas.",features:[{icon:"🎯",label:"Metas ilimitadas",desc:"Crea tantas como quieras"},{icon:"📊",label:"Proyecciones de logro"}]});}else setGoalModal("new");}
         else if(tab==="cal"){setPagoModalDia(null);setPagoModal("new");}
         else setModal("new");
       }} style={{
@@ -5824,6 +5920,7 @@ export default function App(){
       catsCustom={catsCustom}
       handleCatCustomSave={handleCatCustomSave}
       onClose={()=>setCatPersonalModal(null)}/>}
+    {proGate&&<ProGate {...proGate} onClose={()=>setProGate(null)} C={C}/>}
     {prestamosModal&&<PrestamosModal
       prestamos={prestamos}
       onClose={()=>setPrestamosModal(false)}
@@ -5961,7 +6058,7 @@ export default function App(){
           </button>
         )}
         {deudas.filter(d=>!d.liquidada).length>0&&(
-          <button onClick={()=>{setNotifSheetOpen(false);setDeudasModal(true);}}
+          <button onClick={()=>{setNotifSheetOpen(false);isPro?setDeudasModal(true):setProGate({titulo:"Mis deudas",descripcion:"Controla todas tus deudas, cuotas y fechas de pago en un solo lugar.",features:[{icon:"💳",label:"Registro de deudas"},{icon:"📅",label:"Fechas y cuotas"},{icon:"✅",label:"Marca deudas como pagadas"}]});}}
             style={{width:"100%",padding:"12px 16px",background:"none",border:"none",
               borderTop:`1px solid ${C.border}`,cursor:"pointer",
               display:"flex",alignItems:"center",gap:12,textAlign:"left"}}>

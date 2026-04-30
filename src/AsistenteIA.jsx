@@ -224,6 +224,7 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
         ],
       });
       const rawText = result.data?.text || "No pude procesar tu consulta. Intenta de nuevo.";
+      if (result.data?.usoHoy != null) setUsoHoy({ count: result.data.usoHoy, limite: result.data.limite });
       const {text:cleanText, txData} = parsearRespuesta(rawText);
 
       if (txData) {
@@ -248,8 +249,15 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
       } else {
         setMsgs(m=>[...m,{role:"assistant",text:cleanText,ts:Date.now()}]);
       }
-    } catch {
-      setMsgs(m=>[...m,{role:"assistant",text:"Tuve un problema. Intenta de nuevo. 🔄",ts:Date.now()}]);
+    } catch(err) {
+      const msg = err?.message || err?.code || "";
+      const esLimite = msg.includes("resource-exhausted") || msg.includes("Límite") || msg.includes("limite");
+      setMsgs(m=>[...m,{role:"assistant",
+        text: esLimite
+          ? "Alcanzaste tu límite de mensajes diarios 😅 Vuelve mañana o activa el plan Pro."
+          : "Tuve un problema. Intenta de nuevo. 🔄",
+        ts:Date.now()
+      }]);
     } finally {
       setLoading(false);
       setTimeout(()=>inputRef.current?.focus(),100);
@@ -264,6 +272,7 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
   }
 
     const [escuchando, setEscuchando] = useState(false);
+  const [usoHoy, setUsoHoy] = useState(null); // {count, limite}
   const recognitionRef = useRef(null);
 
   function toggleVoz() {
@@ -361,7 +370,18 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
           }}>🤖</div>
           <div style={{ flex: 1, marginTop: 8 }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: C.text.h }}>Asistente IA</div>
-            <div style={{ fontSize: 11, color: C.emerald, fontWeight: 600 }}>● En línea · Claude</div>
+            <div style={{ fontSize: 11, fontWeight: 600, display:"flex", alignItems:"center", gap:6 }}>
+              <span style={{color:C.emerald}}>● En línea · Claude</span>
+              {usoHoy != null && (
+                <span style={{
+                  background: usoHoy.count >= usoHoy.limite ? "#ef444420" : `${C.indigo}20`,
+                  color: usoHoy.count >= usoHoy.limite ? "#ef4444" : C.indigo,
+                  borderRadius:99, padding:"1px 7px", fontSize:10, fontWeight:700
+                }}>
+                  {usoHoy.count}/{usoHoy.limite} hoy
+                </span>
+              )}
+            </div>
           </div>
           <button
             onClick={onClose}
