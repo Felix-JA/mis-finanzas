@@ -27,22 +27,68 @@ const EMOJIS_DEUDA = ["📱","🏠","🚗","💻","📺","🎮","✈️","🏥",
 export function DeudasModal({ deudas, onClose, onSave, onPagar, onDelete, disponibleGastar, C, COP }) {
   const [vista, setVista] = useState("lista");
   const [deudaSelec, setDeudaSelec] = useState(null);
-  const [dragY, setDragY] = useState(0);
-  const [dragStartY, setDragStartY] = useState(null);
   const scrollRef = useRef(null);
 
-  function onTouchStart(e) { setDragStartY(e.touches[0].clientY); }
-  function onTouchMove(e) {
-    if (dragStartY === null) return;
-    const scrollTop = scrollRef.current?.scrollTop || 0;
-    if (scrollTop > 4) { setDragY(0); return; } // no swipe si hay scroll
-    const d = e.touches[0].clientY - dragStartY;
-    if (d > 0) setDragY(d);
+  // ── Swipe-to-dismiss con useRef (sin re-renders) ─────────────────────────
+  const cardRef = useRef(null);
+  const startY = useRef(null);
+  const startT = useRef(null);
+  const curY = useRef(0);
+  const isDragging = useRef(false);
+  const fromHandle = useRef(false);
+
+  function setTransform(y) {
+    if (cardRef.current) {
+      cardRef.current.style.transform = `translateY(${y}px)`;
+      cardRef.current.style.transition = y === 0 ? "transform 0.25s cubic-bezier(0.32,0.72,0,1)" : "none";
+    }
   }
-  function onTouchEnd() {
-    if (dragY > 80) onClose();
-    setDragY(0); setDragStartY(null);
+  function swipeStart(clientY, isHandle = false) {
+    startY.current = clientY; startT.current = Date.now();
+    curY.current = 0; isDragging.current = true; fromHandle.current = isHandle;
   }
+  function swipeMove(clientY) {
+    if (!isDragging.current || startY.current === null) return;
+    const d = clientY - startY.current;
+    if (d > 0) { curY.current = d; setTransform(d); }
+  }
+  function swipeEnd() {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    const elapsed = Date.now() - startT.current;
+    const dist = curY.current;
+    const velocity = dist / Math.max(elapsed, 1) * 1000;
+    const distThreshold = fromHandle.current ? 150 : 220;
+    const velThreshold = fromHandle.current ? 500 : 700;
+    if (dist > distThreshold || velocity > velThreshold) {
+      setTransform(window.innerHeight);
+      setTimeout(onClose, 220);
+    } else {
+      setTransform(0);
+    }
+    startY.current = null; curY.current = 0; fromHandle.current = false;
+  }
+
+  // Props para el handle (barrita) — cierre fácil
+  const handleProps = {
+    onTouchStart: e => { e.stopPropagation(); swipeStart(e.touches[0].clientY, true); },
+    onTouchMove:  e => { e.stopPropagation(); swipeMove(e.touches[0].clientY); },
+    onTouchEnd:   e => { e.stopPropagation(); swipeEnd(); },
+    style: { cursor: "grab", touchAction: "none" },
+  };
+  // Props para el contenido — swipe rápido intencional
+  const dragProps = {
+    onTouchStart: e => { if (scrollRef.current?.scrollTop === 0) swipeStart(e.touches[0].clientY, false); },
+    onTouchMove:  e => {
+      if (startY.current === null) return;
+      const d = e.touches[0].clientY - startY.current;
+      const elapsed = Date.now() - startT.current;
+      const speed = d / Math.max(elapsed, 1) * 1000;
+      if (d > 15 && speed > 600) swipeMove(e.touches[0].clientY);
+      else if (d < -5) { startY.current = null; setTransform(0); }
+    },
+    onTouchEnd: swipeEnd,
+  };
 
   const activas = deudas.filter(d => !d.liquidada);
   const liquidadas = deudas.filter(d => d.liquidada);
@@ -602,43 +648,37 @@ export function DeudasModal({ deudas, onClose, onSave, onPagar, onDelete, dispon
         animation: "fadeIn 0.18s ease",
       }}
     >
-      <div
+      <div ref={cardRef} {...dragProps}
         style={{
           width: "100%", maxWidth: 430, margin: "0 auto",
           background: C.card, borderRadius: "22px 22px 0 0",
           border: `1px solid ${C.border}`,
           padding: "0 20px 36px",
           maxHeight: "92vh", display: "flex", flexDirection: "column",
-          animation: dragY === 0 ? "slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)" : "none",
-          transform: `translateY(${dragY}px)`,
-          transition: dragStartY === null ? "transform 0.2s ease" : "none",
+          animation: "slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",
           position: "relative",
         }}>
         {/* × */}
         <button onClick={onClose} aria-label="Cerrar" style={{
           position: "absolute", top: 14, right: 14,
-          background: "rgba(255,255,255,0.08)", border: `1px solid ${C.border}`,
+          background: C.surface, border: `1px solid ${C.border}`,
           borderRadius: 10, width: 32, height: 32, cursor: "pointer",
           color: C.text.b, fontSize: 18, fontWeight: 700,
           display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2,
         }}>×</button>
 
-        {/* Handle zone — área de swipe dedicada, captura touch antes que los hijos */}
-        <div
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
+        {/* Handle con swipe — toda el área superior */}
+        <div {...handleProps}
           style={{
-            position:"absolute", top:0, left:0, right:0, height:60,
-            zIndex:10, touchAction:"none", cursor:"grab",
-            display:"flex", alignItems:"flex-start", justifyContent:"center",
-            paddingTop:12,
+            ...handleProps.style,
+            position: "absolute", top: 0, left: 0, right: 0, height: 44,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            zIndex: 1,
           }}>
-          <div style={{width:40,height:4,borderRadius:99,background:C.border}}/>
+          <div style={{ width: 40, height: 4, borderRadius: 99, background: C.border, marginTop: 12 }} />
         </div>
         {/* Espaciador para el handle */}
-        <div style={{height:28}}/>
-
+        <div style={{ height: 28 }} />
 
         {/* Título */}
         <div style={{ paddingRight: 36, marginBottom: 18 }}>

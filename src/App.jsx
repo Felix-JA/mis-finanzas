@@ -2291,86 +2291,61 @@ function diasRestantesMes(){
 }
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
-function MenuSheet({onClose,user,disponibleGastar,totalGasto,prestamos,deudas,tema,TEMAS,changeTab,setMenuOpen,setPrestamosModal,setDeudasModal,setExportModal,handleLogout,C,COP}){
-  const sheet=useSheetDismiss(onClose);
+function MenuSheet({onClose,user,disponibleGastar,totalGasto,tema,TEMAS,changeTab,setMenuOpen,setExportModal,handleLogout,C,COP}){
   return <>
-    <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:49,background:"rgba(0,0,0,0.5)",animation:"fadeIn 0.18s ease"}}/>
-    <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:50,display:"flex",justifyContent:"center"}}>
-      <div ref={sheet.cardRef} {...sheet.dragProps}
-        style={{width:"100%",maxWidth:430,background:C.card,borderRadius:"22px 22px 0 0",
-          border:`1px solid ${C.border}`,animation:"slideUp 0.25s cubic-bezier(0.32,0.72,0,1)",
-          maxHeight:"85vh",display:"flex",flexDirection:"column",...sheet.cardStyle}}>
-        {/* Handle drag */}
-        <div {...sheet.handleProps} style={{...sheet.handleProps.style,padding:"12px 0 4px",display:"flex",justifyContent:"center",flexShrink:0}}>
-          <div style={{width:36,height:4,borderRadius:99,background:C.border}}/>
-        </div>
-        {/* Info usuario — fija */}
-        <div style={{padding:"12px 20px 14px",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-            <img src={user.photoURL} alt="" style={{width:42,height:42,borderRadius:"50%",border:`2px solid ${C.indigo}44`}}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:15,fontWeight:700,color:C.text.h}}>{user.displayName?.split(" ")[0]}</div>
-              <div style={{fontSize:11,color:C.text.s,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.email}</div>
-            </div>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            <div style={{background:`${C.emerald}12`,border:`1px solid ${C.emerald}25`,borderRadius:12,padding:"10px 12px"}}>
-              <div style={{fontSize:9,color:C.emerald,fontWeight:700,letterSpacing:0.8,marginBottom:3}}>DISPONIBLE</div>
-              <div style={{fontSize:15,fontWeight:800,color:C.emeraldLight}}>{COP(disponibleGastar)}</div>
-            </div>
-            <div style={{background:`${C.red}10`,border:`1px solid ${C.red}20`,borderRadius:12,padding:"10px 12px"}}>
-              <div style={{fontSize:9,color:C.red,fontWeight:700,letterSpacing:0.8,marginBottom:3}}>GASTOS</div>
-              <div style={{fontSize:15,fontWeight:800,color:C.red}}>{COP(totalGasto)}</div>
-            </div>
+    {/* Backdrop invisible — cierra al tocar fuera */}
+    <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:149}}/>
+    {/* Dropdown anclado al header — top derecha */}
+    <div style={{
+      position:"fixed",top:64,right:16,zIndex:150,
+      width:260,
+      background:C.card,borderRadius:18,
+      border:`1px solid ${C.border}`,
+      boxShadow:`0 8px 32px rgba(0,0,0,0.28), 0 2px 8px rgba(0,0,0,0.18)`,
+      animation:"fadeIn 0.16s ease",
+      overflow:"hidden",
+    }}>
+      {/* Perfil */}
+      <div style={{padding:"16px 16px 12px",borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+          <img src={user.photoURL} alt="" style={{width:38,height:38,borderRadius:"50%",border:`2px solid ${C.indigo}44`,flexShrink:0}}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:14,fontWeight:700,color:C.text.h,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.displayName?.split(" ")[0]}</div>
+            <div style={{fontSize:10,color:C.text.s,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.email}</div>
           </div>
         </div>
-        {/* Lista scrolleable */}
-        <div style={{overflowY:"auto",WebkitOverflowScrolling:"touch",flex:1,overscrollBehavior:"contain"}}>
-          <div style={{padding:"8px 0 124px"}}>
-            <div style={{padding:"4px 20px 6px"}}>
-              <div style={{fontSize:10,fontWeight:700,color:C.text.s,letterSpacing:1,textTransform:"uppercase"}}>Navegación</div>
-            </div>
-            {[
-              {icon:"🏠",label:"Inicio",      onClick:()=>{changeTab("home");setMenuOpen(false);}},
-              {icon:"≡", label:"Movimientos", onClick:()=>{changeTab("mov");setMenuOpen(false);}},
-              {icon:"⭐",label:"Metas",        onClick:()=>{changeTab("metas");setMenuOpen(false);}},
-              {icon:"📅",label:"Agenda",       onClick:()=>{changeTab("cal");setMenuOpen(false);}},
-              {icon:"📊",label:"Resumen anual",onClick:()=>{changeTab("anual");setMenuOpen(false);}},
-              {icon:"🏆",label:"Logros",       onClick:()=>{changeTab("logros");setMenuOpen(false);}},
-            ].map(o=>(
-              <button key={o.label} onClick={o.onClick}
-                style={{width:"100%",padding:"12px 20px",background:"none",border:"none",cursor:"pointer",
-                  display:"flex",alignItems:"center",gap:14,fontSize:14,fontWeight:600,color:C.text.h,textAlign:"left"}}>
-                <span style={{fontSize:18,width:24,textAlign:"center"}}>{o.icon}</span>{o.label}
-              </button>
-            ))}
-            <div style={{height:1,background:C.border,margin:"8px 20px"}}/>
-            <div style={{padding:"4px 20px 6px"}}>
-              <div style={{fontSize:10,fontWeight:700,color:C.text.s,letterSpacing:1,textTransform:"uppercase"}}>Acciones</div>
-            </div>
-            {[
-              {icon:"🤝",label:"Préstamos",badge:prestamos.filter(p=>!p.devuelto).length||null,onClick:()=>{setPrestamosModal(true);setMenuOpen(false);}},
-              {icon:"💳",label:"Mis deudas",badge:deudas.filter(d=>!d.liquidada).length||null,onClick:()=>{setDeudasModal(true);setMenuOpen(false);}},
-              {icon:"📤",label:"Exportar",  onClick:()=>{setExportModal(true);setMenuOpen(false);}},
-              {icon:"🎨",label:`Tema: ${TEMAS[tema]?.label||"Navy"}`,onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
-              {icon:"⚙️",label:"Configuración",onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
-            ].map(o=>(
-              <button key={o.label} onClick={o.onClick}
-                style={{width:"100%",padding:"12px 20px",background:"none",border:"none",cursor:"pointer",
-                  display:"flex",alignItems:"center",gap:14,fontSize:14,fontWeight:600,color:C.text.h,textAlign:"left"}}>
-                <span style={{fontSize:18,width:24,textAlign:"center"}}>{o.icon}</span>
-                <span style={{flex:1}}>{o.label}</span>
-                {o.badge&&<span style={{background:"#f43f5e",color:"#fff",borderRadius:99,padding:"2px 8px",fontSize:11,fontWeight:800}}>{o.badge}</span>}
-              </button>
-            ))}
-            <div style={{height:1,background:C.border,margin:"8px 20px"}}/>
-            <button onClick={()=>{handleLogout();setMenuOpen(false);}}
-              style={{width:"100%",padding:"12px 20px",background:"none",border:"none",cursor:"pointer",
-                display:"flex",alignItems:"center",gap:14,fontSize:14,fontWeight:600,color:C.red,textAlign:"left"}}>
-              <span style={{fontSize:18,width:24,textAlign:"center"}}>🚪</span>Cerrar sesión
-            </button>
+        {/* Resumen financiero compacto */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+          <div style={{background:`${C.emerald}12`,border:`1px solid ${C.emerald}25`,borderRadius:10,padding:"8px 10px"}}>
+            <div style={{fontSize:8,color:C.emerald,fontWeight:700,letterSpacing:0.8,marginBottom:2}}>DISPONIBLE</div>
+            <div style={{fontSize:13,fontWeight:800,color:C.emerald}}>{COP(disponibleGastar)}</div>
+          </div>
+          <div style={{background:`${C.red}10`,border:`1px solid ${C.red}20`,borderRadius:10,padding:"8px 10px"}}>
+            <div style={{fontSize:8,color:C.red,fontWeight:700,letterSpacing:0.8,marginBottom:2}}>GASTOS</div>
+            <div style={{fontSize:13,fontWeight:800,color:C.red}}>{COP(totalGasto)}</div>
           </div>
         </div>
+      </div>
+      {/* Acciones */}
+      <div style={{padding:"4px 0 4px"}}>
+        {[
+          {icon:"🎨",label:`Tema: ${TEMAS[tema]?.label||"Navy"}`,onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
+          {icon:"⚙️",label:"Configuración",onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
+          {icon:"📤",label:"Exportar movimientos",onClick:()=>{setExportModal(true);setMenuOpen(false);}},
+        ].map(o=>(
+          <button key={o.label} onClick={o.onClick}
+            style={{width:"100%",padding:"11px 16px",background:"none",border:"none",cursor:"pointer",
+              display:"flex",alignItems:"center",gap:12,fontSize:13,fontWeight:600,color:C.text.h,textAlign:"left"}}>
+            <span style={{fontSize:16,width:20,textAlign:"center",flexShrink:0}}>{o.icon}</span>
+            <span>{o.label}</span>
+          </button>
+        ))}
+        <div style={{height:1,background:C.border,margin:"4px 16px"}}/>
+        <button onClick={()=>{handleLogout();setMenuOpen(false);}}
+          style={{width:"100%",padding:"11px 16px",background:"none",border:"none",cursor:"pointer",
+            display:"flex",alignItems:"center",gap:12,fontSize:13,fontWeight:600,color:C.red,textAlign:"left"}}>
+          <span style={{fontSize:16,width:20,textAlign:"center",flexShrink:0}}>🚪</span>Cerrar sesión
+        </button>
       </div>
     </div>
   </>;
@@ -5539,12 +5514,71 @@ export default function App(){
     </svg>;
   }
 
+  // ─── TAB MÁS ─────────────────────────────────────────────────────────────────
+  function MasTab(){
+    const prestamosActivos=prestamos.filter(p=>!p.devuelto).length;
+    const deudasActivas=deudas.filter(d=>!d.liquidada).length;
+
+    const ITEMS=[
+      {icon:"📅", label:"Agenda",        color:C.sky,     onClick:()=>changeTab("cal")},
+      {icon:"🏆", label:"Logros",        color:"#f59e0b", onClick:()=>changeTab("logros"),
+       badge:totalPts>0?`${totalPts}pts`:null},
+      {icon:"📈", label:"Resumen anual", color:C.emerald, onClick:()=>changeTab("anual")},
+      {icon:"🤝", label:"Préstamos",     color:C.indigo,  onClick:()=>setPrestamosModal(true),
+       badge:prestamosActivos||null},
+      {icon:"💳", label:"Mis deudas",    color:C.red,     onClick:()=>setDeudasModal(true),
+       badge:deudasActivas||null},
+      {icon:"🏦", label:"Patrimonio",    color:C.violet,  onClick:()=>changeTab("anal")},
+    ];
+
+    return <div style={{padding:"20px 20px 100px",animation:"fadeIn 0.2s ease"}}>
+      {/* Header */}
+      <div style={{marginBottom:24}}>
+        <div style={{fontSize:22,fontWeight:900,color:C.text.h,letterSpacing:-0.5}}>Más</div>
+        <div style={{fontSize:13,color:C.text.s,marginTop:2}}>Herramientas y secciones</div>
+      </div>
+
+      {/* Grid 2 columnas */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        {ITEMS.map(item=>(
+          <button key={item.label} onClick={item.onClick} style={{
+            background:C.card,border:`1px solid ${C.border}`,borderRadius:18,
+            padding:"20px 16px",cursor:"pointer",textAlign:"left",
+            display:"flex",flexDirection:"column",gap:10,
+            boxShadow:elev("card"),position:"relative",
+            transition:"opacity 0.15s",
+          }}>
+            {/* Badge */}
+            {item.badge&&<div style={{
+              position:"absolute",top:10,right:10,
+              background:typeof item.badge==="number"?"#f43f5e":`${C.indigo}22`,
+              color:typeof item.badge==="number"?"#fff":C.indigo,
+              borderRadius:99,padding:"2px 8px",
+              fontSize:10,fontWeight:800,lineHeight:1.4,
+            }}>{item.badge}</div>}
+            {/* Icono */}
+            <div style={{
+              width:44,height:44,borderRadius:14,
+              background:`${item.color}18`,border:`1px solid ${item.color}30`,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:22,
+            }}>{item.icon}</div>
+            {/* Label */}
+            <div style={{fontSize:14,fontWeight:700,color:C.text.h,lineHeight:1.2}}>
+              {item.label}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>;
+  }
+
   const NAV=[
-    {id:"home", icon:"⬡", label:"Inicio",  activeColor:C.emerald},
-    {id:"mov",  icon:"≡", label:"Movim.",  activeColor:C.emerald},
-    {id:"anal", icon:"▤", label:"Análisis", activeColor:C.indigo},
+    {id:"home", icon:"⬡", label:"Inicio",   activeColor:C.emerald},
+    {id:"mov",  icon:"≡", label:"Movim.",   activeColor:C.emerald},
     {id:"metas",icon:null, label:"Metas",   activeColor:"#f59e0b"},
-    {id:"cal",  icon:"📅", label:"Agenda",  activeColor:C.sky},
+    {id:"anal", icon:"▤", label:"Análisis", activeColor:C.indigo},
+    {id:"mas",  icon:"⋯", label:"Más",      activeColor:C.sky},
   ];
 
   // ─── MODAL de alerta de gasto elevado ──────────────────────────────────────
@@ -5651,10 +5685,10 @@ export default function App(){
       </div>
     </div>
     {/* Menú hamburguesa — bottom sheet */}
-    {menuOpen&&<MenuSheet onClose={()=>setMenuOpen(false)} user={user} disponibleGastar={disponibleGastar} totalGasto={totalGasto} prestamos={prestamos} deudas={deudas} tema={tema} TEMAS={TEMAS} changeTab={changeTab} setMenuOpen={setMenuOpen} setPrestamosModal={setPrestamosModal} setDeudasModal={setDeudasModal} setExportModal={setExportModal} handleLogout={handleLogout} C={C} COP={COP}/>}
-    {tab==="home"&&<HomeTab/>}{tab==="metas"&&<MetasTab/>}{tab==="cal"&&<CalendarioTab/>}{tab==="mov"&&<MovTab/>}{tab==="anal"&&<AnalisisTab/>}{tab==="cfg"&&<ConfigTab/>}{tab==="anual"&&<ResumenAnualTab/>}{tab==="logros"&&<LogrosTab badgesDesbloqueados={badgesDesbloqueados} badgesGuardados={badgesGuardados} totalPts={totalPts} tx={tx} goals={goals} presupuestos={presupuestos} prestamos={prestamos} rachaActual={rachaActualLogros} totalMesesConDatos={totalMesesConDatos} mesesResumen={mesesResumen} mesesPerfectos={mesesPerfectos} getAportado={getAportado} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} C={C} COP={COP}/>}
+    {menuOpen&&<MenuSheet onClose={()=>setMenuOpen(false)} user={user} disponibleGastar={disponibleGastar} totalGasto={totalGasto} tema={tema} TEMAS={TEMAS} changeTab={changeTab} setMenuOpen={setMenuOpen} setExportModal={setExportModal} handleLogout={handleLogout} C={C} COP={COP}/>}
+    {tab==="home"&&<HomeTab/>}{tab==="metas"&&<MetasTab/>}{tab==="cal"&&<CalendarioTab/>}{tab==="mov"&&<MovTab/>}{tab==="anal"&&<AnalisisTab/>}{tab==="cfg"&&<ConfigTab/>}{tab==="anual"&&<ResumenAnualTab/>}{tab==="logros"&&<LogrosTab badgesDesbloqueados={badgesDesbloqueados} badgesGuardados={badgesGuardados} totalPts={totalPts} tx={tx} goals={goals} presupuestos={presupuestos} prestamos={prestamos} rachaActual={rachaActualLogros} totalMesesConDatos={totalMesesConDatos} mesesResumen={mesesResumen} mesesPerfectos={mesesPerfectos} getAportado={getAportado} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} C={C} COP={COP}/>}{tab==="mas"&&<MasTab/>}
     {/* FAB */}
-    {!modal&&!goalModal&&!pagoModal&&tab!=="anual"&&tab!=="logros"&&<button onClick={()=>{
+    {!modal&&!goalModal&&!pagoModal&&tab!=="anual"&&tab!=="logros"&&tab!=="mas"&&<button onClick={()=>{
       if(tab==="metas") setGoalModal("new");
       else if(tab==="cal"){setPagoModalDia(null);setPagoModal("new");}
       else setModal("new");
