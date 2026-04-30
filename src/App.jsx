@@ -6,6 +6,7 @@ import { MonthlyProjection } from "./MonthlyProjection";
 import { getSuggestedBudgets, BudgetSetupBanner, BudgetHealth } from "./BudgetEngine";
 import { BudgetSetupModal } from "./BudgetSetupModal";
 import { SimuladorDecision } from "./SimuladorDecision";
+import { AsistenteIA } from "./AsistenteIA";
 import { DeudasModal } from "./DeudasModal";
 import { PatrimonioWidget } from "./PatrimonioWidget";
 import { auth, provider, db } from "./firebase";
@@ -2374,7 +2375,8 @@ export default function App(){
   const [pagoModalDia,setPagoModalDia]=useState(null); // día preseleccionado
   const [presupuestoModal,setPresupuestoModal]=useState(null); // cat obj
   const [budgetSetupOpen,setBudgetSetupOpen]=useState(false); // modal plan inteligente
-  const [simuladorOpen,setSimuladorOpen]=useState(false); // simulador de decisión
+  const [simuladorOpen,setSimuladorOpen]=useState(false);
+  const [asistenteOpen,setAsistenteOpen]=useState(false);
   const [calMes,setCalMes]=useState(now.getMonth()); // mes visible en el calendario
   const [calAnio,setCalAnio]=useState(now.getFullYear()); // año visible en el calendario
   const [bannerDismissTick,setBannerDismissTick]=useState(0); // re-render al dismiss
@@ -2715,356 +2717,347 @@ export default function App(){
       ?[...tx].filter(t=>isMonth(t.date,now.getMonth(),now.getFullYear()))
               .sort((a,b)=>a.date.localeCompare(b.date))
       :[...tx].sort((a,b)=>a.date.localeCompare(b.date));
-
     if(txExport.length===0){alert("No hay movimientos para exportar.");return;}
 
-    // ── Canvas PDF manual ──────────────────────────────────────────────────
-    // Dimensiones A4 a 96dpi: 794 x 1123px
-    const PW=794, MARGIN=48, COL=PW-MARGIN*2;
-    const ROW_H=28, HEADER_H=160, TABLE_HEAD_H=36;
-    const rowsPerPage=Math.floor((1123-HEADER_H-TABLE_HEAD_H-60)/ROW_H);
-
-    // Calcular páginas necesarias
-    const totalPages=Math.ceil(txExport.length/rowsPerPage)||1;
-    const pages=[];
-    for(let p=0;p<totalPages;p++){
-      pages.push(txExport.slice(p*rowsPerPage,(p+1)*rowsPerPage));
-    }
-
-    // Resumen financiero del export
-    const totalIng=txExport.filter(t=>isIngreso(t.cat)).reduce((s,t)=>s+t.amount,0);
-    const totalGas=txExport.filter(t=>isGasto(t.cat)&&!isAporteMeta(t)).reduce((s,t)=>s+t.amount,0);
-    const totalApo=txExport.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat)).reduce((s,t)=>s+t.amount,0);
-
-    // Paleta PDF (sobre fondo blanco)
-    const PDF={
-      bg:"#ffffff", surface:"#f8fafc", border:"#e2e8f0",
-      h:"#0f172a", b:"#334155", s:"#64748b",
-      indigo:"#6366f1", emerald:"#10b981", red:"#ef4444", amber:"#f59e0b",
-    };
-
-    // Columnas tabla
-    const COLS=[
-      {label:"Fecha",     w:0.12, align:"left"},
-      {label:"Descripción",w:0.30, align:"left"},
-      {label:"Categoría", w:0.22, align:"left"},
-      {label:"Tipo",      w:0.12, align:"center"},
-      {label:"Monto",     w:0.24, align:"right"},
-    ];
-
-    function getColX(i){
-      let x=MARGIN;
-      for(let j=0;j<i;j++) x+=COLS[j].w*COL;
-      return x;
-    }
-
-    function drawPage(canvas, pageRows, pageNum){
-      const ctx=canvas.getContext("2d");
-      ctx.fillStyle=PDF.bg;
-      ctx.fillRect(0,0,PW,canvas.height);
-
-      let y=MARGIN;
-
-      // ── Header (solo página 1) ─────────────────────────────────────────
-      if(pageNum===0){
-        // Barra superior indigo
-        ctx.fillStyle=PDF.indigo;
-        ctx.fillRect(0,0,PW,6);
-
-        // Título app
-        ctx.fillStyle=PDF.indigo;
-        ctx.font="bold 22px sans-serif";
-        ctx.fillText("MIS FINANZAS PRO",MARGIN,y+28);
-
-        // Nombre usuario + fecha
-        ctx.fillStyle=PDF.b;
-        ctx.font="13px sans-serif";
-        ctx.fillText(user.displayName||"",MARGIN,y+48);
-        const fechaDoc=new Date().toLocaleDateString("es-CO",{day:"2-digit",month:"long",year:"numeric"});
-        ctx.fillStyle=PDF.s;
-        ctx.font="11px sans-serif";
-        const titulo=soloMesActual
-          ?`Movimientos de ${MONTHS[now.getMonth()]} ${now.getFullYear()}`
-          :"Historial completo de movimientos";
-        ctx.fillText(titulo,MARGIN,y+66);
-        ctx.fillText(`Generado el ${fechaDoc}`,MARGIN,y+82);
-
-        y+=102;
-
-        // ── Cards resumen ──────────────────────────────────────────────
-        const cardW=(COL-16)/3, cardH=56;
-        const cards=[
-          {label:"Ingresos",val:COP(totalIng),color:PDF.emerald},
-          {label:"Gastos",  val:COP(totalGas),color:PDF.red},
-          {label:"En metas",val:COP(totalApo),color:PDF.indigo},
-        ];
-        cards.forEach((c,i)=>{
-          const cx=MARGIN+i*(cardW+8);
-          ctx.fillStyle=PDF.surface;
-          ctx.beginPath();
-          ctx.roundRect(cx,y,cardW,cardH,8);
-          ctx.fill();
-          ctx.strokeStyle=PDF.border;
-          ctx.lineWidth=1;
-          ctx.beginPath();
-          ctx.roundRect(cx,y,cardW,cardH,8);
-          ctx.stroke();
-          ctx.fillStyle=c.color;
-          ctx.font="bold 15px sans-serif";
-          ctx.fillText(c.val,cx+12,y+22);
-          ctx.fillStyle=PDF.s;
-          ctx.font="10px sans-serif";
-          ctx.fillText(c.label.toUpperCase(),cx+12,y+40);
-        });
-        y+=cardH+20;
-      } else {
-        // Páginas siguientes: barra + título compacto
-        ctx.fillStyle=PDF.indigo;
-        ctx.fillRect(0,0,PW,4);
-        ctx.fillStyle=PDF.b;
-        ctx.font="bold 13px sans-serif";
-        ctx.fillText("MIS FINANZAS PRO · "+user.displayName,MARGIN,y+20);
-        y+=36;
-      }
-
-      // ── Cabecera tabla ────────────────────────────────────────────────
-      ctx.fillStyle=PDF.indigo;
-      ctx.fillRect(MARGIN,y,COL,TABLE_HEAD_H);
-      ctx.fillStyle="#fff";
-      ctx.font="bold 11px sans-serif";
-      COLS.forEach((col,i)=>{
-        const cx=getColX(i);
-        const cw=col.w*COL;
-        if(col.align==="right") ctx.textAlign="right";
-        else if(col.align==="center") ctx.textAlign="center";
-        else ctx.textAlign="left";
-        const tx2=col.align==="right"?cx+cw-6:col.align==="center"?cx+cw/2:cx+6;
-        ctx.fillText(col.label.toUpperCase(),tx2,y+TABLE_HEAD_H/2+4);
-      });
-      ctx.textAlign="left";
-      y+=TABLE_HEAD_H;
-
-      // ── Filas ─────────────────────────────────────────────────────────
-      pageRows.forEach((t,idx)=>{
-        const isEven=idx%2===0;
-        ctx.fillStyle=isEven?PDF.bg:PDF.surface;
-        ctx.fillRect(MARGIN,y,COL,ROW_H);
-
-        // Línea separadora
-        ctx.strokeStyle=PDF.border;
-        ctx.lineWidth=0.5;
-        ctx.beginPath();
-        ctx.moveTo(MARGIN,y+ROW_H);
-        ctx.lineTo(MARGIN+COL,y+ROW_H);
-        ctx.stroke();
-
-        const main=MAIN_CATS.find(m=>m.subs?.some(s=>s.id===t.cat));
-        const sub=getCatInfo(t.cat);
-        const esIng=isIngreso(t.cat);
-        const esMeta=isAporteMeta(t)||isSavingsLegacy(t.cat);
-        const tipo=esIng?"Ingreso":esMeta?"Meta":"Gasto";
-        const tipoColor=esIng?PDF.emerald:esMeta?PDF.indigo:PDF.red;
-        const monto=(esIng||esMeta?1:-1)*t.amount;
-        const catLabel=main?`${main.label} · ${sub.label}`:sub.label;
-
-        const cells=[
-          t.date?.slice(5).replace("-","/")+"/"+(t.date?.slice(0,4)),
-          t.desc||"-",
-          catLabel,
-          tipo,
-          COP(monto),
-        ];
-
-        ctx.font="11px sans-serif";
-        COLS.forEach((col,i)=>{
-          const cx=getColX(i);
-          const cw=col.w*COL;
-          // Color especial para tipo y monto
-          if(i===3) ctx.fillStyle=tipoColor;
-          else if(i===4) ctx.fillStyle=monto>=0?PDF.emerald:PDF.red;
-          else ctx.fillStyle=PDF.h;
-
-          const text=cells[i]||"";
-          // Truncar si es muy largo
-          const maxChars=Math.floor(cw/6.5);
-          const display=text.length>maxChars?text.slice(0,maxChars-1)+"…":text;
-
-          if(col.align==="right"){ ctx.textAlign="right"; ctx.fillText(display,cx+cw-6,y+ROW_H/2+4); }
-          else if(col.align==="center"){ ctx.textAlign="center"; ctx.fillText(display,cx+cw/2,y+ROW_H/2+4); }
-          else { ctx.textAlign="left"; ctx.fillText(display,cx+6,y+ROW_H/2+4); }
-        });
-        ctx.textAlign="left";
-        y+=ROW_H;
-      });
-
-      // ── Pie de página ─────────────────────────────────────────────────
-      const pyFoot=canvas.height-24;
-      ctx.fillStyle=PDF.indigo;
-      ctx.fillRect(0,canvas.height-3,PW,3);
-      ctx.fillStyle=PDF.s;
-      ctx.font="10px sans-serif";
-      ctx.textAlign="left";
-      ctx.fillText("mis-finanzas-weld.vercel.app",MARGIN,pyFoot);
-      ctx.textAlign="right";
-      ctx.fillText(`Página ${pageNum+1} de ${totalPages}`,PW-MARGIN,pyFoot);
-      ctx.textAlign="left";
-    }
-
-    // ── Generar páginas y combinar en PDF ─────────────────────────────────
-    // PDF manual: cada página es un canvas → dataURL → PDF con encabezado mínimo
-    const pageHeight=Math.max(
-      HEADER_H+TABLE_HEAD_H+(rowsPerPage*ROW_H)+60,
-      1123
-    );
-
-    // Construir PDF binario básico (solo imágenes JPEG por página)
-    const jpegs=[];
-    pages.forEach((pageRows,i)=>{
-      const canvas=document.createElement("canvas");
-      canvas.width=PW;
-      canvas.height=pageHeight;
-      drawPage(canvas,pageRows,i);
-      jpegs.push(canvas.toDataURL("image/jpeg",0.92));
-    });
-
-    // Generar PDF con objetos mínimos
-    function b64toBytes(b64){ const bin=atob(b64.split(",")[1]); const arr=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i); return arr; }
-
-    let pdf="%PDF-1.4\n";
-    const offsets=[];
-    let obj=1;
-
-    function addObj(content){ offsets.push(pdf.length); pdf+=`${obj} 0 obj\n${content}\nendobj\n`; return obj++; }
-
-    // Catalog + Pages placeholder
-    const catalogId=obj; addObj("<</Type /Catalog /Pages 2 0 R>>");
-    const pagesId=obj;   addObj(`<</Type /Pages /Kids [${pages.map((_,i)=>`${3+i*2} 0 R`).join(" ")}] /Count ${pages.length}>>`);
-
-    pages.forEach((_, pi)=>{
-      const imgBytes=b64toBytes(jpegs[pi]);
-      const imgId=obj;
-      offsets.push(pdf.length);
-      pdf+=`${obj} 0 obj\n<</Type /XObject /Subtype /Image /Width ${PW} /Height ${pageHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imgBytes.length}>>\nstream\n`;
-      const pdfBytes=new TextEncoder().encode(pdf);
-      const combined=new Uint8Array(pdfBytes.length+imgBytes.length);
-      combined.set(pdfBytes); combined.set(imgBytes,pdfBytes.length);
-      // Restart building as string after binary — use blob approach instead
-      obj++;
-
-      const pageId=obj;
-      addObj(`<</Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${pageHeight}] /Contents ${pageId+1} 0 R /Resources <</XObject <</Im${pi} ${imgId} 0 R>>>>>>`);
-      addObj(`<</Length ${`q ${PW} 0 0 ${pageHeight} 0 0 cm /Im${pi} Do Q`.length}>>\nstream\nq ${PW} 0 0 ${pageHeight} 0 0 cm /Im${pi} Do Q\nendstream`);
-    });
-
-    // Usar enfoque alternativo más simple: generar HTML que el navegador imprime como PDF
     const win=window.open("","_blank");
     if(!win){alert("Permite ventanas emergentes para exportar el PDF.");return;}
 
-    const estilos=`
-      *{margin:0;padding:0;box-sizing:border-box;}
-      body{font-family:'DM Sans',system-ui,sans-serif;background:#f1f5f9;padding:24px;}
-      .page{background:#fff;width:210mm;min-height:297mm;margin:0 auto 24px;padding:20mm 16mm;
-            box-shadow:0 4px 24px rgba(0,0,0,0.12);border-radius:4px;position:relative;}
-      .bar{height:6px;background:#6366f1;margin:-20mm -16mm 16mm;border-radius:4px 4px 0 0;}
-      .logo{font-size:20px;font-weight:900;color:#6366f1;letter-spacing:-0.5px;}
-      .user{font-size:13px;color:#334155;margin-top:4px;}
-      .titulo{font-size:11px;color:#64748b;margin-top:2px;}
-      .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0;}
-      .card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;}
-      .card-val{font-size:15px;font-weight:800;margin-bottom:4px;}
-      .card-lbl{font-size:10px;color:#64748b;font-weight:700;letter-spacing:1px;}
-      table{width:100%;border-collapse:collapse;font-size:11px;margin-top:16px;}
-      thead tr{background:#6366f1;}
-      thead th{color:#fff;padding:9px 8px;text-align:left;font-size:10px;letter-spacing:0.5px;}
-      thead th:last-child{text-align:right;}
-      thead th:nth-child(4){text-align:center;}
-      tbody tr:nth-child(even){background:#f8fafc;}
-      tbody tr:hover{background:#f1f5f9;}
-      td{padding:7px 8px;color:#0f172a;border-bottom:1px solid #e2e8f0;}
-      td.monto{text-align:right;font-weight:700;}
-      td.tipo{text-align:center;}
-      td.pos{color:#10b981;}
-      td.neg{color:#ef4444;}
-      td.meta{color:#6366f1;}
-      .footer{position:absolute;bottom:10mm;left:16mm;right:16mm;
-              display:flex;justify-content:space-between;
-              font-size:9px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:6px;}
-      @media print{
-        body{background:#fff;padding:0;}
-        .page{box-shadow:none;margin:0;border-radius:0;page-break-after:always;}
-        .page:last-child{page-break-after:avoid;}
-        .no-print{display:none;}
-      }
-    `;
+    // ── Cálculos financieros ─────────────────────────────────────────────
+    // Separar por tipo para poder mostrar breakdown detallado
+    const txIngSalario  = txExport.filter(t=>isIngreso(t.cat));       // cat="ingreso" (quincenas registradas)
+    const txExtras      = txExport.filter(t=>isIngresoExtra(t.cat));   // cat="ingreso_extra"
+    const txDevoluciones= txExport.filter(t=>isDevolucion(t.cat));     // cat="prestamo_devuelto"
+
+    const sumIngSalario  = txIngSalario.reduce((s,t)=>s+t.amount,0);
+    const sumExtras      = txExtras.reduce((s,t)=>s+t.amount,0);
+    const sumDevoluciones= txDevoluciones.reduce((s,t)=>s+t.amount,0);
+
+    // Salario base del mes desde configuración (igual que usa el home)
+    const salBase = soloMesActual ? getSalarioDelMes(now.getFullYear(), now.getMonth()) : 0;
+
+    // Ingreso total:
+    // - Reporte mensual: salario configurado + ingreso_extra + prestamo_devuelto (sin doblar con txIngSalario)
+    // - Historial completo: sumar transacciones de los tres tipos (sin acceso al historial de salarios mes a mes)
+    const totalIng = soloMesActual
+      ? salBase + sumExtras + sumDevoluciones
+      : sumIngSalario + sumExtras + sumDevoluciones;
+
+    const totalGas=txExport.filter(t=>isGasto(t.cat)&&!isAporteMeta(t)).reduce((s,t)=>s+t.amount,0);
+    const totalApo=txExport.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat)).reduce((s,t)=>s+t.amount,0);
+
+    // balance = ingresoTotal - gastoTotal - aporteMetas
+    const balance=totalIng-totalGas-totalApo;
+    // Tasas calculadas sobre el mismo totalIng
+    const tasaAhorro=totalIng>0?Math.min(Math.round((totalApo/totalIng)*100),100):0;
+    const tasaGasto =totalIng>0?Math.min(Math.round((totalGas/totalIng)*100),100):0;
+    const diasMes=soloMesActual?new Date(now.getFullYear(),now.getMonth()+1,0).getDate():30;
+    const gastoDiario=Math.round(totalGas/diasMes);
+
+    // Gastos por categoría principal
+    const _gastosCat={};
+    txExport.filter(t=>isGasto(t.cat)&&!isAporteMeta(t)).forEach(t=>{
+      const main=MAIN_CATS.find(m=>m.subs?.some(s=>s.id===t.cat));
+      const key=main?main.id:t.cat;
+      const info=getCatInfo(t.cat);
+      if(!_gastosCat[key]) _gastosCat[key]={label:main?main.label:info.label,color:main?main.color:info.color,icon:main?main.icon:info.icon,total:0,count:0};
+      _gastosCat[key].total+=t.amount;
+      _gastosCat[key].count++;
+    });
+    const catData=Object.values(_gastosCat).sort((a,b)=>b.total-a.total).slice(0,7);
+    const maxCat=catData[0]?.total||1;
+
+    // ── SVG Donut Chart ──────────────────────────────────────────────────
+    function buildDonut(data,total){
+      const cx=80,cy=80,R=65,hole=40;
+      if(!data.length||total===0) return `<text x="${cx}" y="${cy+5}" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="system-ui">Sin datos</text>`;
+      function pt(angle,r){const rad=(angle-90)*Math.PI/180;return {x:cx+r*Math.cos(rad),y:cy+r*Math.sin(rad)};}
+      let ang=0;
+      const segs=data.map(cat=>{
+        const span=(cat.total/total)*360;
+        const s=ang, e=ang+span-(span<359.9?0.8:0);
+        ang+=span;
+        const large=span>180?1:0;
+        const p1=pt(s,R),p2=pt(e,R),h1=pt(s,hole),h2=pt(e,hole);
+        return `<path d="M ${h1.x.toFixed(1)} ${h1.y.toFixed(1)} L ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} A ${R} ${R} 0 ${large} 1 ${p2.x.toFixed(1)} ${p2.y.toFixed(1)} L ${h2.x.toFixed(1)} ${h2.y.toFixed(1)} A ${hole} ${hole} 0 ${large} 0 ${h1.x.toFixed(1)} ${h1.y.toFixed(1)} Z" fill="${cat.color}"/>`;
+      });
+      return segs.join('')+
+        `<circle cx="${cx}" cy="${cy}" r="${hole}" fill="#fff"/>
+         <text x="${cx}" y="${cy-6}" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="system-ui" font-weight="700" letter-spacing="1">GASTOS</text>
+         <text x="${cx}" y="${cy+8}" text-anchor="middle" font-size="15" fill="#0f172a" font-family="system-ui" font-weight="900">${tasaGasto}%</text>
+         <text x="${cx}" y="${cy+20}" text-anchor="middle" font-size="8" fill="#94a3b8" font-family="system-ui">del ingreso</text>`;
+    }
+
+    // ── Paginación ───────────────────────────────────────────────────────
+    const RPP=28;
+    const txPages=[];
+    for(let p=0;p<Math.max(Math.ceil(txExport.length/RPP),1);p++)
+      txPages.push(txExport.slice(p*RPP,(p+1)*RPP));
 
     const fechaDoc=new Date().toLocaleDateString("es-CO",{day:"2-digit",month:"long",year:"numeric"});
     const titulo=soloMesActual
-      ?`Movimientos de ${MONTHS[now.getMonth()]} ${now.getFullYear()}`
+      ?`Reporte · ${MONTHS[now.getMonth()]} ${now.getFullYear()}`
       :"Historial completo de movimientos";
 
-    const pagesHTML=pages.map((pageRows,pi)=>{
-      const rows=pageRows.map(t=>{
-        const main=MAIN_CATS.find(m=>m.subs?.some(s=>s.id===t.cat));
-        const sub=getCatInfo(t.cat);
-        const esIng=isIngreso(t.cat);
-        const esMeta2=isAporteMeta(t)||isSavingsLegacy(t.cat);
-        const tipo=esIng?"Ingreso":esMeta2?"Meta":"Gasto";
-        const tipoClass=esIng?"pos":esMeta2?"meta":"neg";
-        const monto=(esIng||esMeta2?1:-1)*t.amount;
-        const catLabel=main?`${main.label} · ${sub.label}`:sub.label;
-        const fecha=t.date?`${t.date.slice(8,10)}/${t.date.slice(5,7)}/${t.date.slice(0,4)}`:"";
-        return `<tr>
-          <td>${fecha}</td>
-          <td>${t.desc||"-"}</td>
-          <td>${catLabel}</td>
-          <td class="tipo ${tipoClass}">${tipo}</td>
-          <td class="monto ${monto>=0?"pos":"neg"}">${COP(monto)}</td>
-        </tr>`;
-      }).join("");
+    // ── Helper: fila de tabla ────────────────────────────────────────────
+    function txRow(t){
+      const main=MAIN_CATS.find(m=>m.subs?.some(s=>s.id===t.cat));
+      const sub=getCatInfo(t.cat);
+      const esIng=isIngreso(t.cat)||isIngresoExtra(t.cat)||isDevolucion(t.cat);
+      const esMeta=isAporteMeta(t)||isSavingsLegacy(t.cat);
+      const tipo=esIng?"Ingreso":esMeta?"Meta":"Gasto";
+      const badge=esIng?"badge-ing":esMeta?"badge-meta":"badge-gas";
+      const monto=(esIng||esMeta?1:-1)*t.amount;
+      const catLabel=main?`${main.label} · ${sub.label}`:sub.label;
+      const fecha=t.date?`${t.date.slice(8,10)}/${t.date.slice(5,7)}`:"-";
+      return `<tr>
+        <td class="td-fecha">${fecha}</td>
+        <td class="td-desc">${t.desc||"—"}</td>
+        <td class="td-cat">${sub.icon||""} ${catLabel}</td>
+        <td class="td-tipo"><span class="${badge}">${tipo}</span></td>
+        <td class="td-monto ${monto>=0?"pos":"neg"}">${monto>=0?"+":""}${COP(Math.abs(monto))}</td>
+      </tr>`;
+    }
 
-      const esP1=pi===0;
-      return `<div class="page">
-        <div class="bar"></div>
-        ${esP1?`
-          <div class="logo">💰 MIS FINANZAS PRO</div>
-          <div class="user">${user.displayName||""} · ${user.email||""}</div>
-          <div class="titulo">${titulo} · Generado el ${fechaDoc}</div>
-          <div class="cards">
-            <div class="card"><div class="card-val" style="color:#10b981">${COP(totalIng)}</div><div class="card-lbl">INGRESOS</div></div>
-            <div class="card"><div class="card-val" style="color:#ef4444">${COP(totalGas)}</div><div class="card-lbl">GASTOS</div></div>
-            <div class="card"><div class="card-val" style="color:#6366f1">${COP(totalApo)}</div><div class="card-lbl">EN METAS</div></div>
-          </div>
-        `:`<div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:12px;">MIS FINANZAS PRO · ${user.displayName||""} · ${titulo}</div>`}
-        <table>
-          <thead><tr>
-            <th style="width:11%">FECHA</th>
-            <th style="width:30%">DESCRIPCIÓN</th>
-            <th style="width:25%">CATEGORÍA</th>
-            <th style="width:10%">TIPO</th>
-            <th style="width:24%">MONTO</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-        <div class="footer">
-          <span>mis-finanzas-weld.vercel.app</span>
-          <span>Página ${pi+1} de ${pages.length}</span>
+    // ── CSS ──────────────────────────────────────────────────────────────
+    const css=`
+      *{margin:0;padding:0;box-sizing:border-box;}
+      body{font-family:'DM Sans',system-ui,sans-serif;background:#dde3ec;padding:20px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+      /* Página */
+      .page{background:#fff;width:210mm;margin:0 auto 20px;border-radius:8px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.18);}
+      /* Header degradado */
+      .hdr{background:linear-gradient(135deg,#4338ca 0%,#6366f1 60%,#818cf8 100%);padding:20px 18mm 18px;color:#fff;position:relative;overflow:hidden;}
+      .hdr::before{content:'';position:absolute;top:-40px;right:-30px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,0.07);}
+      .hdr::after{content:'';position:absolute;bottom:-60px;right:60px;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,0.05);}
+      .hdr-row{display:flex;justify-content:space-between;align-items:flex-start;position:relative;}
+      .hdr-logo{font-size:17px;font-weight:900;letter-spacing:-0.5px;opacity:0.95;}
+      .hdr-meta{text-align:right;font-size:9.5px;opacity:0.75;line-height:1.6;}
+      .hdr-title{font-size:24px;font-weight:900;letter-spacing:-0.8px;margin-top:10px;position:relative;}
+      .hdr-sub{font-size:10.5px;opacity:0.7;margin-top:3px;position:relative;}
+      /* KPIs */
+      .kpis{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid #e2e8f0;}
+      .kpi{padding:13px 14px;border-right:1px solid #e2e8f0;}
+      .kpi:last-child{border-right:none;}
+      .kpi-lbl{font-size:8.5px;font-weight:700;letter-spacing:1.2px;color:#94a3b8;text-transform:uppercase;margin-bottom:5px;}
+      .kpi-val{font-size:15px;font-weight:900;letter-spacing:-0.5px;font-variant-numeric:tabular-nums;}
+      .kpi-hint{font-size:8.5px;color:#94a3b8;margin-top:3px;}
+      /* Cuerpo */
+      .body{padding:14px 18mm 0;}
+      .sec-lbl{font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#94a3b8;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #f1f5f9;}
+      /* Gráfica + categorías */
+      .analytics{display:grid;grid-template-columns:165px 1fr;gap:18px;margin-bottom:16px;align-items:start;}
+      .donut-wrap{text-align:center;}
+      .donut-title{font-size:9px;font-weight:700;color:#64748b;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px;}
+      /* Lista categorías */
+      .cat-list{display:flex;flex-direction:column;gap:7px;}
+      .cat-row{display:grid;grid-template-columns:10px 1fr 72px 60px;gap:7px;align-items:center;}
+      .cat-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
+      .cat-name{font-size:10.5px;color:#334155;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .cat-bar{height:4px;background:#f1f5f9;border-radius:99px;overflow:hidden;}
+      .cat-bar-fill{height:4px;border-radius:99px;}
+      .cat-val{font-size:10px;font-weight:700;color:#64748b;text-align:right;}
+      /* Tabla de ingresos */
+      .ing-table{background:#f0fdf4;border-radius:10px;padding:10px 14px;margin-bottom:14px;border:1px solid #bbf7d0;}
+      .ing-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #dcfce7;}
+      .ing-row:last-child{border-bottom:none;}
+      .ing-icon{font-size:13px;width:20px;flex-shrink:0;}
+      .ing-lbl{flex:1;font-size:10.5px;color:#334155;font-weight:500;}
+      .ing-date{color:#94a3b8;font-size:9px;font-weight:400;}
+      .ing-amount{font-size:11px;font-weight:700;text-align:right;min-width:80px;color:#059669;}
+      .ing-total-row{margin-top:3px;padding-top:7px!important;border-top:2px solid #86efac!important;border-bottom:none!important;}
+      .ing-total-row .ing-lbl{font-weight:800;color:#166534;font-size:11px;}
+      .ing-total-row .ing-amount{font-size:13px;}
+      /* Insights */
+      .insights{background:#f8fafc;border-radius:10px;padding:11px 14px;margin-bottom:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+      .ins-lbl{font-size:8px;font-weight:700;letter-spacing:1px;color:#94a3b8;text-transform:uppercase;margin-bottom:3px;}
+      .ins-val{font-size:14px;font-weight:900;letter-spacing:-0.3px;}
+      .ins-hint{font-size:8.5px;color:#94a3b8;margin-top:2px;}
+      /* Tabla */
+      .tbl-outer{margin:0 -18mm;}
+      table{width:100%;border-collapse:collapse;}
+      thead tr{background:#4338ca;}
+      thead th{color:#fff;padding:8px 10px;font-size:8px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;}
+      th.th-fecha{width:8%;padding-left:18mm;}
+      th.th-desc{width:27%;text-align:left;}
+      th.th-cat{width:25%;text-align:left;}
+      th.th-tipo{width:10%;text-align:center;}
+      th.th-monto{width:30%;text-align:right;padding-right:18mm;}
+      tbody tr:nth-child(even){background:#f8fafc;}
+      td{padding:6px 10px;border-bottom:1px solid #f1f5f9;color:#0f172a;font-size:10.5px;vertical-align:middle;}
+      td.td-fecha{padding-left:18mm;color:#94a3b8;font-size:9.5px;white-space:nowrap;}
+      td.td-desc{font-weight:600;color:#0f172a;}
+      td.td-cat{color:#64748b;font-size:10px;}
+      td.td-tipo{text-align:center;}
+      td.td-monto{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;padding-right:18mm;}
+      td.pos{color:#059669;}
+      td.neg{color:#dc2626;}
+      /* Badges tipo */
+      .badge-ing,.badge-gas,.badge-meta{display:inline-block;padding:2px 7px;border-radius:99px;font-size:8px;font-weight:700;}
+      .badge-ing{background:#dcfce7;color:#166534;}
+      .badge-gas{background:#fee2e2;color:#991b1b;}
+      .badge-meta{background:#e0e7ff;color:#3730a3;}
+      /* Fila total */
+      .tr-total td{background:#f1f5f9;font-weight:800;color:#334155;border-top:2px solid #e2e8f0;border-bottom:none;}
+      /* Footer */
+      .footer{padding:9px 18mm;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #f1f5f9;}
+      .footer-txt{font-size:8.5px;color:#94a3b8;}
+      .footer-dot{width:4px;height:4px;border-radius:50%;background:#6366f1;display:inline-block;margin:0 6px;vertical-align:middle;}
+      /* Encabezado páginas 2+ */
+      .page-hdr{background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:9px 18mm;display:flex;justify-content:space-between;align-items:center;}
+      .page-hdr-logo{font-size:11px;font-weight:900;color:#4338ca;}
+      .page-hdr-info{font-size:9px;color:#94a3b8;}
+      /* Print */
+      @media print{
+        body{background:#fff;padding:0;}
+        .page{box-shadow:none;margin:0;border-radius:0;width:100%;page-break-after:always;}
+        .page:last-child{page-break-after:avoid;}
+        .no-print{display:none!important;}
+      }
+    `;
+
+    // ── HTML: KPI cards ──────────────────────────────────────────────────
+    const nExtrasTotal=txExtras.length+txDevoluciones.length+(soloMesActual&&salBase>0?1:txIngSalario.length);
+    const kpisHTML=`<div class="kpis">
+      <div class="kpi"><div class="kpi-lbl">Ingresos del mes</div><div class="kpi-val" style="color:#059669">${COP(totalIng)}</div><div class="kpi-hint">${soloMesActual?`salario + ${txExtras.length+txDevoluciones.length} extras`:`${nExtrasTotal} movimientos`}</div></div>
+      <div class="kpi"><div class="kpi-lbl">Gastos</div><div class="kpi-val" style="color:#dc2626">${COP(totalGas)}</div><div class="kpi-hint">${txExport.filter(t=>isGasto(t.cat)&&!isAporteMeta(t)).length} movimientos</div></div>
+      <div class="kpi"><div class="kpi-lbl">Aportes a metas</div><div class="kpi-val" style="color:#4f46e5">${COP(totalApo)}</div><div class="kpi-hint">${txExport.filter(t=>isAporteMeta(t)).length} aportes</div></div>
+      <div class="kpi"><div class="kpi-lbl">Balance</div><div class="kpi-val" style="color:${balance>=0?"#059669":"#dc2626"}">${balance>=0?"+":""}${COP(balance)}</div><div class="kpi-hint">${balance>=0?"Positivo ✓":"Déficit · revisar gastos"}</div></div>
+    </div>`;
+
+    // ── HTML: desglose de ingresos (solo reporte mensual) ───────────────
+    const ingresosHTML=soloMesActual?`
+      <div class="sec-lbl" style="margin-top:14px">Ingresos del mes</div>
+      <div class="ing-table">
+        <div class="ing-row">
+          <span class="ing-icon">💼</span>
+          <span class="ing-lbl">Salario base${modoSalario==="quincenal"?" (quincenal)":""}</span>
+          <span class="ing-amount">${COP(salBase)}</span>
         </div>
-      </div>`;
-    }).join("");
+        ${txExtras.map(t=>`
+        <div class="ing-row">
+          <span class="ing-icon">💰</span>
+          <span class="ing-lbl">${t.desc||"Ingreso extra"} <span class="ing-date">${t.date?`(${t.date.slice(8,10)}/${t.date.slice(5,7)})`:""}  </span></span>
+          <span class="ing-amount">+${COP(t.amount)}</span>
+        </div>`).join("")}
+        ${txDevoluciones.map(t=>`
+        <div class="ing-row">
+          <span class="ing-icon">↩️</span>
+          <span class="ing-lbl">${t.desc||"Devolución recibida"} <span class="ing-date">${t.date?`(${t.date.slice(8,10)}/${t.date.slice(5,7)})`:""}  </span></span>
+          <span class="ing-amount">+${COP(t.amount)}</span>
+        </div>`).join("")}
+        <div class="ing-row ing-total-row">
+          <span class="ing-icon">∑</span>
+          <span class="ing-lbl">Total ingresos del mes</span>
+          <span class="ing-amount">${COP(totalIng)}</span>
+        </div>
+      </div>`:"";
 
-    win.document.write(`<!DOCTYPE html><html><head>
+    // ── HTML: gráfica + categorías ───────────────────────────────────────
+    const analyticsHTML=totalGas>0?`
+      <div class="sec-lbl" style="margin-top:14px">Distribución de gastos</div>
+      <div class="analytics">
+        <div class="donut-wrap">
+          <svg width="160" height="160" viewBox="0 0 160 160">
+            <circle cx="80" cy="80" r="65" fill="#f1f5f9"/>
+            ${buildDonut(catData,totalGas)}
+          </svg>
+        </div>
+        <div class="cat-list">
+          ${catData.map(c=>`
+            <div class="cat-row">
+              <div class="cat-dot" style="background:${c.color}"></div>
+              <div class="cat-name">${c.icon} ${c.label}</div>
+              <div class="cat-bar"><div class="cat-bar-fill" style="width:${Math.round(c.total/maxCat*100)}%;background:${c.color}"></div></div>
+              <div class="cat-val">${COP(c.total)}</div>
+            </div>`).join("")}
+        </div>
+      </div>`:"";
+
+    // ── HTML: insights ───────────────────────────────────────────────────
+    const mayorCat=catData[0];
+    const insightsHTML=soloMesActual?`
+      <div class="insights">
+        <div><div class="ins-lbl">Tasa de ahorro</div>
+          <div class="ins-val" style="color:${tasaAhorro>=20?"#059669":tasaAhorro>=10?"#d97706":"#dc2626"}">${tasaAhorro}%</div>
+          <div class="ins-hint">${tasaAhorro>=20?"Excelente":tasaAhorro>=10?"Bien":tasaAhorro>0?"Sigue mejorando":"Sin aportes"}</div></div>
+        <div><div class="ins-lbl">Gasto diario prom.</div>
+          <div class="ins-val" style="color:#0f172a;font-size:13px">${COP(gastoDiario)}</div>
+          <div class="ins-hint">por día este mes</div></div>
+        <div><div class="ins-lbl">Mayor categoría</div>
+          <div class="ins-val" style="color:#0f172a;font-size:12px">${mayorCat?mayorCat.label:"—"}</div>
+          <div class="ins-hint">${mayorCat?COP(mayorCat.total):""}</div></div>
+        <div><div class="ins-lbl">Gastos vs ingresos</div>
+          <div class="ins-val" style="color:${tasaGasto<=70?"#059669":tasaGasto<=90?"#d97706":"#dc2626"}">${tasaGasto}%</div>
+          <div class="ins-hint">${tasaGasto<=70?"Controlado":tasaGasto<=90?"Atención":"Excedido"}</div></div>
+      </div>`:"";
+
+    // ── HTML: tabla ──────────────────────────────────────────────────────
+    function tableHTML(rows,isLast){
+      const totalRow=isLast?`<tr class="tr-total">
+        <td class="td-fecha" colspan="3">Total del período · ${txExport.length} movimientos</td>
+        <td class="td-tipo"></td>
+        <td class="td-monto ${balance>=0?"pos":"neg"}">${balance>=0?"+":""}${COP(Math.abs(balance))}</td>
+      </tr>`:"";
+      return `<div class="tbl-outer"><table>
+        <thead><tr>
+          <th class="th-fecha">Fecha</th>
+          <th class="th-desc">Descripción</th>
+          <th class="th-cat">Categoría</th>
+          <th class="th-tipo">Tipo</th>
+          <th class="th-monto">Monto</th>
+        </tr></thead>
+        <tbody>${rows.map(txRow).join("")}${totalRow}</tbody>
+      </table></div>`;
+    }
+
+    // ── HTML: páginas ────────────────────────────────────────────────────
+    const page1=`<div class="page">
+      <div class="hdr">
+        <div class="hdr-row">
+          <div class="hdr-logo">💰 MIS FINANZAS PRO</div>
+          <div class="hdr-meta"><div>${user.displayName||""}</div><div>${fechaDoc}</div></div>
+        </div>
+        <div class="hdr-title">${titulo}</div>
+        <div class="hdr-sub">${txExport.length} movimientos · generado el ${fechaDoc}</div>
+      </div>
+      ${kpisHTML}
+      <div class="body">
+        ${ingresosHTML}
+        ${analyticsHTML}
+        ${insightsHTML}
+        <div class="sec-lbl" style="margin-top:${totalGas>0||soloMesActual?"0":"14px"}">Movimientos</div>
+      </div>
+      ${tableHTML(txPages[0]||[],txPages.length===1)}
+      <div class="footer">
+        <span class="footer-txt">mis-finanzas-weld.vercel.app</span>
+        <span class="footer-txt">Página 1 de ${txPages.length}<span class="footer-dot"></span>${titulo}</span>
+      </div>
+    </div>`;
+
+    const otherPages=txPages.slice(1).map((rows,i)=>`<div class="page">
+      <div class="page-hdr">
+        <span class="page-hdr-logo">💰 MIS FINANZAS PRO</span>
+        <span class="page-hdr-info">${titulo} · ${user.displayName||""}</span>
+      </div>
+      ${tableHTML(rows,i===txPages.length-2)}
+      <div class="footer">
+        <span class="footer-txt">mis-finanzas-weld.vercel.app</span>
+        <span class="footer-txt">Página ${i+2} de ${txPages.length}</span>
+      </div>
+    </div>`).join("");
+
+    win.document.write(`<!DOCTYPE html><html lang="es"><head>
       <meta charset="utf-8">
       <title>Mis Finanzas · ${titulo}</title>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;700;800;900&display=swap" rel="stylesheet">
-      <style>${estilos}</style>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900&display=swap" rel="stylesheet">
+      <style>${css}</style>
     </head><body>
-      <div class="no-print" style="text-align:center;margin-bottom:20px;">
-        <button onclick="window.print()" style="background:#6366f1;color:#fff;border:none;padding:12px 28px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">
+      <div class="no-print" style="text-align:center;padding:14px 0 12px;position:sticky;top:0;z-index:99;background:#dde3ec;border-bottom:1px solid #c8d0db;">
+        <button onclick="window.print()" style="background:linear-gradient(135deg,#4338ca,#6366f1);color:#fff;border:none;padding:11px 26px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 14px rgba(79,70,229,0.45);">
           🖨️ Imprimir / Guardar PDF
         </button>
-        <span style="margin-left:16px;font-size:13px;color:#64748b;">En el diálogo de impresión selecciona "Guardar como PDF"</span>
+        <span style="margin-left:14px;font-size:12px;color:#64748b;">Selecciona "Guardar como PDF" en el diálogo de impresión</span>
       </div>
-      ${pagesHTML}
+      ${page1}${otherPages}
     </body></html>`);
     win.document.close();
     setExportModal(false);
@@ -3940,15 +3933,25 @@ export default function App(){
             mesesDatos={totalMesesConDatos||0}
             C={C} COP={COP}
             onActivate={()=>setBudgetSetupOpen(true)}/>
-          {/* ── 2.45 Chip simulador ── */}
-          {disponibleGastar>0&&<button onClick={()=>setSimuladorOpen(true)} style={{
-            display:"flex",alignItems:"center",gap:6,marginBottom:16,
-            background:"none",border:"none",cursor:"pointer",padding:0,
-          }}>
-            <span style={{fontSize:13}}>🔮</span>
-            <span style={{fontSize:12,color:C.text.s,fontWeight:500}}>¿Qué pasa si compro algo hoy?</span>
-            <span style={{fontSize:11,color:C.indigo,fontWeight:700}}>Simular →</span>
-          </button>}
+          {/* ── 2.45 Chip simulador + IA ── */}
+          <div style={{display:"flex",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+            {disponibleGastar>0&&<button onClick={()=>setSimuladorOpen(true)} style={{
+              display:"flex",alignItems:"center",gap:6,
+              background:"none",border:"none",cursor:"pointer",padding:0,
+            }}>
+              <span style={{fontSize:13}}>🔮</span>
+              <span style={{fontSize:12,color:C.text.s,fontWeight:500}}>¿Qué pasa si compro algo?</span>
+              <span style={{fontSize:11,color:C.indigo,fontWeight:700}}>Simular →</span>
+            </button>}
+            <button onClick={()=>setAsistenteOpen(true)} style={{
+              display:"flex",alignItems:"center",gap:6,
+              background:"none",border:"none",cursor:"pointer",padding:0,
+            }}>
+              <span style={{fontSize:13}}>🤖</span>
+              <span style={{fontSize:12,color:C.text.s,fontWeight:500}}>Pregúntale a la IA</span>
+              <span style={{fontSize:11,color:C.violet,fontWeight:700}}>Chatear →</span>
+            </button>
+          </div>
           {/* ── 2.6 Racha ── */}
           <RachaWidget/>
           {/* ── 3. Insights ── */}
@@ -5779,29 +5782,41 @@ export default function App(){
     {/* Menú hamburguesa — bottom sheet */}
     {menuOpen&&<MenuSheet onClose={()=>setMenuOpen(false)} user={user} disponibleGastar={disponibleGastar} totalGasto={totalGasto} tema={tema} TEMAS={TEMAS} changeTab={changeTab} setMenuOpen={setMenuOpen} setExportModal={setExportModal} handleLogout={handleLogout} C={C} COP={COP}/>}
     {tab==="home"&&<HomeTab/>}{tab==="metas"&&<MetasTab/>}{tab==="cal"&&<CalendarioTab/>}{tab==="mov"&&<MovTab/>}{tab==="anal"&&<AnalisisTab/>}{tab==="cfg"&&<ConfigTab/>}{tab==="anual"&&<ResumenAnualTab/>}{tab==="logros"&&<LogrosTab badgesDesbloqueados={badgesDesbloqueados} badgesGuardados={badgesGuardados} totalPts={totalPts} tx={tx} goals={goals} presupuestos={presupuestos} prestamos={prestamos} rachaActual={rachaActualLogros} totalMesesConDatos={totalMesesConDatos} mesesResumen={mesesResumen} mesesPerfectos={mesesPerfectos} getAportado={getAportado} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} C={C} COP={COP}/>}{tab==="mas"&&<MasTab/>}
-    {/* FAB */}
-    {!modal&&!goalModal&&!pagoModal&&tab!=="anual"&&tab!=="logros"&&tab!=="mas"&&<button onClick={()=>{
-      if(tab==="metas") setGoalModal("new");
-      else if(tab==="cal"){setPagoModalDia(null);setPagoModal("new");}
-      else setModal("new");
-    }} style={{
-      position:"fixed",bottom:92,right:20,
-      width:60,height:60,borderRadius:"50%",
-      background:tab==="metas"
-        ?`linear-gradient(135deg,#818cf8,#6366f1,#4338ca)`
-        :tab==="cal"
-        ?`linear-gradient(135deg,#38bdf8,#0284c7)`
-        :`linear-gradient(135deg,#34d399,#10b981,#059669)`,
-      border:"none",fontSize:30,color:"#fff",cursor:"pointer",
-      boxShadow:tab==="metas"
-        ?`0 8px 32px rgba(99,102,241,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)`
-        :tab==="cal"
-        ?`0 8px 32px rgba(56,189,248,0.5), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)`
-        :`0 8px 32px rgba(16,185,129,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)`,
-      display:"flex",alignItems:"center",justifyContent:"center",
-      zIndex:100,lineHeight:1,
-      transition:"all 0.3s ease",
-    }}>＋</button>}
+    {/* FABs — stack vertical a la derecha */}
+    {!modal&&!goalModal&&!pagoModal&&tab!=="anual"&&tab!=="logros"&&tab!=="mas"&&<>
+      {/* FAB Asistente IA — arriba del + */}
+      <button onClick={()=>setAsistenteOpen(true)} style={{
+        position:"fixed",bottom:162,right:24,
+        width:48,height:48,borderRadius:"50%",
+        background:`linear-gradient(135deg,${C.violet},${C.indigo})`,
+        border:"none",fontSize:22,color:"#fff",cursor:"pointer",
+        boxShadow:`0 6px 20px rgba(139,92,246,0.5), 0 2px 6px rgba(0,0,0,0.3)`,
+        display:"flex",alignItems:"center",justifyContent:"center",
+        zIndex:100,transition:"all 0.3s ease",
+      }}>🤖</button>
+      {/* FAB Principal + */}
+      <button onClick={()=>{
+        if(tab==="metas") setGoalModal("new");
+        else if(tab==="cal"){setPagoModalDia(null);setPagoModal("new");}
+        else setModal("new");
+      }} style={{
+        position:"fixed",bottom:92,right:20,
+        width:60,height:60,borderRadius:"50%",
+        background:tab==="metas"
+          ?`linear-gradient(135deg,#818cf8,#6366f1,#4338ca)`
+          :tab==="cal"
+          ?`linear-gradient(135deg,#38bdf8,#0284c7)`
+          :`linear-gradient(135deg,#34d399,#10b981,#059669)`,
+        border:"none",fontSize:30,color:"#fff",cursor:"pointer",
+        boxShadow:tab==="metas"
+          ?`0 8px 32px rgba(99,102,241,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)`
+          :tab==="cal"
+          ?`0 8px 32px rgba(56,189,248,0.5), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)`
+          :`0 8px 32px rgba(16,185,129,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)`,
+        display:"flex",alignItems:"center",justifyContent:"center",
+        zIndex:100,lineHeight:1,transition:"all 0.3s ease",
+      }}>＋</button>
+    </>}
     {modal&&<TxModal initial={modal==="new"||modal==="meta_aporte"?null:modal} initialCat={modal==="meta_aporte"?"meta_aporte":undefined} goals={goals} saldoDisponible={disponibleGastar} onClose={()=>setModal(null)} onSave={handleSave} onDelete={handleDelete} catsCustom={catsCustom} onEditCustom={m=>setCatPersonalModal(m)} onOpenPrestamo={()=>{setPrestamosModal(true);setPrestamoForm("new");}} txHistorial={tx} deudas={deudas}/>}
     {goalModal&&<GoalModal initial={goalModal==="new"?null:goalModal} onClose={()=>setGoalModal(null)} onSave={handleGoalSave} onDelete={handleGoalDelete}/>}
     {catPersonalModal&&<CatPersonalModal
@@ -5872,6 +5887,50 @@ export default function App(){
       presupuestos={presupuestos}
       MAIN_CATS={MAIN_CATS}
       month={month}
+      C={C} COP={COP}/>}
+    {asistenteOpen&&<AsistenteIA
+      onClose={()=>setAsistenteOpen(false)}
+      onRegistrarTx={async(txData)=>{
+        if(!user)return;
+        await addDoc(collection(db,"usuarios",user.uid,"transacciones"),{
+          desc:txData.desc||"Sin descripción",
+          amount:Number(txData.amount)||0,
+          cat:txData.cat||"otros",
+          date:todayStr(),
+          createdAt:serverTimestamp(),
+        });
+      }}
+      onCrearPago={async(data)=>{
+        if(!user)return;
+        await addDoc(collection(db,"usuarios",user.uid,"pagos_programados"),{
+          nombre:data.nombre||"Pago",
+          monto:Number(data.monto)||0,
+          cat:data.cat||"otros",
+          dia:Number(data.dia)||1,
+          frecuencia:data.frecuencia||"mensual",
+          activo:true,
+          createdAt:serverTimestamp(),
+        });
+      }}
+      onAporteMeta={async(data)=>{
+        if(!user||!data.goalId)return;
+        await addDoc(collection(db,"usuarios",user.uid,"transacciones"),{
+          desc:data.desc||"Aporte a meta",
+          amount:Number(data.amount)||0,
+          cat:"meta_aporte",
+          goalId:data.goalId,
+          date:todayStr(),
+          createdAt:serverTimestamp(),
+        });
+      }}
+      disponibleGastar={disponibleGastar}
+      totalGasto={totalGasto}
+      totalIngresoMes={totalIngresoMes}
+      salario={salario||0}
+      month={month} now={now} MONTHS={MONTHS}
+      tx={tx} goals={goals} getAportado={getAportado}
+      presupuestos={presupuestos} MAIN_CATS={MAIN_CATS}
+      modoSalario={modoSalario} deudas={deudas} user={user}
       C={C} COP={COP}/>}
     {deudasModal&&<DeudasModal
       deudas={deudas}
