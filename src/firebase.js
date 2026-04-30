@@ -2,6 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA816TaOX9VloSgQv2I_ZAU02nowFK2Nas",
@@ -17,6 +18,4 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const provider = new GoogleAuthProvider();
 export const db = getFirestore(app);
-// AÑADIR estas dos líneas al final de firebase.js:
-import { getFunctions } from "firebase/functions";
 export const functions = getFunctions(app);

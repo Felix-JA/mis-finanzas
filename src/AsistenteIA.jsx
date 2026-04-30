@@ -7,8 +7,9 @@
 
 import { useState, useRef, useEffect } from "react";
 
-const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_KEY;
-const API_URL = "https://api.anthropic.com/v1/messages";
+import { functions } from "./firebase";
+import { httpsCallable } from "firebase/functions";
+const callChatIA = httpsCallable(functions, "chatIA");
 
 export function AsistenteIA({
   onClose, onRegistrarTx, onCrearPago, onAporteMeta,
@@ -215,20 +216,14 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
     setMsgs(m=>[...m,{role:"user",text:txt,ts:Date.now()}]);
     setLoading(true);
     try {
-      const res = await fetch(API_URL, {
-        method:"POST",
-        headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body: JSON.stringify({
-          model:"claude-haiku-4-5-20251001", max_tokens:500,
-          system:buildContext(),
-          messages:[
-            ...msgs.slice(-8).map(m=>({role:m.role==="assistant"?"assistant":"user",content:m.text||" "})),
-            {role:"user",content:txt}
-          ],
-        })
+      const result = await callChatIA({
+        system: buildContext(),
+        messages: [
+          ...msgs.slice(-8).map(m=>({role:m.role==="assistant"?"assistant":"user",content:m.text||" "})),
+          {role:"user",content:txt}
+        ],
       });
-      const data = await res.json();
-      const rawText = data.content?.[0]?.text||"No pude procesar tu consulta. Intenta de nuevo.";
+      const rawText = result.data?.text || "No pude procesar tu consulta. Intenta de nuevo.";
       const {text:cleanText, txData} = parsearRespuesta(rawText);
 
       if (txData) {
