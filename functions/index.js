@@ -24,13 +24,15 @@ exports.chatIA = onCall(
     const hoy  = new Date().toISOString().split("T")[0]; // "2026-04-30"
     const key  = `ia_uso/${uid}_${hoy}`;
 
-    // 2. Rate limiting
+    // 2. Rate limiting — leer plan del usuario
+    const [usoSnap, userSnap] = await Promise.all([
+      db.collection("ia_uso").doc(`${uid}_${hoy}`).get(),
+      db.collection("usuarios").doc(uid).get(),
+    ]);
     const usoRef = db.collection("ia_uso").doc(`${uid}_${hoy}`);
-    const usoSnap = await usoRef.get();
     const usoActual = usoSnap.exists ? (usoSnap.data().count || 0) : 0;
-
-    // TODO: verificar plan Pro del usuario en usuarios/{uid}.planPro
-    const limite = LIMITE_GRATIS;
+    const esPro = userSnap.exists && userSnap.data().plan === "pro";
+    const limite = esPro ? LIMITE_PRO : LIMITE_GRATIS;
 
     if (usoActual >= limite) {
       throw new HttpsError(

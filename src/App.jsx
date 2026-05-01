@@ -2423,14 +2423,22 @@ function ProGate({titulo, descripcion, features, onClose, C}){
           </div>
           <div style={{fontSize:36}}>🚀</div>
         </div>
-        {/* Botón próximamente */}
-        <button style={{
-          width:"100%",padding:"15px",borderRadius:14,border:"none",cursor:"pointer",
-          background:`linear-gradient(135deg,${C.indigo},${C.violet})`,
-          color:"#fff",fontSize:15,fontWeight:800,marginBottom:10,
-          boxShadow:`0 4px 16px ${C.indigo}40`,
-        }}>
-          🚀 Próximamente disponible
+        {/* Botón pago Wompi */}
+        <button
+          onClick={()=>{
+            // Checkout Wompi — reemplaza PUBLIC_KEY con tu llave pública cuando llegue
+            const WOMPI_PUBLIC_KEY = "pub_test_PENDIENTE"; // ← aquí va tu llave pública de Wompi
+            const redirectUrl = encodeURIComponent(window.location.origin + "?pago=exitoso");
+            const url = `https://checkout.wompi.co/p/?public-key=${WOMPI_PUBLIC_KEY}&currency=COP&amount-in-cents=990000&reference=pro_${Date.now()}&redirect-url=${redirectUrl}`;
+            window.open(url, "_blank");
+          }}
+          style={{
+            width:"100%",padding:"15px",borderRadius:14,border:"none",cursor:"pointer",
+            background:`linear-gradient(135deg,${C.indigo},${C.violet})`,
+            color:"#fff",fontSize:15,fontWeight:800,marginBottom:10,
+            boxShadow:`0 4px 16px ${C.indigo}40`,
+          }}>
+          🚀 Activar Plan Pro — $9.900/mes
         </button>
         <button onClick={onClose} style={{
           width:"100%",padding:"13px",borderRadius:14,border:`1px solid ${C.border}`,
