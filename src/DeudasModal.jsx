@@ -24,7 +24,7 @@ import { useState, useMemo, useRef } from "react";
 // Emojis sugeridos para deudas
 const EMOJIS_DEUDA = ["📱","🏠","🚗","💻","📺","🎮","✈️","🏥","📚","💍","🛋️","🔧","💳","🏦","🎓"];
 
-export function DeudasModal({ deudas, onClose, onSave, onPagar, onDelete, disponibleGastar, C, COP }) {
+export function DeudasModal({ deudas, onClose, onSave, onPagar, onDelete, disponibleGastar, isPro, setProGate, C, COP }) {
   const [vista, setVista] = useState("lista");
   const [deudaSelec, setDeudaSelec] = useState(null);
   const scrollRef = useRef(null);
@@ -155,12 +155,19 @@ export function DeudasModal({ deudas, onClose, onSave, onPagar, onDelete, dispon
       )}
 
       {/* Botón nueva deuda */}
-      <button onClick={() => { setDeudaSelec(null); setVista("nueva"); }} style={{
+      <button onClick={() => {
+        const deudasActivas = deudas.filter(d => !d.liquidada).length;
+        if (!isPro && deudasActivas >= 1) {
+          setProGate&&setProGate({titulo:"Deudas ilimitadas",descripcion:"Con el plan Free puedes registrar 1 deuda activa. Activa Pro para llevar el control de todas tus deudas.",features:[{icon:"💳",label:"Deudas ilimitadas"},{icon:"📅",label:"Fechas y cuotas"},{icon:"✅",label:"Progreso de pago"}]});
+          return;
+        }
+        setDeudaSelec(null); setVista("nueva");
+      }} style={{
         width: "100%", padding: 14, borderRadius: 14, border: "none", cursor: "pointer",
         background: `linear-gradient(135deg, #f43f5e, #e11d48)`,
         color: "#fff", fontSize: 14, fontWeight: 800,
       }}>
-        + Nueva deuda
+        + Nueva deuda{!isPro && deudas.filter(d=>!d.liquidada).length>=1 ? " ⚡" : ""}
       </button>
     </div>
   );

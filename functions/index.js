@@ -8,7 +8,7 @@ initializeApp();
 const ANTHROPIC_KEY = defineSecret("ANTHROPIC_KEY");
 
 // ─── Rate limiting: máximo mensajes por usuario por día ───────────────────────
-const LIMITE_GRATIS = 20;  // usuarios sin plan
+const LIMITE_GRATIS = 10;  // usuarios sin plan
 const LIMITE_PRO    = 200; // usuarios Pro (futura implementación)
 
 exports.chatIA = onCall(

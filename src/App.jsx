@@ -1719,10 +1719,10 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
   }
   return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
     style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:300,animation:"fadeIn 0.18s ease"}}>
-    <div ref={el=>{scrollRef.current=el;sheet.cardRef.current=el;}} style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto",overscrollBehavior:"contain",position:"relative",...sheet.cardStyle}} {...sheet.dragProps}>
+    <div ref={sheet.cardRef} style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",display:"flex",flexDirection:"column",position:"relative",...sheet.cardStyle}}>
       <SheetCloseBtn onClose={onClose}/>
-      <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
-      <div style={{padding:"0 20px"}}>
+      <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px",flexShrink:0}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
+      <div ref={scrollRef} style={{overflowY:"auto",overscrollBehavior:"contain",flex:1,padding:"0 20px"}} {...sheet.dragProps}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,paddingRight:40}}>
           <div style={{fontSize:17,fontWeight:800,color:C.text.h}}>
             {isEdit?(esIngreso?"Editar ingreso":"Editar movimiento"):(esIngreso?"Nuevo ingreso":"Nuevo movimiento")}
@@ -1922,7 +1922,7 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
             {getMensajeError() ?? (sinDisponible?(saldoDisponible<=0?"Sin disponible":"No alcanza — tienes "+COP(saldoDisponible)):isEdit&&!changed?"Sin cambios":isEdit?"✓ Guardar":esIngreso?`Registrar salario ${COP(raw)} →`:esIngresoExtra?`Registrar extra ${COP(raw)} →`:`Registrar ${COP(raw)} →`)}
           </button>
         </div>
-      </div>
+      </div>{/* cierre scrollRef */}
     </div>
   </div>;
 }
@@ -2034,7 +2034,7 @@ function ExportModalSheet({onClose,exportarCSV,exportarPDF,tx,now,isMonth,MONTHS
   </div>;
 }
 
-function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm,setPrestamoForm}){
+function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm,setPrestamoForm,isPro,setProGate}){
   const pendientes=prestamos.filter(p=>!p.devuelto);
   const devueltos=prestamos.filter(p=>p.devuelto);
   const totalPendiente=pendientes.reduce((s,p)=>s+p.monto,0);
@@ -2233,10 +2233,16 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
         </>}
 
         {/* Botón agregar */}
-        <button onClick={()=>setPrestamoForm("new")}
+        <button onClick={()=>{
+            if(!isPro&&prestamos.filter(p=>!p.devuelto).length>=1){
+              setProGate&&setProGate({titulo:"Préstamos ilimitados",descripcion:"Con el plan Free puedes registrar 1 préstamo activo. Activa Pro para registrar más.",features:[{icon:"🤝",label:"Préstamos ilimitados"},{icon:"💰",label:"Control de cobros"},{icon:"📈",label:"Intereses automáticos"}]});
+              return;
+            }
+            setPrestamoForm("new");
+          }}
           style={{width:"100%",padding:14,borderRadius:14,border:"1px dashed rgba(244,63,94,0.4)",background:"transparent",
             color:RED,cursor:"pointer",fontSize:14,fontWeight:700,marginTop:8,marginBottom:16}}>
-          + Nuevo préstamo
+          + Nuevo préstamo{!isPro&&prestamos.filter(p=>!p.devuelto).length>=1?" ⚡":""}
         </button>
 
         {/* Devueltos */}
@@ -4038,7 +4044,7 @@ export default function App(){
           {/* ── 2.5 Banner plan inteligente (si no hay presupuestos) ── */}
           <BudgetSetupBanner
             key={bannerDismissTick}
-            salario={salario||0}
+            salario={salMensualEfectivo}
             presupuestos={presupuestos}
             mesesDatos={totalMesesConDatos||0}
             C={C} COP={COP}
@@ -4074,7 +4080,7 @@ export default function App(){
           <InsightsEngine txAll={tx} monthTx={monthTx} gastosTx={gastosTx} totalGasto={totalGasto} totalIng={totalIngresoMes} totalAhorr={totalAportes} month={month} C={C} COP={COP} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} isSavingsLegacy={isSavingsLegacy} isMonth={isMonth} presupuestos={presupuestos} goals={goals} pagos={pagos} saldo={saldo} disponibleGastar={disponibleGastar} totalAportesMes={totalAportes} rachaActual={rachaActualLogros}/>
           {/* ── 3.5 Salud del plan (si hay desbalance) ── */}
           <BudgetHealth
-            salario={salario||0}
+            salario={salMensualEfectivo}
             presupuestos={presupuestos}
             gastosTx={gastosTx}
             goals={goals}
@@ -5308,9 +5314,15 @@ export default function App(){
             {DIAS_S2[new Date(calAnio,calMes,diaSelec).getDay()]} {diaSelec} de {MONTHS[calMes]}
             {esHoy(diaSelec)&&<span style={{marginLeft:8,background:`${C.emerald}22`,color:C.emerald,fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:99,letterSpacing:1}}> HOY</span>}
           </Lbl>
-          {!esPasado(diaSelec)&&<button onClick={()=>{setPagoModalDia(diaSelec);setPagoModal("new");}}
+          {!esPasado(diaSelec)&&<button onClick={()=>{
+              if(!isPro&&pagos.filter(p=>p.activo).length>=3){
+                setProGate({titulo:"Pagos programados ilimitados",descripcion:"Con el plan Free puedes tener hasta 3 pagos programados. Activa Pro para agregar más.",features:[{icon:"📅",label:"Pagos ilimitados"},{icon:"🔔",label:"Recordatorios"},{icon:"✅",label:"Historial completo"}]});
+                return;
+              }
+              setPagoModalDia(diaSelec);setPagoModal("new");
+            }}
             style={{background:`${C.sky}18`,border:`1px solid ${C.sky}44`,borderRadius:8,padding:"5px 12px",color:C.sky,cursor:"pointer",fontSize:11,fontWeight:700}}>
-            + Pago programado
+            + Pago programado{!isPro&&pagos.filter(p=>p.activo).length>=3?" ⚡":""}
           </button>}
         </div>
 
@@ -5386,9 +5398,15 @@ export default function App(){
           </div>;
         })}
       </>}
-      <button onClick={()=>setPagoModal("new")}
+      <button onClick={()=>{
+          if(!isPro&&pagos.filter(p=>p.activo).length>=3){
+            setProGate({titulo:"Pagos programados ilimitados",descripcion:"Con el plan Free puedes tener hasta 3 pagos programados. Activa Pro para agregar más.",features:[{icon:"📅",label:"Pagos ilimitados"},{icon:"🔔",label:"Recordatorios automáticos"},{icon:"✅",label:"Historial completo"}]});
+            return;
+          }
+          setPagoModal("new");
+        }}
         style={{width:"100%",padding:14,borderRadius:14,border:`1px dashed ${C.border}`,background:"transparent",color:C.text.b,cursor:"pointer",fontSize:14,fontWeight:700,marginBottom:8}}>
-        + Nuevo pago programado
+        + Nuevo pago programado{!isPro&&pagos.filter(p=>p.activo).length>=3?" ⚡":""}
       </button>
       {/* Modal ¿Pagaste? */}
       {confirmPago&&(()=>{
@@ -5735,9 +5753,9 @@ export default function App(){
       {icon:"🏆", label:"Logros",        color:"#f59e0b", onClick:()=>changeTab("logros"),
        badge:totalPts>0?`${totalPts}pts`:null},
       {icon:"📈", label:"Resumen anual", color:C.emerald, onClick:()=>isPro?changeTab("anual"):setProGate({titulo:"Resumen anual",descripcion:"Visualiza tus finanzas de los últimos 12 meses con tendencias.",features:[{icon:"📅",label:"Vista 12 meses"},{icon:"📈",label:"Tendencias y comparativas"},{icon:"🏆",label:"Mejor y peor mes"}]})},
-      {icon:"🤝", label:"Préstamos ⚡",  color:C.indigo,  onClick:()=>isPro?setPrestamosModal(true):setProGate({titulo:"Préstamos a terceros",descripcion:"Registra dinero que prestas y controla quién te debe.",features:[{icon:"🤝",label:"Registro de préstamos"},{icon:"💰",label:"Control de cobros"},{icon:"📈",label:"Intereses automáticos"}]}),
+      {icon:"🤝", label:"Préstamos",  color:C.indigo,  onClick:()=>setPrestamosModal(true),
        badge:prestamosActivos||null},
-      {icon:"💳", label:"Mis deudas ⚡", color:C.red,     onClick:()=>isPro?setDeudasModal(true):setProGate({titulo:"Mis deudas",descripcion:"Controla todas tus deudas, cuotas y fechas de pago en un solo lugar.",features:[{icon:"💳",label:"Registro de deudas"},{icon:"📅",label:"Fechas y cuotas"},{icon:"✅",label:"Marca deudas como pagadas"}]}),
+      {icon:"💳", label:"Mis deudas", color:C.red,     onClick:()=>setDeudasModal(true),
        badge:deudasActivas||null},
       {icon:"🏦", label:"Patrimonio",    color:C.violet,  onClick:()=>changeTab("anal")},
     ];
@@ -5948,11 +5966,13 @@ export default function App(){
       onDelete={handlePrestamoDelete}
       onToggle={handlePrestamoToggle}
       prestamoForm={prestamoForm}
-      setPrestamoForm={setPrestamoForm}/>}
+      setPrestamoForm={setPrestamoForm}
+      isPro={isPro}
+      setProGate={setProGate}/>}
     {/* Modal plan inteligente (sugerencia inicial + histórico) */}
     {budgetSetupOpen&&(()=>{
       const sug=getSuggestedBudgets({
-        salario:salario||0,
+        salario:salMensualEfectivo,
         txAll:tx,
         MAIN_CATS,
         isGasto,
@@ -5966,7 +5986,7 @@ export default function App(){
         open={budgetSetupOpen}
         onClose={()=>setBudgetSetupOpen(false)}
         onSave={handleBudgetBulkSave}
-        salario={salario||0}
+        salario={salMensualEfectivo}
         mode={sug.mode}
         mesesDatos={sug.mesesDatos}
         suggestions={sug.suggestions}
@@ -6009,16 +6029,39 @@ export default function App(){
       onClose={()=>setAsistenteOpen(false)}
       onRegistrarTx={async(txData)=>{
         if(!user)return;
-        await addDoc(collection(db,"usuarios",user.uid,"transacciones"),{
+        // ── Validación plan Free: préstamos a terceros ──────────────────
+        if(txData.cat==="prestamo_tercero"){
+          if(!isPro&&prestamos.filter(p=>!p.devuelto).length>=1){
+            throw new Error("PLAN_FREE:préstamos|Ya usaste tu préstamo gratuito. Activa el Plan Pro para registrar más préstamos a terceros. ⚡");
+          }
+        }
+        const txRef = await addDoc(collection(db,"usuarios",user.uid,"transacciones"),{
           desc:txData.desc||"Sin descripción",
           amount:Number(txData.amount)||0,
           cat:txData.cat||"otros",
           date:todayStr(),
           createdAt:serverTimestamp(),
         });
+        // ── Si es préstamo a tercero, crear también en colección prestamos ──
+        if(txData.cat==="prestamo_tercero"){
+          const nombre = (txData.desc||"").replace(/^Préstamo a /i,"").split("·")[0].trim()||"Sin nombre";
+          await addDoc(collection(db,"usuarios",user.uid,"prestamos"),{
+            nombre,
+            monto:Number(txData.amount)||0,
+            fechaPrestamo:todayStr(),
+            descripcion:"Registrado por IA",
+            devuelto:false,
+            txId:txRef.id,
+            createdAt:serverTimestamp(),
+          });
+        }
       }}
       onCrearPago={async(data)=>{
         if(!user)return;
+        // ── Validación plan Free: máx 3 pagos programados ───────────────
+        if(!isPro&&pagos.filter(p=>p.activo).length>=3){
+          throw new Error("PLAN_FREE:pagos|Ya tienes 3 pagos programados (límite Free). Activa el Plan Pro para agregar más. ⚡");
+        }
         await addDoc(collection(db,"usuarios",user.uid,"pagos_programados"),{
           nombre:data.nombre||"Pago",
           monto:Number(data.monto)||0,
@@ -6048,6 +6091,7 @@ export default function App(){
       tx={tx} goals={goals} getAportado={getAportado}
       presupuestos={presupuestos} MAIN_CATS={MAIN_CATS}
       modoSalario={modoSalario} deudas={deudas} user={user}
+      isPro={isPro}
       C={C} COP={COP}/>}
     {deudasModal&&<DeudasModal
       deudas={deudas}
@@ -6056,6 +6100,8 @@ export default function App(){
       onPagar={handleDeudaPagar}
       onDelete={handleDeudaDelete}
       disponibleGastar={disponibleGastar}
+      isPro={isPro}
+      setProGate={setProGate}
       C={C} COP={COP}/>}
     {/* Mini sheet de notificaciones (préstamos + deudas) */}
     {notifSheetOpen&&<>

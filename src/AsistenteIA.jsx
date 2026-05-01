@@ -7,8 +7,9 @@
 
 import { useState, useRef, useEffect } from "react";
 
-import { functions } from "./firebase";
+import { functions, db } from "./firebase";
 import { httpsCallable } from "firebase/functions";
+import { doc, getDoc } from "firebase/firestore";
 const callChatIA = httpsCallable(functions, "chatIA");
 
 export function AsistenteIA({
@@ -16,7 +17,7 @@ export function AsistenteIA({
   disponibleGastar, totalGasto, totalIngresoMes, salario,
   month, now, MONTHS, C, COP,
   tx, goals, getAportado, presupuestos, MAIN_CATS,
-  modoSalario, deudas, user,
+  modoSalario, deudas, user, isPro,
 }) {
   const [msgs, setMsgs] = useState([
     {
@@ -27,6 +28,7 @@ export function AsistenteIA({
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const callingRef = useRef(false);
   const [pendingTx, setPendingTx] = useState(null);
   const pendingTxRef = useRef(null); // ref para acceso sincrónico en confirmación
   const [dragY, setDragY] = useState(0);
@@ -37,6 +39,19 @@ export function AsistenteIA({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs]);
+
+  // ── Cargar uso de IA al abrir ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!user) return;
+    const hoy = new Date().toISOString().split("T")[0];
+    const limite = isPro ? 200 : 10;
+    getDoc(doc(db, "ia_uso", `${user.uid}_${hoy}`)).then(snap => {
+      const count = snap.exists() ? (snap.data().count || 0) : 0;
+      setUsoHoy({ count, limite });
+    }).catch(() => {
+      setUsoHoy({ count: 0, limite });
+    });
+  }, [user, isPro]);
 
   // ── Swipe to dismiss ──────────────────────────────────────────────────────
   const cardRef = useRef(null);
@@ -65,6 +80,7 @@ export function AsistenteIA({
   // ── Contexto financiero para la IA ────────────────────────────────────────
   function buildContext() {
     const mesNombre = MONTHS[month];
+    const esPro = isPro;
     const gastosPorCat = {};
     tx.filter(t => {
       const d = t.date?.split("-");
@@ -88,7 +104,12 @@ export function AsistenteIA({
       .join(", ");
 
     const deudasActivas = deudas?.filter(d => !d.liquidada)
-      .map(d => `${d.nombre}: ${COP(d.saldoRestante)} restante`)
+      .map(d => `${d.nombre}: ${COP(d.saldoRestante)} restante, cuota ${COP(d.cuotaMensual)}/mes`)
+      .join(", ");
+
+    const prestamosActivos = tx.filter(t => t.cat === "prestamo_tercero")
+      .slice(-5)
+      .map(t => `Prestaste ${COP(t.amount)} a ${t.desc||"alguien"} (${t.date})`)
       .join(", ");
 
     return `Eres un asistente financiero para "Mis Finanzas Pro". Español colombiano, conciso, máximo 2-3 líneas de texto.
@@ -96,7 +117,11 @@ export function AsistenteIA({
 FINANZAS ACTUALES (${mesNombre} ${now.getFullYear()}):
 - Disponible: ${COP(disponibleGastar)} | Gastado: ${COP(totalGasto)} (${totalIngresoMes > 0 ? Math.round(totalGasto / totalIngresoMes * 100) : 0}%) | Ingreso: ${COP(totalIngresoMes)}
 - Por categoría: ${topCats || "Sin gastos"}
-- Metas: ${metasActivas || "ninguna"} | Deudas: ${deudasActivas || "ninguna"}
+- Metas: ${metasActivas || "ninguna"}
+- Deudas propias: ${deudasActivas || "ninguna"}
+- Préstamos a terceros: ${prestamosActivos || "ninguno (no le has prestado a nadie)"}
+
+PLAN DEL USUARIO: ${esPro ? "PRO (sin restricciones)" : "FREE - límites: max 1 préstamo a terceros, max 3 pagos programados, max 3 metas. Si el usuario pide algo bloqueado, informar amablemente y sugerir Plan Pro."}
 
 CATEGORÍAS (usa el id exacto en el JSON):
 Comida→desayuno,almuerzo,domicilios,mercado,snacks | Hogar→arriendo,servicios,aseo,reparaciones | Transporte→bus,taxi,peaje | Salud→medico,medicamentos,gym | Ocio→salidas,eventos,viajes,hobbies | Estilo→ropa,calzado,peluqueria,cuidado | Digital→streaming,apps,tecnologia,ia | Deudas→tarjeta,cuotas,credito | Vehículo→gasolina,soat,mecanica
@@ -112,13 +137,26 @@ REGLA CRÍTICA — SIEMPRE al detectar una acción, incluye el JSON AL FINAL del
 FORMATOS JSON:
 [REGISTRAR:{"desc":"Dulce","amount":1500,"cat":"snacks","tipo":"gasto"}]
 [PAGO_PROGRAMADO:{"nombre":"Netflix","monto":16000,"cat":"streaming","dia":3,"frecuencia":"mensual"}]
+[REGISTRAR:{"desc":"Préstamo a Juan","amount":200000,"cat":"prestamo_tercero","tipo":"prestamo_tercero"}]
 [APORTE_META:{"goalId":"ID","amount":50000,"desc":"Aporte"}]
+
+PRÉSTAMOS A TERCEROS:
+- "le presté a X / di fiado / presté plata" → cat:prestamo_tercero.
+- VALIDAR disponible igual que un gasto: si monto > disponible (${COP(disponibleGastar)}) NO registrar, avisar que no tiene fondos suficientes para prestar ese monto.
+- Si tiene fondos: registrar y avisar que reduce el disponible. Aparece en módulo Préstamos para cobro.
+- Cuando le paguen se registra como prestamo_devuelto (no aplica ahora).
+
+DEUDAS PROPIAS:
+- Compromisos que TÚ debes (tarjeta, crédito, cuota). cat:cuotas/tarjeta/credito. Validar fondos.
 
 MONTOS: 1k=1000, 1.5k=1500, 10k=10000, 1m=1000000, 1.5m=1500000
 
-VALIDACIÓN: Si monto > disponible (${COP(disponibleGastar)}), NO registres, avisa. Para ingresos, siempre registra.
+VALIDACIÓN: Si monto > disponible (${COP(disponibleGastar)}), NO registres (aplica a gastos Y préstamos a terceros). Solo ingresos se registran sin validar fondos.
 
 EJEMPLOS:
+Usuario: "le presté 50k a Juan" (tiene fondos) → "Registrado 🤝 Recuerda cobrarle, te redujo el disponible. [REGISTRAR:{"desc":"Préstamo a Juan","amount":50000,"cat":"prestamo_tercero","tipo":"prestamo_tercero"}]"
+Usuario: "le presté 550k a Juan" (disponible 500k) → "No tienes fondos suficientes 🚫 Solo tienes ${COP(disponibleGastar)} disponibles. No puedes prestar lo que no tienes."
+Usuario: "cuánto me deben?" → Revisar préstamos activos del contexto y responder con datos reales.
 Usuario: "compré un snack 1.5k" → Respuesta: "Registré tu snack ✅ [REGISTRAR:{"desc":"Snack","amount":1500,"cat":"snacks","tipo":"gasto"}]"
 Usuario: "gasté 50k en almuerzo" → Respuesta: "Listo, almuerzo anotado 🍽️ [REGISTRAR:{"desc":"Almuerzo","amount":50000,"cat":"almuerzo","tipo":"gasto"}]"
 Usuario: "recibí 500k de salario" → Respuesta: "Ingreso registrado 💰 [REGISTRAR:{"desc":"Salario","amount":500000,"cat":"ingreso","tipo":"ingreso"}]"
@@ -175,7 +213,8 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
   }
 
   async function enviarTexto(txt) {
-    if (!txt || loading) return;
+    if (!txt || loading || callingRef.current) return;
+    callingRef.current = true;
 
     const currentPending = pendingTxRef.current;
     if (currentPending) {
@@ -186,28 +225,32 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
       if (confirmW.some(w => tl===w || tl.startsWith(w+" ") || tl.endsWith(" "+w))) {
         setMsgs(m=>[...m,{role:"user",text:txt,ts:Date.now()}]);
         const montoFinal = parsearMonto(currentPending.amount||currentPending.monto);
-        const esGasto = currentPending._tipo!=="PAGO_PROGRAMADO" && currentPending.tipo!=="ingreso" && currentPending.tipo!=="ingreso_extra";
-
-        if (esGasto && montoFinal > disponibleGastar) {
-          const totalEnMetas = goals.reduce((s,g)=>s+getAportado(g.id),0);
-          const deficit = montoFinal - disponibleGastar;
-          pendingTxRef.current=null; setPendingTx(null);
-          const meta = goals.filter(g=>getAportado(g.id)>=deficit).sort((a,b)=>getAportado(b.id)-getAportado(a.id))[0]||goals[0];
-          setMsgs(m=>[...m,{role:"assistant",text:"",ts:Date.now(),
-            alerta: totalEnMetas>=deficit
-              ?{tipo:"sin_fondos_metas",color:"#f59e0b",monto:montoFinal,deficit,disponible:disponibleGastar,meta,metaAportado:getAportado(meta?.id)}
-              :{tipo:"sin_fondos",color:"#ef4444",monto:montoFinal,disponible:disponibleGastar}
-          }]);
-          return;
-        }
+        // Limpiar pending ANTES de ejecutar para evitar doble confirmacion
+        const txParaEjecutar = currentPending;
         pendingTxRef.current=null; setPendingTx(null);
-        const resultado = await ejecutarAccion(currentPending, montoFinal);
-        setMsgs(m=>[...m,{role:"assistant",text:"",ts:Date.now(),alerta:{tipo:"exito",...resultado}}]);
+        setLoading(true);
+        try {
+          const resultado = await ejecutarAccion(txParaEjecutar, montoFinal);
+          setMsgs(m=>[...m,{role:"assistant",text:"",ts:Date.now(),alerta:{tipo:"exito",...resultado}}]);
+        } catch(err) {
+          const errMsg = err?.message || "";
+          if (errMsg.startsWith("PLAN_FREE:")) {
+            const textoAlerta = errMsg.split("|")[1] || "Esta función requiere Plan Pro.";
+            setMsgs(m=>[...m,{role:"assistant",text:"",ts:Date.now(),alerta:{tipo:"plan_free",texto:textoAlerta}}]);
+          } else {
+            setMsgs(m=>[...m,{role:"assistant",text:"No pude registrar el movimiento. Intenta de nuevo. 🔄",ts:Date.now()}]);
+          }
+        } finally {
+          setLoading(false);
+          callingRef.current = false;
+          setTimeout(()=>inputRef.current?.focus(),100);
+        }
         return;
       }
       if (cancelW.some(w => tl===w || tl.startsWith(w+" ") || tl.endsWith(" "+w))) {
         setMsgs(m=>[...m,{role:"user",text:txt,ts:Date.now()}]);
         pendingTxRef.current=null; setPendingTx(null);
+        callingRef.current = false;
         setMsgs(m=>[...m,{role:"assistant",text:"Cancelado. ¿En qué más te ayudo?",ts:Date.now()}]);
         return;
       }
@@ -232,10 +275,21 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
         const esPagoProgr = txData._tipo==="PAGO_PROGRAMADO";
         const esGasto = !esPagoProgr && txData.tipo!=="ingreso" && txData.tipo!=="ingreso_extra";
         const sinFondos = esGasto && montoFinal > disponibleGastar;
-        const necesitaConfirm = esPagoProgr || sinFondos || montoFinal>=UMBRAL_GRANDE;
+        const esPrestamo = txData.cat === 'prestamo_tercero' || txData.tipo === 'prestamo_tercero';
+        const necesitaConfirm = esPagoProgr || esPrestamo || sinFondos || montoFinal>=UMBRAL_GRANDE;
         const necesitaToast   = !necesitaConfirm && esGasto && montoFinal>=UMBRAL_MEDIO;
 
         if (necesitaConfirm) {
+          // Validar plan Free antes de mostrar la card de confirmacion
+          const esPrestamo2 = txData.cat === 'prestamo_tercero' || txData.tipo === 'prestamo_tercero';
+          if (esPrestamo2 && !isPro) {
+            const prestamosActuales = tx.filter(t => t.cat === 'prestamo_tercero').length;
+            if (prestamosActuales >= 1) {
+              setMsgs(m=>[...m,{role:"assistant",text:"",ts:Date.now(),
+                alerta:{tipo:"plan_free",texto:"Ya usaste tu préstamo gratuito. Activa el Plan Pro para registrar más préstamos a terceros. ⚡"}}]);
+              return;
+            }
+          }
           pendingTxRef.current=txData; setPendingTx(txData);
           setMsgs(m=>[...m,{role:"assistant",text:cleanText,ts:Date.now(),pendingTx:txData}]);
         } else if (necesitaToast) {
@@ -250,16 +304,24 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
         setMsgs(m=>[...m,{role:"assistant",text:cleanText,ts:Date.now()}]);
       }
     } catch(err) {
+      callingRef.current = false;
       const msg = err?.message || err?.code || "";
       const esLimite = msg.includes("resource-exhausted") || msg.includes("Límite") || msg.includes("limite");
-      setMsgs(m=>[...m,{role:"assistant",
-        text: esLimite
-          ? "Alcanzaste tu límite de mensajes diarios 😅 Vuelve mañana o activa el plan Pro."
-          : "Tuve un problema. Intenta de nuevo. 🔄",
-        ts:Date.now()
-      }]);
+      if (msg.startsWith("PLAN_FREE:")) {
+        const [, resto] = msg.split("PLAN_FREE:");
+        const [, textoAlerta] = resto.split("|");
+        setMsgs(m=>[...m,{role:"assistant",text:"",ts:Date.now(),alerta:{tipo:"plan_free",texto:textoAlerta||"Esta función requiere Plan Pro."}}]);
+      } else {
+        setMsgs(m=>[...m,{role:"assistant",
+          text: esLimite
+            ? "Alcanzaste tu límite de mensajes diarios 😅 Vuelve mañana o activa el plan Pro."
+            : "Tuve un problema. Intenta de nuevo. 🔄",
+          ts:Date.now()
+        }]);
+      }
     } finally {
       setLoading(false);
+      callingRef.current = false;
       setTimeout(()=>inputRef.current?.focus(),100);
     }
   }
@@ -370,18 +432,31 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
           }}>🤖</div>
           <div style={{ flex: 1, marginTop: 8 }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: C.text.h }}>Asistente IA</div>
-            <div style={{ fontSize: 11, fontWeight: 600, display:"flex", alignItems:"center", gap:6 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, display:"flex", alignItems:"center", gap:6, marginBottom: usoHoy!=null?4:0 }}>
               <span style={{color:C.emerald}}>● En línea · Claude</span>
-              {usoHoy != null && (
-                <span style={{
-                  background: usoHoy.count >= usoHoy.limite ? "#ef444420" : `${C.indigo}20`,
-                  color: usoHoy.count >= usoHoy.limite ? "#ef4444" : C.indigo,
-                  borderRadius:99, padding:"1px 7px", fontSize:10, fontWeight:700
-                }}>
-                  {usoHoy.count}/{usoHoy.limite} hoy
-                </span>
-              )}
             </div>
+            {usoHoy != null && (()=>{
+              const pct = usoHoy.count / usoHoy.limite;
+              const agotado = usoHoy.count >= usoHoy.limite;
+              const color = agotado ? "#ef4444" : pct>=0.7 ? "#f59e0b" : C.indigo;
+              return (
+                <div>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
+                    <span style={{fontSize:10,fontWeight:700,color:color}}>
+                      {agotado ? "⚠️ Límite alcanzado" : `${usoHoy.count} de ${usoHoy.limite} mensajes hoy`}
+                    </span>
+                    {usoHoy.count > 0 && (
+                      <span style={{fontSize:10,fontWeight:800,color:color}}>
+                        {agotado ? "Vuelve mañana" : `${usoHoy.limite - usoHoy.count} restantes`}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{height:4,borderRadius:99,background:`${color}22`,overflow:"hidden"}}>
+                    <div style={{height:"100%",borderRadius:99,width:`${Math.min(pct*100,100)}%`,background:color,transition:"width 0.4s ease"}}/>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
           <button
             onClick={onClose}
@@ -438,6 +513,24 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
                     <div style={{fontSize:11,color:C.text.s,marginTop:4}}>Ya aparece en tus movimientos</div>
                   </div>
                 )}
+                {m.alerta && m.alerta.tipo === "plan_free" && (
+                  <div style={{padding:"14px 16px", background:"#6366f115", borderLeft:"4px solid #6366f1"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                      <span style={{fontSize:20}}>⚡</span>
+                      <span style={{fontSize:14,fontWeight:800,color:"#6366f1"}}>Función Plan Pro</span>
+                    </div>
+                    <div style={{fontSize:12,color:C.text.h,lineHeight:1.6,marginBottom:10}}>
+                      {m.alerta.texto}
+                    </div>
+                    <button
+                      onClick={onClose}
+                      style={{width:"100%",padding:"10px",borderRadius:10,border:"none",cursor:"pointer",
+                        background:"linear-gradient(135deg,#6366f1,#4338ca)",
+                        color:"#fff",fontSize:13,fontWeight:800}}>
+                      🚀 Ver Plan Pro
+                    </button>
+                  </div>
+                )}
                 {m.alerta && m.alerta.tipo === "sin_fondos" && (
                   <div style={{padding:"14px 16px", background:`#ef444415`, borderLeft:`4px solid #ef4444`}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
@@ -476,24 +569,53 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
                 )}
                 {/* Texto normal */}
                 {!m.alerta && <span dangerouslySetInnerHTML={{ __html: formatText(m.text) }} />}
-                {/* Card de confirmación para tx pendiente */}
+                {/* Card de confirmación para tx pendiente - solo resumen en el chat */}
                 {m.pendingTx && (
                   <div style={{
-                    marginTop: 10, padding: "10px 12px",
-                    background: `${C.emerald}15`, borderRadius: 10,
-                    border: `1px solid ${C.emerald}35`,
+                    marginTop: 12, borderRadius: 16, overflow: "hidden",
+                    background: C.surface,
+                    border: `1px solid ${C.border}`,
+                    boxShadow: "0 4px 24px rgba(0,0,0,0.18)",
                   }}>
-                    <div style={{ fontSize: 11, color: C.emerald, fontWeight: 700, marginBottom: 4 }}>
-                      TRANSACCIÓN A REGISTRAR
+                    <div style={{ height: 3, background: `linear-gradient(90deg,${C.indigo},${C.violet})` }}/>
+                    <div style={{ padding: "14px 16px 12px" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+                        <div style={{ width:30, height:30, borderRadius:10,
+                          background:`linear-gradient(135deg,${C.indigo}22,${C.violet}22)`,
+                          border:`1px solid ${C.indigo}33`,
+                          display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>📋</div>
+                        <div style={{ fontSize:10, fontWeight:800, color:C.text.s, letterSpacing:1.4, textTransform:"uppercase" }}>Confirmar movimiento</div>
+                      </div>
+                      <div style={{ fontSize:14, fontWeight:700, color:C.text.h, marginBottom:4, lineHeight:1.3 }}>
+                        {m.pendingTx.desc || "Sin descripción"}
+                      </div>
+                      <div style={{ fontSize:26, fontWeight:900, letterSpacing:-1, marginBottom:2,
+                        background:`linear-gradient(135deg,${C.indigo},${C.violet})`,
+                        WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+                        {COP(parsearMonto(m.pendingTx.amount || m.pendingTx.monto))}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 12, color: C.text.h, fontWeight: 600 }}>
-                      {m.pendingTx.desc}
-                    </div>
-                    <div style={{ fontSize: 13, color: C.emerald, fontWeight: 800, marginTop: 2 }}>
-                      {COP(m.pendingTx.amount)}
-                    </div>
-                    <div style={{ fontSize: 10, color: C.text.s, marginTop: 2 }}>
-                      Responde "sí" para confirmar o "no" para cancelar
+                    <div style={{ display:"flex", gap:10, padding:"0 14px 14px" }}>
+                      <button onClick={() => enviarTexto("si")} style={{
+                        flex:1, padding:"11px 0",
+                        background:`linear-gradient(135deg,${C.indigo},${C.violet})`,
+                        border:"none", borderRadius:12,
+                        cursor:"pointer", fontSize:14, fontWeight:700, color:"#fff",
+                        display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+                        boxShadow:`0 4px 12px ${C.indigo}44`,
+                      }}>
+                        ✔️ Confirmar
+                      </button>
+                      <button onClick={() => enviarTexto("no")} style={{
+                        flex:1, padding:"11px 0",
+                        background:"transparent",
+                        border:`1.5px solid ${C.border}`,
+                        borderRadius:12,
+                        cursor:"pointer", fontSize:14, fontWeight:700, color:C.text.s,
+                        display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+                      }}>
+                        ✖ Cancelar
+                      </button>
                     </div>
                   </div>
                 )}
