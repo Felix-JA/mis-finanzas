@@ -2923,7 +2923,7 @@ export default function App(){
       /* Página */
       .page{background:#fff;width:210mm;margin:0 auto 20px;border-radius:8px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.18);}
       /* Header degradado */
-      .hdr{background:linear-gradient(135deg,#4338ca 0%,#6366f1 60%,#818cf8 100%);padding:20px 18mm 18px;color:#fff;position:relative;overflow:hidden;}
+      .hdr{background:linear-gradient(135deg,#4338ca 0%,#6366f1 60%,#818cf8 100%);padding:20px 24px 18px;color:#fff;position:relative;overflow:hidden;}
       .hdr::before{content:'';position:absolute;top:-40px;right:-30px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,0.07);}
       .hdr::after{content:'';position:absolute;bottom:-60px;right:60px;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,0.05);}
       .hdr-row{display:flex;justify-content:space-between;align-items:flex-start;position:relative;}
@@ -2933,13 +2933,13 @@ export default function App(){
       .hdr-sub{font-size:10.5px;opacity:0.7;margin-top:3px;position:relative;}
       /* KPIs */
       .kpis{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid #e2e8f0;}
-      .kpi{padding:13px 18mm;border-right:1px solid #e2e8f0;}
-      .kpi:last-child{border-right:none;padding-right:18mm;}
+      .kpi{padding:13px 20px;border-right:1px solid #e2e8f0;}
+      .kpi:last-child{border-right:none;padding-right:20px;}
       .kpi-lbl{font-size:8.5px;font-weight:700;letter-spacing:1.2px;color:#94a3b8;text-transform:uppercase;margin-bottom:5px;}
       .kpi-val{font-size:15px;font-weight:900;letter-spacing:-0.5px;font-variant-numeric:tabular-nums;}
       .kpi-hint{font-size:8.5px;color:#94a3b8;margin-top:3px;}
       /* Cuerpo */
-      .body{padding:14px 18mm 0;}
+      .body{padding:14px 24px 0;}
       .sec-lbl{font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#94a3b8;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #f1f5f9;}
       /* Gráfica + categorías */
       .analytics{display:grid;grid-template-columns:165px 1fr;gap:18px;margin-bottom:16px;align-items:start;}
@@ -2970,22 +2970,22 @@ export default function App(){
       .ins-val{font-size:14px;font-weight:900;letter-spacing:-0.3px;}
       .ins-hint{font-size:8.5px;color:#94a3b8;margin-top:2px;}
       /* Tabla */
-      .tbl-outer{margin:0 -18mm;}
+      .tbl-outer{margin:0;}
       table{width:100%;border-collapse:collapse;}
       thead tr{background:#4338ca;}
       thead th{color:#fff;padding:8px 10px;font-size:8px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;}
-      th.th-fecha{width:8%;padding-left:18mm;}
+      th.th-fecha{width:8%;padding-left:14px;}
       th.th-desc{width:27%;text-align:left;}
       th.th-cat{width:25%;text-align:left;}
       th.th-tipo{width:10%;text-align:center;}
-      th.th-monto{width:30%;text-align:right;padding-right:18mm;}
+      th.th-monto{width:30%;text-align:right;padding-right:14px;}
       tbody tr:nth-child(even){background:#f8fafc;}
       td{padding:6px 10px;border-bottom:1px solid #f1f5f9;color:#0f172a;font-size:10.5px;vertical-align:middle;}
-      td.td-fecha{padding-left:18mm;color:#94a3b8;font-size:9.5px;white-space:nowrap;}
+      td.td-fecha{padding-left:14px;color:#94a3b8;font-size:9.5px;white-space:nowrap;}
       td.td-desc{font-weight:600;color:#0f172a;}
       td.td-cat{color:#64748b;font-size:10px;}
       td.td-tipo{text-align:center;}
-      td.td-monto{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;padding-right:18mm;}
+      td.td-monto{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;padding-right:14px;}
       td.pos{color:#059669;}
       td.neg{color:#dc2626;}
       /* Badges tipo */
@@ -2996,14 +2996,15 @@ export default function App(){
       /* Fila total */
       .tr-total td{background:#f1f5f9;font-weight:800;color:#334155;border-top:2px solid #e2e8f0;border-bottom:none;}
       /* Footer */
-      .footer{padding:9px 18mm;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #f1f5f9;}
+      .footer{padding:9px 24px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #f1f5f9;}
       .footer-txt{font-size:8.5px;color:#94a3b8;}
       .footer-dot{width:4px;height:4px;border-radius:50%;background:#6366f1;display:inline-block;margin:0 6px;vertical-align:middle;}
       /* Encabezado páginas 2+ */
-      .page-hdr{background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:9px 18mm;display:flex;justify-content:space-between;align-items:center;}
+      .page-hdr{background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:9px 24px;display:flex;justify-content:space-between;align-items:center;}
       .page-hdr-logo{font-size:11px;font-weight:900;color:#4338ca;}
       .page-hdr-info{font-size:9px;color:#94a3b8;}
       /* Print */
+      @page{margin:14mm 16mm;}
       @media print{
         body{background:#fff;padding:0;}
         .page{box-shadow:none;margin:0;border-radius:0;width:100%;page-break-after:always;}
@@ -3149,11 +3150,14 @@ export default function App(){
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900&display=swap" rel="stylesheet">
       <style>${css}</style>
     </head><body>
-      <div class="no-print" style="text-align:center;padding:14px 0 12px;position:sticky;top:0;z-index:99;background:#dde3ec;border-bottom:1px solid #c8d0db;">
+      <div class="no-print" style="display:flex;align-items:center;justify-content:center;gap:12px;padding:12px 16px;position:sticky;top:0;z-index:99;background:#dde3ec;border-bottom:1px solid #c8d0db;flex-wrap:wrap;">
+        <button onclick="window.close()" style="background:#fff;color:#4338ca;border:1.5px solid #c7d2fe;padding:10px 18px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;">
+          ← Volver a la app
+        </button>
         <button onclick="window.print()" style="background:linear-gradient(135deg,#4338ca,#6366f1);color:#fff;border:none;padding:11px 26px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 14px rgba(79,70,229,0.45);">
           🖨️ Imprimir / Guardar PDF
         </button>
-        <span style="margin-left:14px;font-size:12px;color:#64748b;">Selecciona "Guardar como PDF" en el diálogo de impresión</span>
+        <span style="font-size:12px;color:#64748b;">Selecciona "Guardar como PDF" en el diálogo de impresión</span>
       </div>
       ${page1}${otherPages}
     </body></html>`);
