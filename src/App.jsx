@@ -2222,135 +2222,136 @@ function ExportModalSheet({onClose,exportarCSV,exportarPDF,tx,now,isMonth,MONTHS
   </div>;
 }
 
+// Mini-modal para registrar cobro — movido fuera de PrestamosModal
+function CobroModal({prestamo,onClose3,onToggle}){
+  const [monto,setMonto]=useState(Number(prestamo.monto).toLocaleString("es-CO"));
+  const raw=parseFloat(monto.replace(/\./g,"").replace(",","."))||0;
+  const sheet3=useSheetDismiss(onClose3);
+  function hm(e){const r=e.target.value.replace(/\D/g,"");setMonto(r?Number(r).toLocaleString("es-CO"):"");}
+  function confirmar(){
+    if(!raw)return;
+    onToggle(prestamo.id,true,raw,prestamo.nombre);
+    onClose3();
+  }
+  return <div onClick={e=>{if(e.target===e.currentTarget)onClose3();}}
+    style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"flex-end",zIndex:700,animation:"fadeIn 0.15s ease"}}>
+    <div onClick={e=>e.stopPropagation()} ref={sheet3.cardRef}
+      style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
+        border:"1px solid rgba(16,185,129,0.3)",padding:"24px 20px 40px",animation:"slideUp 0.2s cubic-bezier(0.34,1.56,0.64,1)",position:"relative",...sheet3.cardStyle}}>
+      <SheetCloseBtn onClose={onClose3}/>
+      <div {...sheet3.handleProps} style={{...sheet3.handleProps.style,display:"flex",justifyContent:"center",marginBottom:14,padding:"4px 0 8px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
+      <div style={{textAlign:"center",marginBottom:20}}>
+        <div style={{fontSize:32,marginBottom:6}}>🤝</div>
+        <div style={{fontSize:17,fontWeight:800,color:C.text.h}}>{prestamo.nombre} te pagó</div>
+        <div style={{fontSize:12,color:C.text.s,marginTop:4}}>Prestaste {COP(prestamo.monto)} · ¿Cuánto te devolvió?</div>
+      </div>
+      <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:12,overflow:"hidden",
+        border:`2px solid ${raw>0?"#10b981":C.border}`,transition:"border-color 0.2s",marginBottom:10}}>
+        <span style={{padding:"0 14px",color:C.text.s,fontSize:18,lineHeight:"54px"}}>$</span>
+        <input inputMode="numeric" placeholder="0" value={monto} onChange={hm}
+          style={{flex:1,background:"none",border:"none",outline:"none",fontSize:24,fontWeight:800,color:C.text.h,padding:"0 8px",height:54}}/>
+      </div>
+      {raw!==prestamo.monto&&raw>0&&<div style={{fontSize:11,color:raw>prestamo.monto?"#10b981":"#f59e0b",marginBottom:12,textAlign:"center",fontWeight:600}}>
+        {raw>prestamo.monto?`✓ Te devolvió ${COP(raw-prestamo.monto)} extra (intereses)`:`⚠️ Te devolvió ${COP(prestamo.monto-raw)} menos de lo prestado`}
+      </div>}
+      <div style={{background:"rgba(16,185,129,0.08)",border:"1px solid rgba(16,185,129,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:11,color:C.text.b,lineHeight:1.6}}>
+        💡 Se sumará a tu disponible como <b style={{color:"#10b981"}}>devolución de préstamo</b>, sin afectar tus ingresos del mes.
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <button onClick={onClose3}
+          style={{flex:1,padding:14,borderRadius:12,border:`1px solid ${C.border}`,background:"transparent",color:C.text.b,cursor:"pointer",fontSize:14,fontWeight:700}}>
+          Cancelar
+        </button>
+        <button onClick={confirmar} disabled={!raw}
+          style={{flex:2,padding:14,borderRadius:12,border:"none",fontSize:14,fontWeight:800,
+            background:raw?"linear-gradient(135deg,#10b981,#059669)":surface("glass"),
+            color:raw?"#000":C.text.s,cursor:raw?"pointer":"not-allowed"}}>
+          {raw?`✓ Confirmar ${COP(raw)}`:"Ingresa el monto"}
+        </button>
+      </div>
+    </div>
+  </div>;
+}
+
+// Sub-modal para crear/editar — movido fuera de PrestamosModal
+function FormModal({initial,onClose2,onSave,onDelete}){
+  const isEdit=!!initial?.id;
+  const [nombre,setNombre]=useState(initial?.nombre||"");
+  const [monto,setMonto]=useState(initial?Number(initial.monto).toLocaleString("es-CO"):"");
+  const [fecha,setFecha]=useState(initial?.fechaPrestamo||todayStr());
+  const [desc,setDesc]=useState(initial?.descripcion||"");
+  const [conf,setConf]=useState(false);
+  const sheet2=useSheetDismiss(onClose2);
+  const raw=parseFloat(monto.replace(/\./g,"").replace(",","."))||0;
+  function hm(e){const r=e.target.value.replace(/\D/g,"");setMonto(r?Number(r).toLocaleString("es-CO"):"");}
+  function save(){
+    if(!nombre.trim()||!raw)return;
+    onSave({id:initial?.id||null,nombre:nombre.trim(),monto:raw,fechaPrestamo:fecha,descripcion:desc.trim(),devuelto:initial?.devuelto||false});
+    onClose2();
+  }
+  return <div onClick={e=>{if(e.target===e.currentTarget)onClose2();}}
+    style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:600,animation:"overlayIn 0.22s ease forwards"}}>
+    <div onClick={e=>e.stopPropagation()} ref={sheet2.cardRef}
+      style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
+        border:`1px solid rgba(244,63,94,0.3)`,padding:"20px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"90vh",overflowY:"auto",overscrollBehavior:"contain",position:"relative",...sheet2.cardStyle}}>
+      <SheetCloseBtn onClose={onClose2}/>
+      <div {...sheet2.handleProps} style={{...sheet2.handleProps.style,display:"flex",justifyContent:"center",marginBottom:14,padding:"4px 0 8px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,paddingRight:40}}>
+        <div style={{fontSize:17,fontWeight:800,color:C.text.h}}>{isEdit?"Editar préstamo":"🤝 Nuevo préstamo"}</div>
+      </div>
+      <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>¿A quién le prestaste?</div>
+      <input placeholder="ej: Juan, María, Pedro…" value={nombre} onChange={e=>setNombre(e.target.value)}
+        style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,
+          padding:"13px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:14}}/>
+      <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Monto prestado (COP)</div>
+      <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:12,overflow:"hidden",
+        border:`2px solid ${raw>0?"#f43f5e":C.border}`,transition:"border-color 0.2s",marginBottom:14}}>
+        <span style={{padding:"0 14px",color:C.text.s,fontSize:18,lineHeight:"54px"}}>$</span>
+        <input inputMode="numeric" placeholder="0" value={monto} onChange={hm}
+          style={{flex:1,background:"none",border:"none",outline:"none",fontSize:24,fontWeight:800,color:C.text.h,padding:"0 8px",height:54}}/>
+      </div>
+      <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Fecha del préstamo</div>
+      <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)}
+        style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,
+          padding:"13px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:14}}/>
+      <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Motivo / Nota (opcional)</div>
+      <input placeholder="ej: Para el arriendo, emergencia médica…" value={desc} onChange={e=>setDesc(e.target.value)}
+        style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,
+          padding:"13px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:20}}/>
+      <div style={{background:"rgba(244,63,94,0.08)",border:"1px solid rgba(244,63,94,0.25)",borderRadius:12,padding:"12px 14px",marginBottom:16}}>
+        <div style={{fontSize:12,color:"#f87171",fontWeight:700,marginBottom:3}}>
+          {isEdit?"ℹ️ Edición de datos":"💸 Se descontará de tu disponible"}
+        </div>
+        <div style={{fontSize:11,color:C.text.b,lineHeight:1.6}}>
+          {isEdit
+            ?"Editar no cambia el historial. Si el monto cambió, elimina y crea uno nuevo."
+            :"Se registra como gasto en Deudas. Cuando te paguen, anota el ingreso."}
+        </div>
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        {isEdit&&!conf&&<button onClick={()=>setConf(true)}
+          style={{padding:"16px 18px",borderRadius:14,border:"1px solid rgba(239,68,68,0.4)",background:"transparent",color:"#ef4444",cursor:"pointer",fontSize:22,flexShrink:0}}>🗑</button>}
+        {isEdit&&conf&&<button onClick={()=>{onDelete(initial.id,initial.txId);onClose2();}}
+          style={{padding:"16px 18px",borderRadius:14,border:"none",background:"#ef4444",color:"#fff",cursor:"pointer",fontSize:13,fontWeight:800,flexShrink:0,animation:"shake 0.3s ease"}}>¿Borrar?</button>}
+        <button onClick={save} disabled={!nombre.trim()||!raw}
+          style={{flex:1,padding:16,borderRadius:14,border:"none",fontSize:15,fontWeight:800,
+            cursor:(!nombre.trim()||!raw)?"not-allowed":"pointer",
+            background:(!nombre.trim()||!raw)?surface("glass"):"linear-gradient(135deg,#f43f5e,#be123c)",
+            color:(!nombre.trim()||!raw)?C.text.s:"#fff"}}>
+          {(!nombre.trim()||!raw)?"Completa los campos":isEdit?"✓ Guardar":"+ Registrar préstamo"}
+        </button>
+      </div>
+    </div>
+  </div>;
+}
+
+
 function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm,setPrestamoForm,isPro,setProGate}){
   const pendientes=prestamos.filter(p=>!p.devuelto);
   const devueltos=prestamos.filter(p=>p.devuelto);
   const totalPendiente=pendientes.reduce((s,p)=>s+p.monto,0);
   const [cobroModal,setCobroModal]=useState(null); // prestamo a cobrar
   const sheet=useSheetDismiss(onClose);
-
-  // Mini-modal para registrar cobro
-  function CobroModal({prestamo,onClose3}){
-    const [monto,setMonto]=useState(Number(prestamo.monto).toLocaleString("es-CO"));
-    const raw=parseFloat(monto.replace(/\./g,"").replace(",","."))||0;
-    const sheet3=useSheetDismiss(onClose3);
-    function hm(e){const r=e.target.value.replace(/\D/g,"");setMonto(r?Number(r).toLocaleString("es-CO"):"");}
-    function confirmar(){
-      if(!raw)return;
-      onToggle(prestamo.id,true,raw,prestamo.nombre);
-      onClose3();
-    }
-    return <div onClick={e=>{if(e.target===e.currentTarget)onClose3();}}
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"flex-end",zIndex:700,animation:"fadeIn 0.15s ease"}}>
-      <div onClick={e=>e.stopPropagation()} ref={sheet3.cardRef}
-        style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
-          border:"1px solid rgba(16,185,129,0.3)",padding:"24px 20px 40px",animation:"slideUp 0.2s cubic-bezier(0.34,1.56,0.64,1)",position:"relative",...sheet3.cardStyle}}>
-        <SheetCloseBtn onClose={onClose3}/>
-        <div {...sheet3.handleProps} style={{...sheet3.handleProps.style,display:"flex",justifyContent:"center",marginBottom:14,padding:"4px 0 8px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
-        <div style={{textAlign:"center",marginBottom:20}}>
-          <div style={{fontSize:32,marginBottom:6}}>🤝</div>
-          <div style={{fontSize:17,fontWeight:800,color:C.text.h}}>{prestamo.nombre} te pagó</div>
-          <div style={{fontSize:12,color:C.text.s,marginTop:4}}>Prestaste {COP(prestamo.monto)} · ¿Cuánto te devolvió?</div>
-        </div>
-        <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:12,overflow:"hidden",
-          border:`2px solid ${raw>0?"#10b981":C.border}`,transition:"border-color 0.2s",marginBottom:10}}>
-          <span style={{padding:"0 14px",color:C.text.s,fontSize:18,lineHeight:"54px"}}>$</span>
-          <input inputMode="numeric" placeholder="0" value={monto} onChange={hm}
-            style={{flex:1,background:"none",border:"none",outline:"none",fontSize:24,fontWeight:800,color:C.text.h,padding:"0 8px",height:54}}/>
-        </div>
-        {raw!==prestamo.monto&&raw>0&&<div style={{fontSize:11,color:raw>prestamo.monto?"#10b981":"#f59e0b",marginBottom:12,textAlign:"center",fontWeight:600}}>
-          {raw>prestamo.monto?`✓ Te devolvió ${COP(raw-prestamo.monto)} extra (intereses)`:`⚠️ Te devolvió ${COP(prestamo.monto-raw)} menos de lo prestado`}
-        </div>}
-        <div style={{background:"rgba(16,185,129,0.08)",border:"1px solid rgba(16,185,129,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:11,color:C.text.b,lineHeight:1.6}}>
-          💡 Se sumará a tu disponible como <b style={{color:"#10b981"}}>devolución de préstamo</b>, sin afectar tus ingresos del mes.
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={onClose3}
-            style={{flex:1,padding:14,borderRadius:12,border:`1px solid ${C.border}`,background:"transparent",color:C.text.b,cursor:"pointer",fontSize:14,fontWeight:700}}>
-            Cancelar
-          </button>
-          <button onClick={confirmar} disabled={!raw}
-            style={{flex:2,padding:14,borderRadius:12,border:"none",fontSize:14,fontWeight:800,
-              background:raw?"linear-gradient(135deg,#10b981,#059669)":surface("glass"),
-              color:raw?"#000":C.text.s,cursor:raw?"pointer":"not-allowed"}}>
-            {raw?`✓ Confirmar ${COP(raw)}`:"Ingresa el monto"}
-          </button>
-        </div>
-      </div>
-    </div>;
-  }
-
-  // Sub-modal para crear/editar
-  function FormModal({initial,onClose2}){
-    const isEdit=!!initial?.id;
-    const [nombre,setNombre]=useState(initial?.nombre||"");
-    const [monto,setMonto]=useState(initial?Number(initial.monto).toLocaleString("es-CO"):"");
-    const [fecha,setFecha]=useState(initial?.fechaPrestamo||todayStr());
-    const [desc,setDesc]=useState(initial?.descripcion||"");
-    const [conf,setConf]=useState(false);
-    const sheet2=useSheetDismiss(onClose2);
-    const raw=parseFloat(monto.replace(/\./g,"").replace(",","."))||0;
-    function hm(e){const r=e.target.value.replace(/\D/g,"");setMonto(r?Number(r).toLocaleString("es-CO"):"");}
-    function save(){
-      if(!nombre.trim()||!raw)return;
-      onSave({id:initial?.id||null,nombre:nombre.trim(),monto:raw,fechaPrestamo:fecha,descripcion:desc.trim(),devuelto:initial?.devuelto||false});
-      onClose2();
-    }
-    return <div onClick={e=>{if(e.target===e.currentTarget)onClose2();}}
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:600,animation:"overlayIn 0.22s ease forwards"}}>
-      <div onClick={e=>e.stopPropagation()} ref={sheet2.cardRef}
-        style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
-          border:`1px solid rgba(244,63,94,0.3)`,padding:"20px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"90vh",overflowY:"auto",overscrollBehavior:"contain",position:"relative",...sheet2.cardStyle}}>
-        <SheetCloseBtn onClose={onClose2}/>
-        <div {...sheet2.handleProps} style={{...sheet2.handleProps.style,display:"flex",justifyContent:"center",marginBottom:14,padding:"4px 0 8px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,paddingRight:40}}>
-          <div style={{fontSize:17,fontWeight:800,color:C.text.h}}>{isEdit?"Editar préstamo":"🤝 Nuevo préstamo"}</div>
-        </div>
-        <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>¿A quién le prestaste?</div>
-        <input placeholder="ej: Juan, María, Pedro…" value={nombre} onChange={e=>setNombre(e.target.value)}
-          style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,
-            padding:"13px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:14}}/>
-        <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Monto prestado (COP)</div>
-        <div style={{display:"flex",alignItems:"center",background:C.surface,borderRadius:12,overflow:"hidden",
-          border:`2px solid ${raw>0?"#f43f5e":C.border}`,transition:"border-color 0.2s",marginBottom:14}}>
-          <span style={{padding:"0 14px",color:C.text.s,fontSize:18,lineHeight:"54px"}}>$</span>
-          <input inputMode="numeric" placeholder="0" value={monto} onChange={hm}
-            style={{flex:1,background:"none",border:"none",outline:"none",fontSize:24,fontWeight:800,color:C.text.h,padding:"0 8px",height:54}}/>
-        </div>
-        <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Fecha del préstamo</div>
-        <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)}
-          style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,
-            padding:"13px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:14}}/>
-        <div style={{fontSize:10,color:C.text.s,fontWeight:700,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Motivo / Nota (opcional)</div>
-        <input placeholder="ej: Para el arriendo, emergencia médica…" value={desc} onChange={e=>setDesc(e.target.value)}
-          style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,
-            padding:"13px 16px",color:C.text.h,fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:20}}/>
-        <div style={{background:"rgba(244,63,94,0.08)",border:"1px solid rgba(244,63,94,0.25)",borderRadius:12,padding:"12px 14px",marginBottom:16}}>
-          <div style={{fontSize:12,color:"#f87171",fontWeight:700,marginBottom:3}}>
-            {isEdit?"ℹ️ Edición de datos":"💸 Se descontará de tu disponible"}
-          </div>
-          <div style={{fontSize:11,color:C.text.b,lineHeight:1.6}}>
-            {isEdit
-              ?"Editar no cambia el historial. Si el monto cambió, elimina y crea uno nuevo."
-              :"Se registra como gasto en Deudas. Cuando te paguen, anota el ingreso."}
-          </div>
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          {isEdit&&!conf&&<button onClick={()=>setConf(true)}
-            style={{padding:"16px 18px",borderRadius:14,border:"1px solid rgba(239,68,68,0.4)",background:"transparent",color:"#ef4444",cursor:"pointer",fontSize:22,flexShrink:0}}>🗑</button>}
-          {isEdit&&conf&&<button onClick={()=>{onDelete(initial.id,initial.txId);onClose2();}}
-            style={{padding:"16px 18px",borderRadius:14,border:"none",background:"#ef4444",color:"#fff",cursor:"pointer",fontSize:13,fontWeight:800,flexShrink:0,animation:"shake 0.3s ease"}}>¿Borrar?</button>}
-          <button onClick={save} disabled={!nombre.trim()||!raw}
-            style={{flex:1,padding:16,borderRadius:14,border:"none",fontSize:15,fontWeight:800,
-              cursor:(!nombre.trim()||!raw)?"not-allowed":"pointer",
-              background:(!nombre.trim()||!raw)?surface("glass"):"linear-gradient(135deg,#f43f5e,#be123c)",
-              color:(!nombre.trim()||!raw)?C.text.s:"#fff"}}>
-            {(!nombre.trim()||!raw)?"Completa los campos":isEdit?"✓ Guardar":"+ Registrar préstamo"}
-          </button>
-        </div>
-      </div>
-    </div>;
-  }
 
   const RED="#f43f5e", AMBER="#f59e0b", EMERALD="#10b981";
 
@@ -2467,8 +2468,8 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
         </div>}
       </div>
     </div>
-    {prestamoForm&&<FormModal initial={prestamoForm==="new"?null:prestamoForm} onClose2={()=>setPrestamoForm(null)}/>}
-    {cobroModal&&<CobroModal prestamo={cobroModal} onClose3={()=>setCobroModal(null)}/>}
+    {prestamoForm&&<FormModal initial={prestamoForm==="new"?null:prestamoForm} onClose2={()=>setPrestamoForm(null)} onSave={onSave} onDelete={onDelete}/>}
+    {cobroModal&&<CobroModal prestamo={cobroModal} onClose3={()=>setCobroModal(null)} onToggle={onToggle}/>}
   </div>;
 }
 
