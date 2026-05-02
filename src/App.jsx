@@ -1,3 +1,4 @@
+import { SplashScreen } from "./SplashScreen";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { alertInfo, alertError, alertWarning, alertLimit } from "./GlobalAlert";
 import { InsightsEngine } from "./InsightsEngine";
@@ -20,62 +21,62 @@ import {
 
 // ─── TEMAS OSCUROS ────────────────────────────────────────────────────────────
 const TEMAS = {
-  // Azul marino — tema original
+  // ── OSCUROS ───────────────────────────────────────────────────────────────
+
+  // Navy — azul profundo clásico
   navy: {
-    bg:"#080e1e", card:"#0d1117",
+    _tid:"navy",
+    bg:"#080c18", card:"#0d1117",
+    surface:"rgba(255,255,255,0.05)", border:"rgba(255,255,255,0.09)", borderStrong:"rgba(255,255,255,0.18)",
+    indigo:"#6366f1", indigoLight:"#818cf8",
+    emerald:"#10b981", emeraldLight:"#34d399",
+    amber:"#f59e0b", red:"#ef4444", violet:"#8b5cf6", sky:"#38bdf8",
+    text:{ h:"#f1f5f9", b:"#94a3b8", s:"#64748b", m:"#64748b" },
+    label:"🌊 Navy", desc:"Azul profundo clásico",
+  },
+
+  // Midnight — AMOLED premium, hero card con variante elegible
+  black: {
+    _tid:"black",
+    bg:"#000000", card:"#080808",
     surface:"rgba(255,255,255,0.05)", border:"rgba(255,255,255,0.08)", borderStrong:"rgba(255,255,255,0.18)",
     indigo:"#6366f1", indigoLight:"#818cf8",
     emerald:"#10b981", emeraldLight:"#34d399",
     amber:"#f59e0b", red:"#ef4444", violet:"#8b5cf6", sky:"#38bdf8",
-    text:{ h:"#f1f5f9", b:"#a8b8cc", s:"#6b7f96", m:"#6b7f96" },
-    label:"🌊 Azul marino", desc:"El clásico",
+    text:{ h:"#ffffff", b:"#cbd5e1", s:"#64748b", m:"#64748b" },
+    label:"🖤 Midnight", desc:"AMOLED premium",
   },
-  // Negro puro — AMOLED
-  black: {
-    bg:"#000000", card:"#0a0a0a",
-    surface:"rgba(255,255,255,0.06)", border:"rgba(255,255,255,0.09)", borderStrong:"rgba(255,255,255,0.2)",
-    indigo:"#7c3aed", indigoLight:"#a78bfa",
+
+  // Noir — negro mate elegante, profundidad 3D
+  forest: {
+    _tid:"noir",
+    bg:"#111111", card:"#181818",
+    surface:"rgba(255,255,255,0.05)", border:"rgba(255,255,255,0.09)", borderStrong:"rgba(255,255,255,0.18)",
+    indigo:"#6366f1", indigoLight:"#818cf8",
     emerald:"#10b981", emeraldLight:"#34d399",
     amber:"#f59e0b", red:"#ef4444", violet:"#8b5cf6", sky:"#38bdf8",
-    text:{ h:"#ffffff", b:"#b0c0d0", s:"#606f80", m:"#606f80" },
-    label:"🖤 Midnight", desc:"Ahorra batería AMOLED",
+    text:{ h:"#f9fafb", b:"#9ca3af", s:"#6b7280", m:"#6b7280" },
+    label:"⬛ Noir", desc:"Negro mate premium 3D",
   },
-  // Verde oscuro — bosque
-  forest: {
-    bg:"#061210", card:"#0a1f1c",
-    surface:"rgba(255,255,255,0.05)", border:"rgba(255,255,255,0.08)", borderStrong:"rgba(255,255,255,0.18)",
-    indigo:"#059669", indigoLight:"#34d399",
-    emerald:"#10b981", emeraldLight:"#6ee7b7",
-    amber:"#f59e0b", red:"#ef4444", violet:"#8b5cf6", sky:"#38bdf8",
-    text:{ h:"#ecfdf5", b:"#a7c4bc", s:"#5f8a82", m:"#5f8a82" },
-    label:"🌿 Bosque", desc:"Verde oscuro relajante",
-  },
-  // ─── TEMAS CLAROS ────────────────────────────────────────────────────────
-  // Perla — blanco puro con acentos índigo (tipo Apple Wallet / Linear)
+
+  // ── CLAROS ────────────────────────────────────────────────────────────────
+
+  // Perla — blanco puro minimalista con orbs suaves
   pearl: {
-    isLight: true,
-    bg:"#f7f8fa", card:"#ffffff",
-    surface:"rgba(15,23,42,0.03)", border:"rgba(15,23,42,0.06)", borderStrong:"rgba(15,23,42,0.14)",
+    _tid:"pearl", isLight:true,
+    bg:"#f4f6f9", card:"#ffffff",
+    surface:"rgba(15,23,42,0.03)", border:"rgba(15,23,42,0.07)", borderStrong:"rgba(15,23,42,0.14)",
     indigo:"#4f46e5", indigoLight:"#6366f1",
     emerald:"#059669", emeraldLight:"#10b981",
     amber:"#d97706", red:"#dc2626", violet:"#7c3aed", sky:"#0284c7",
     text:{ h:"#0f172a", b:"#475569", s:"#94a3b8", m:"#94a3b8" },
-    label:"🤍 Perla", desc:"Blanco limpio y minimalista",
+    label:"🤍 Perla", desc:"Blanco puro minimalista",
   },
-  // Arena — beige cálido (estilo Notion claro)
-  sand: {
-    isLight: true,
-    bg:"#faf7f2", card:"#ffffff",
-    surface:"rgba(87,45,10,0.03)", border:"rgba(87,45,10,0.08)", borderStrong:"rgba(87,45,10,0.18)",
-    indigo:"#b45309", indigoLight:"#d97706",
-    emerald:"#059669", emeraldLight:"#10b981",
-    amber:"#c2410c", red:"#b91c1c", violet:"#7c3aed", sky:"#0369a1",
-    text:{ h:"#422006", b:"#78350f", s:"#a16207", m:"#a16207" },
-    label:"🌸 Arena", desc:"Cálido y acogedor",
-  },
-  // Bruma — gris azulado suave (estilo Revolut Light)
+
+
+  // Bruma — gris azulado suave (versión original restaurada)
   mist: {
-    isLight: true,
+    _tid:"mist", isLight:true,
     bg:"#eef2f6", card:"#ffffff",
     surface:"rgba(30,58,95,0.03)", border:"rgba(30,58,95,0.08)", borderStrong:"rgba(30,58,95,0.18)",
     indigo:"#3730a3", indigoLight:"#4f46e5",
@@ -97,6 +98,22 @@ function ink(opacity=1){
   return C.isLight
     ? `rgba(15,23,42,${opacity})`
     : `rgba(255,255,255,${opacity})`;
+}
+
+// Fondo con gradiente/textura por tema — el glass necesita algo detrás para verse
+function themeBg(){
+  const tid = C._tid || "navy";
+  // Midnight — gradiente índigo profundo desde arriba (como el original)
+  if(tid==="black")  return "radial-gradient(ellipse 110% 55% at 50% -5%, #1a1040 0%, #000000 60%)";
+  // Noir — negro mate con capas sutiles, sin color
+  if(tid==="noir")   return "linear-gradient(180deg, #1a1a1a 0%, #111111 50%, #0d0d0d 100%)";
+  // Perla — blanco con toque azul muy sutil
+  if(tid==="pearl")  return "linear-gradient(160deg, #eef2ff 0%, #f4f6f9 40%, #f0f4ff 100%)";
+
+  // Bruma — gris azulado original, no tan intenso
+  if(tid==="mist")   return "linear-gradient(160deg, #dde3ec 0%, #eef2f6 40%, #e4eaf2 100%)";
+  // Navy default
+  return "radial-gradient(ellipse 110% 55% at 50% -5%, #0f1535 0%, #080c18 55%)";
 }
 
 // ─── DESIGN SYSTEM (Fase 2D) ──────────────────────────────────────────────────
@@ -178,39 +195,163 @@ function glassCard({raised=false, tone="glass", borderWeight="subtle"}={}){
 }
 
 
-// ─── ESTILO DE CARD GLOBAL ───────────────────────────────────────────────────
-// "solid"    → C.card sólido + sombra (default premium)
-// "glass"    → glass sutil + blur
-// "gradient" → gradient suave con tinte de color
-// "classic"  → gradient saturado + orbs 3D (estilo original)
-const CS = { style: "solid" };
+// ─── SISTEMA DE DISEÑO POR TEMA ──────────────────────────────────────────────
+// Cada tema define su propia identidad visual — no hay estilos de card separados.
+// Midnight → glassmorphism máximo, negro profundo, sombras dramáticas
+// Navy     → glass moderado, azul profundo, elegante
+// Forest   → glass con tinte verde oscuro, orgánico
+// Bruma    → glass claro premium, iOS 26 Liquid Glass
+// Perla    → blanco limpio, minimalista puro
+// Arena    → cálido, gradientes suaves
 
+// CS sigue existiendo para compatibilidad con código que lo lee
+const CS = { style: "glass" };
+// Estilo de la hero card — "gradient" | "glass" | "matte"
+// gradient = gradiente clásico con orbs (default, el que mejor se ve)
+// glass    = translúcido con blur
+// matte    = sólido premium sin transparencias
+const HS = { style: "gradient" };
+
+// Retorna el background de una card según el tema activo
+function cardBg(accentColor){
+  const acc = accentColor || C.indigo;
+  const tid = C._tid || "navy";
+  if(tid==="pearl") return "rgba(255,255,255,0.82)";
+  if(tid==="sand")  return "rgba(255,255,255,0.85)";
+  if(tid==="mist")  return "rgba(255,255,255,0.78)";
+  if(C.isLight)     return "rgba(255,255,255,0.80)";
+  // Oscuros
+  if(tid==="noir")  return "rgba(255,255,255,0.05)";
+  return "rgba(255,255,255,0.04)"; // navy, black
+}
+
+// Retorna el border de una card según el tema activo
+function cardBorderVal(accentColor, raised=false){
+  const acc = accentColor || C.indigo;
+  const tid = C._tid || "navy";
+  if(C.isLight)    return raised ? "1px solid rgba(255,255,255,0.92)" : "1px solid rgba(255,255,255,0.75)";
+  if(tid==="noir") return raised ? "1px solid rgba(255,255,255,0.14)" : "1px solid rgba(255,255,255,0.09)";
+  if(tid==="black") return raised ? `1px solid ${acc}30` : "1px solid rgba(255,255,255,0.08)";
+  return raised ? `1px solid ${acc}28` : "1px solid rgba(255,255,255,0.09)";
+}
+
+// Retorna la sombra de una card según el tema activo
+function cardShadowVal(accentColor, raised=false){
+  const acc = accentColor || C.indigo;
+  const tid = C._tid || "navy";
+  // Claros
+  if(C.isLight) return raised
+    ? `0 12px 40px rgba(15,23,42,0.12), 0 2px 8px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.9)`
+    : `0 4px 20px rgba(15,23,42,0.07), inset 0 1px 0 rgba(255,255,255,0.7)`;
+  // Noir — profundidad 3D sin color
+  if(tid==="noir") return raised
+    ? `0 20px 50px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.10), inset 0 -1px 0 rgba(0,0,0,0.3)`
+    : `0 6px 20px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)`;
+  // Midnight — dramático con glow
+  if(tid==="black") return raised
+    ? `0 28px 70px rgba(0,0,0,0.75), 0 6px 20px ${acc}35, inset 0 1px 0 rgba(255,255,255,0.08)`
+    : `0 8px 28px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)`;
+  // Navy default
+  return raised
+    ? `0 20px 60px rgba(0,0,0,0.5), 0 4px 16px ${acc}28, inset 0 1px 0 rgba(255,255,255,0.07)`
+    : `0 6px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)`;
+}
+
+// Blur por tema
+function cardBlur(){
+  const tid = C._tid || "navy";
+  if(tid==="black") return "blur(40px)";
+  if(tid==="noir")  return "blur(16px)";
+  if(C.isLight)     return "blur(32px)";
+  return "blur(28px)"; // navy
+}
+
+// Compatibilidad con código existente que usa cardSurface/cardShadow/cardBorder
 function cardSurface(accentColor){
-  const acc = accentColor || C.indigo;
-  if(CS.style==="glass") return { background:surface("glassHi"), backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)" };
-  if(CS.style==="gradient") return { background:`linear-gradient(145deg,${acc}14 0%,${C.card} 70%)` };
-  if(CS.style==="classic") return { background:`linear-gradient(135deg,${acc}20 0%,${acc}08 55%,${C.bg} 100%)` };
-  return { background:C.card };
+  return {
+    background: cardBg(accentColor),
+    backdropFilter: cardBlur(),
+    WebkitBackdropFilter: cardBlur(),
+  };
 }
-function cardShadow(accentColor){
+function cardShadow(accentColor){ return cardShadowVal(accentColor, false); }
+function cardBorder(accentColor){ return cardBorderVal(accentColor, false); }
+
+// Hero card — estilo según HS.style (gradient | glass | matte)
+function heroCard(accentColor){
   const acc = accentColor || C.indigo;
-  if(CS.style==="glass") return elev("card");
-  if(CS.style==="gradient") return `0 8px 24px ${acc}20`;
-  if(CS.style==="classic") return `0 20px 60px rgba(0,0,0,0.4), 0 4px 16px ${acc}44, inset 0 1px 0 rgba(255,255,255,0.08)`;
-  return elev("card");
+  const tid = C._tid || "navy";
+  const hs = HS.style || "gradient";
+
+  if(hs === "glass") {
+    return {
+      background: cardBg(acc),
+      backdropFilter: cardBlur(),
+      WebkitBackdropFilter: cardBlur(),
+      border: cardBorderVal(acc, true),
+      boxShadow: cardShadowVal(acc, true),
+    };
+  }
+
+  if(hs === "matte") {
+    // Sólido premium — sin transparencias, con depth via sombras
+    const matBg = C.isLight ? C.card : (tid==="black" ? "#0f0f0f" : tid==="noir" ? "#1c1c1c" : "#0d1117");
+    return {
+      background: matBg,
+      border: `1px solid ${C.isLight ? "rgba(15,23,42,0.08)" : "rgba(255,255,255,0.08)"}`,
+      boxShadow: C.isLight
+        ? `0 8px 32px rgba(15,23,42,0.12), inset 0 1px 0 rgba(255,255,255,0.8)`
+        : `0 20px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.3)`,
+    };
+  }
+
+  // gradient — el original con orbs (default y el que mejor se ve)
+  const gradBg = C.isLight
+    ? `linear-gradient(145deg, ${acc}18 0%, ${C.card} 55%)`
+    : `linear-gradient(135deg, ${acc}28 0%, ${acc}10 50%, ${C.bg} 100%)`;
+  return {
+    background: gradBg,
+    border: `1px solid ${acc}40`,
+    boxShadow: C.isLight
+      ? `0 12px 40px ${acc}18, 0 2px 8px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.6)`
+      : `0 24px 60px rgba(0,0,0,0.5), 0 4px 16px ${acc}30, inset 0 1px 0 rgba(255,255,255,0.07)`,
+  };
 }
-function cardBorder(accentColor){
-  const acc = accentColor || C.indigo;
-  if(CS.style==="classic") return `1px solid ${acc}44`;
-  if(CS.style==="gradient") return `1px solid ${acc}28`;
-  return "1px solid transparent";
-}
+
 function GradientOrbs({color}){
-  if(CS.style!=="classic") return null;
+  // Solo mostrar orbs en modo gradient — glass y matte no los necesitan
+  if(HS.style !== "gradient") return null;
+  const tid = C._tid || "navy";
   const acc = color || C.indigo;
+
+  // Claros — orbs suaves (Perla con efecto 3D clásico)
+  if(C.isLight) return <>
+    <div style={{position:"absolute",top:-50,right:-30,width:180,height:180,borderRadius:"50%",
+      background:`radial-gradient(circle,${acc}14 0%,transparent 65%)`,
+      pointerEvents:"none",filter:"blur(24px)"}}/>
+    <div style={{position:"absolute",bottom:-30,left:-20,width:120,height:120,borderRadius:"50%",
+      background:`radial-gradient(circle,${acc}10 0%,transparent 70%)`,
+      pointerEvents:"none",filter:"blur(16px)"}}/>
+  </>;
+
+  // Noir — orbs neutros para profundidad 3D
+  if(tid==="noir") return <>
+    <div style={{position:"absolute",top:-50,right:-30,width:180,height:180,borderRadius:"50%",
+      background:"radial-gradient(circle,rgba(255,255,255,0.06) 0%,transparent 65%)",
+      pointerEvents:"none",filter:"blur(20px)"}}/>
+    <div style={{position:"absolute",bottom:-30,left:-20,width:120,height:120,borderRadius:"50%",
+      background:"radial-gradient(circle,rgba(255,255,255,0.03) 0%,transparent 70%)",
+      pointerEvents:"none",filter:"blur(14px)"}}/>
+  </>;
+
+  // Oscuros — orbs de color (Navy, Midnight)
   return <>
-    <div style={{position:"absolute",top:-60,right:-40,width:180,height:180,borderRadius:"50%",background:`${acc}14`,pointerEvents:"none"}}/>
-    <div style={{position:"absolute",bottom:-30,left:-20,width:120,height:120,borderRadius:"50%",background:`${acc}10`,pointerEvents:"none"}}/>
+    <div style={{position:"absolute",top:-60,right:-40,width:220,height:220,borderRadius:"50%",
+      background:`radial-gradient(circle,${acc}30 0%,${acc}12 40%,transparent 70%)`,
+      pointerEvents:"none",filter:"blur(24px)"}}/>
+    <div style={{position:"absolute",bottom:-50,left:-30,width:160,height:160,borderRadius:"50%",
+      background:`radial-gradient(circle,${C.violet}20 0%,transparent 65%)`,
+      pointerEvents:"none",filter:"blur(18px)"}}/>
   </>;
 }
 
@@ -448,12 +589,19 @@ function Bar({pct,color,h=5}){
 }
 
 function Card({children,style={},glow}){
+  const bg = cardBg();
+  const blur = cardBlur();
+  const shadow = glow
+    ? `0 0 0 1px ${glow}40, ${cardShadowVal(glow,false)}`
+    : cardShadowVal(null,false);
   return <div style={{
-    background:C.surface,
+    background: bg,
+    backdropFilter: blur,
+    WebkitBackdropFilter: blur,
     borderRadius:18,
     padding:16,
-    border:`1px solid ${C.border}`,
-    boxShadow:glow?`0 0 0 1px ${glow}40, 0 8px 32px rgba(0,0,0,0.4)`:"0 2px 12px rgba(0,0,0,0.3)",
+    border: cardBorderVal(null,false),
+    boxShadow: shadow,
     ...style
   }}>{children}</div>;
 }
@@ -1934,7 +2082,7 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
               </div>
               <div style={{fontSize:12,color:C.text.b,lineHeight:1.6}}>
                 {saldoDisponible<=0
-                  ?"Registra un ingreso, un extra, o bájale el monto a una meta para liberar dinero."
+                  ?"Registra un ingreso o baja el monto de una meta."
                   :`Tienes ${COP(saldoDisponible)} disponibles y este gasto es ${COP(raw)}.`}
               </div>
             </div>
@@ -2182,8 +2330,8 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
           </div>
           <div style={{fontSize:11,color:C.text.b,lineHeight:1.6}}>
             {isEdit
-              ?"Editar no modifica el movimiento original en tu historial. Si cambió el monto, elimina y crea uno nuevo."
-              :"Al guardar se registra un gasto automático en 'Deudas · A terceros'. Cuando te paguen, registra el ingreso tú mismo con el monto que recibas."}
+              ?"Editar no cambia el historial. Si el monto cambió, elimina y crea uno nuevo."
+              :"Se registra como gasto en Deudas. Cuando te paguen, anota el ingreso."}
           </div>
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -2274,7 +2422,7 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
         {/* Botón agregar */}
         <button onClick={()=>{
             if(!isPro&&prestamos.filter(p=>!p.devuelto).length>=1){
-              setProGate&&setProGate({titulo:"Préstamos ilimitados",descripcion:"Con el plan Free puedes registrar 1 préstamo activo. Activa Pro para registrar más.",features:[{icon:"🤝",label:"Préstamos ilimitados"},{icon:"💰",label:"Control de cobros"},{icon:"📈",label:"Intereses automáticos"}]});
+              setProGate&&setProGate({titulo:"Préstamos ilimitados",descripcion:"Plan Free: 1 préstamo activo. Pro: ilimitados.",features:[{icon:"🤝",label:"Préstamos ilimitados"},{icon:"💰",label:"Control de cobros"},{icon:"📈",label:"Intereses automáticos"}]});
               return;
             }
             setPrestamoForm("new");
@@ -2377,7 +2525,7 @@ function MenuSheet({onClose,user,disponibleGastar,totalGasto,tema,TEMAS,changeTa
         {[
           {icon:"🎨",label:`Tema: ${TEMAS[tema]?.label||"Navy"}`,onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
           {icon:"⚙️",label:"Configuración",onClick:()=>{changeTab("cfg");setMenuOpen(false);}},
-          {icon:"📤",label:`Exportar movimientos${isPro?"":" ⚡"}`,onClick:()=>{setMenuOpen(false);isPro?setExportModal(true):setProGate({titulo:"Exportar PDF",descripcion:"Descarga un reporte completo de tus finanzas en PDF.",features:[{icon:"📄",label:"Reporte mensual completo"},{icon:"📊",label:"Gráficas y análisis"},{icon:"📋",label:"Tabla de movimientos"}]});}},
+          {icon:"📤",label:`Exportar movimientos${isPro?"":" ⚡"}`,onClick:()=>{setMenuOpen(false);isPro?setExportModal(true):setProGate({titulo:"Exportar PDF",descripcion:"Reporte completo de tus finanzas en PDF.",features:[{icon:"📄",label:"Reporte mensual completo"},{icon:"📊",label:"Gráficas y análisis"},{icon:"📋",label:"Tabla de movimientos"}]});}},
         ].map(o=>(
           <button key={o.label} onClick={o.onClick}
             style={{width:"100%",padding:"11px 16px",background:"none",border:"none",cursor:"pointer",
@@ -2434,7 +2582,7 @@ function ProGate({titulo, descripcion, features, onClose, C}){
             {titulo||"Función Pro"}
           </div>
           <div style={{fontSize:14,color:C.text.b,lineHeight:1.5}}>
-            {descripcion||"Esta función está disponible en el plan Pro."}
+            {descripcion||"Disponible en el plan Pro."}
           </div>
         </div>
         {/* Features */}
@@ -2545,6 +2693,7 @@ export default function App(){
     return (saved && TEMAS[saved]) ? saved : "navy";
   });
   const [cardStyle,setCardStyle]=useState(()=>localStorage.getItem("mf_card_style")||"solid");
+  const [heroStyle,setHeroStyle]=useState(()=>{ const s=localStorage.getItem("heroStyle")||"gradient"; HS.style=s; return s; });
   const [compacto,setCompacto]=useState(()=>localStorage.getItem("mf_compacto")==="1");
   function toggleCompacto(){setCompacto(v=>{const n=!v;localStorage.setItem("mf_compacto",n?"1":"0");return n;});}
 
@@ -2553,8 +2702,10 @@ export default function App(){
   Object.assign(C,paleta);
   Object.assign(C.text,paleta.text);
   if(!paleta.isLight) C.isLight=false;
-  // Mutar CS con el estilo activo
+  C._tid = paleta._tid || tema;
+  // Mutar CS y HS con el estilo activo
   CS.style=cardStyle;
+  C._tid = paleta._tid || tema;
 
   function cambiarTema(nuevoTema){
     setTema(nuevoTema);
@@ -2563,6 +2714,11 @@ export default function App(){
   function cambiarCardStyle(s){
     setCardStyle(s);
     localStorage.setItem("mf_card_style",s);
+  }
+  function cambiarHeroStyle(s){
+    setHeroStyle(s);
+    HS.style=s;
+    localStorage.setItem("heroStyle",s);
   }
 
   function changeTab(newTab){
@@ -2679,11 +2835,23 @@ export default function App(){
   },[]);
 
   // Cambiar salario: aplica desde el mes SIGUIENTE, guarda historial por mes
-  async function handleSalarioChange(nuevoValor){
+  async function handleSalarioChange(nuevoValor, skipConfirm=false){
     if(!user||!nuevoValor)return;
+    if(!skipConfirm){
+      const {showAlert}=await import("./GlobalAlert");
+      showAlert({
+        type:"warning",
+        title:"¿Confirmas el cambio?",
+        body:`Tu nuevo ingreso será ${COP(nuevoValor)}${modoSalario==="quincenal"?" por quincena ("+COP(nuevoValor*2)+"/mes)":""}.\nAplica desde el próximo mes.`,
+        actions:[
+          {label:"Cancelar", primary:false, onClick:()=>{}},
+          {label:"Confirmar", primary:true, onClick:()=>handleSalarioChange(nuevoValor, true)},
+        ]
+      });
+      return;
+    }
     const y=now.getFullYear(), m=now.getMonth();
-    // El nuevo salario aplica desde el mes siguiente
-    const keyProximo=`${y}-${m+1<=11?m+1:0}`; // clave del mes siguiente
+    const keyProximo=`${y}-${m+1<=11?m+1:0}`;
     const newHistory={...salarioHistory,[keyProximo]:nuevoValor};
     setSalario(nuevoValor);
     setSalarioHistory(newHistory);
@@ -2799,7 +2967,7 @@ export default function App(){
       ...(g.imagen?{imagen:g.imagen}:{imagen:null}),
     };
     if(g.id) await updateDoc(doc(db,"usuarios",user.uid,"metas",g.id),pl);
-    else if(!isPro&&goals.length>=3){setProGate({titulo:"Metas ilimitadas",descripcion:"Con el plan Free puedes tener hasta 3 metas activas.",features:[{icon:"🎯",label:"Metas ilimitadas",desc:"Crea tantas como quieras"},{icon:"🖼️",label:"Imágenes personalizadas"},{icon:"📊",label:"Proyecciones de logro"}]});return;}
+    else if(!isPro&&goals.length>=3){setProGate({titulo:"Metas ilimitadas",descripcion:"Plan Free: hasta 3 metas. Pro: ilimitadas.",features:[{icon:"🎯",label:"Metas ilimitadas",desc:"Crea tantas como quieras"},{icon:"🖼️",label:"Imágenes personalizadas"},{icon:"📊",label:"Proyecciones de logro"}]});return;}
     else await addDoc(collection(db,"usuarios",user.uid,"metas"),{...pl,createdAt:serverTimestamp()});
   },[user]);
 
@@ -2831,7 +2999,7 @@ export default function App(){
       ?tx.filter(t=>isMonth(t.date,now.getMonth(),now.getFullYear()))
       :[...tx].sort((a,b)=>a.date.localeCompare(b.date));
 
-    if(txExport.length===0){alertInfo("Sin movimientos","No hay movimientos en este período para exportar.");return;}
+    if(txExport.length===0){alertInfo("Sin movimientos","Sin movimientos para exportar.");return;}
 
     const header=["Fecha","Descripción","Categoría","Subcategoría","Monto","Tipo"];
     const rows=txExport.map(t=>{
@@ -2871,7 +3039,7 @@ export default function App(){
     if(txExport.length===0){alertInfo("Sin movimientos","No hay movimientos en este período para exportar.");return;}
 
     const win=window.open("","_blank");
-    if(!win){alertWarning("Ventanas bloqueadas","Permite ventanas emergentes en tu navegador para exportar el PDF.");return;}
+    if(!win){alertWarning("Ventanas bloqueadas","Permite ventanas emergentes en tu navegador.");return;}
 
     // ── Cálculos financieros ─────────────────────────────────────────────
     // Separar por tipo para poder mostrar breakdown detallado
@@ -3597,9 +3765,11 @@ export default function App(){
 
   const CSS=`
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800;900&display=swap');
-    html,body{background:${C.bg}!important;margin:0;padding:0;}
+    html,body{background:${themeBg()}!important;margin:0;padding:0;}
     *{box-sizing:border-box;}
     @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes float{0%,100%{transform:translateY(0px)}50%{transform:translateY(-8px)}}
+    @keyframes glow{0%,100%{opacity:0.6}50%{opacity:1}}
     @keyframes slideUp{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
     @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
@@ -3618,9 +3788,9 @@ export default function App(){
     ::-webkit-scrollbar{display:none;}
   `;
 
-  if(authLoading)return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",color:C.text.b,fontFamily:"'DM Sans',sans-serif",fontSize:15}}>Cargando...</div>;
+  if(authLoading)return <SplashScreen mensaje="Cargando..."/>;
   if(!user)return <LoginScreen onLogin={handleLogin} loading={loginLoading}/>;
-  if(salario===null)return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",color:C.text.b,fontFamily:"'DM Sans',sans-serif",fontSize:15}}>Cargando perfil...</div>;
+  if(salario===null)return <SplashScreen mensaje="Cargando tu perfil..."/>;
   if(showOnb)return <OnboardingScreen user={user} onSave={handleOnbSave}/>;
 
   // ── Selector de mes inteligente — solo meses relevantes ─────────────────
@@ -3690,9 +3860,12 @@ export default function App(){
             style={{
               flexShrink:0,padding:"8px 18px",borderRadius:99,border:"none",cursor:"pointer",
               fontSize:12,fontWeight:isActive?700:500,
-              background:isActive?C.emerald:isNext?`${C.indigo}18`:C.card,
-              color:isActive?"#000":isNext?C.indigoLight:C.text.s,
-              boxShadow:isActive?"none":elev("card"),
+              background:isActive?C.emerald:isNext?`${C.indigo}22`:cardBg(),
+              backdropFilter:isActive?"none":cardBlur(),
+              WebkitBackdropFilter:isActive?"none":cardBlur(),
+              border:isActive?"none":cardBorderVal(),
+              color:isActive?C.isLight?"#fff":"#000":isNext?C.indigoLight:C.text.s,
+              boxShadow:isActive?`0 4px 16px ${C.emerald}44`:"none",
               transition:"all 0.2s",
             }}>{MONTHS_S[i]}</button>;
         })}
@@ -3828,7 +4001,10 @@ export default function App(){
     return <div style={{
       display:"flex",alignItems:"center",gap:12,
       padding:"14px 16px", marginBottom:16,
-      background:C.card, borderRadius:18, boxShadow:elev("card"),
+      ...cardSurface(C.emerald),
+      border:cardBorder(C.emerald),
+      boxShadow:cardShadow(C.emerald),
+      borderRadius:18,
     }}>
       <div style={{
         width:44,height:44,borderRadius:14,flexShrink:0,
@@ -3858,11 +4034,9 @@ export default function App(){
       <MonthSelector/>
       {/* Card única tipo Apple Wallet */}
       <div style={{
-        ...cardSurface(pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo),
-        borderRadius:24, padding:"24px 22px",
-        boxShadow:cardShadow(pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo),
+        ...heroCard(pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo),
+        borderRadius:28, padding:"24px 22px",
         marginBottom:16, animation:"fadeIn 0.25s ease",
-        border:`1px solid ${pctUsado>=0.9?C.red+"44":pctUsado>=0.7?C.amber+"33":"transparent"}`,
         position:"relative", overflow:"hidden",
       }}>
         <GradientOrbs color={pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo}/>
@@ -3890,7 +4064,7 @@ export default function App(){
           <div style={{fontSize:11,color:C.text.s,letterSpacing:1.5,fontWeight:600,textTransform:"uppercase"}}>Últimos movimientos</div>
           <button onClick={()=>changeTab("mov")} style={{background:"none",border:"none",color:C.indigo,fontSize:13,fontWeight:600,cursor:"pointer"}}>Ver todos →</button>
         </div>
-        <div style={{background:C.card,borderRadius:20,padding:"0 16px",boxShadow:elev("card"),marginBottom:16}}>
+        <div style={{...cardSurface(),border:cardBorder(),boxShadow:cardShadow(),borderRadius:20,padding:"0 16px",marginBottom:16}}>
           {[...monthTx].sort((a,b)=>parseDateSafe(b.date)-parseDateSafe(a.date)).slice(0,5).map((t,i,arr)=>{
             const cat=getCatInfo(t.cat);
             const esPos=isAporteMeta(t)||isIngreso(t.cat)||isDevolucion(t.cat)||isIngresoExtra(t.cat);
@@ -3971,20 +4145,11 @@ export default function App(){
         COP={COP}
         MONTHS_S={MONTHS_S}
       />
-      {/* ── 1. Disponible ── */}
+      {/* ── 1. Disponible — Hero Card ── */}
       <div style={{
-        borderRadius:24, padding:"32px 24px 26px", marginBottom:24,
-        background: CS.style==="glass"
-          ? surface("glassHi")
-          : CS.style==="gradient"
-            ? `linear-gradient(145deg,${pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo}28 0%,${C.card} 55%)`
-            : CS.style==="classic"
-              ? `linear-gradient(135deg,${pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo}32 0%,${pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo}12 50%,${C.bg} 100%)`
-              : C.card,
-        ...(CS.style==="glass"?{backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)"}:{}),
-        border:CS.style==="solid"?`1px solid ${pctUsado>=0.9?C.red+"44":pctUsado>=0.7?C.amber+"33":"transparent"}`:cardBorder(pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo),
-        boxShadow: cardShadow(pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo),
-        transition:"box-shadow 0.5s ease,border-color 0.5s ease",
+        ...heroCard(pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo),
+        borderRadius:28, padding:"30px 24px 24px", marginBottom:20,
+        transition:"all 0.5s ease",
         position:"relative", overflow:"hidden",
       }}>
         <GradientOrbs color={pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.indigo}/>
@@ -4028,23 +4193,32 @@ export default function App(){
       ):(
         <>
           {/* ── 2. Stats ── */}
-          <div style={{display:"grid",gridTemplateColumns:SC.isSmall?"1fr":"1fr 1fr",gap:SC.isSmall?8:12,marginBottom:24}}>
-            <div style={{...cardSurface(C.red),borderRadius:20,padding:"20px 18px",boxShadow:cardShadow(C.red)}}>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}>
-                <div style={{width:6,height:6,borderRadius:99,background:C.red,opacity:0.7}}/>
-                <div style={{fontSize:12,color:C.text.b,fontWeight:500}}>Gastos</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
+            {[
+              {label:"Gastos", valor:animGasto, color:C.red, sub:`${Math.round(pctUsado*100)}% del ingreso`},
+              {label:"En metas", valor:animAportes, color:C.indigo, sub:totalAportes>0?`${Math.round(tasaAhorr*100)}% guardado`:"Empieza cuando quieras"},
+            ].map(item=>(
+              <div key={item.label} style={{
+                ...cardSurface(item.color),
+                borderRadius:22, padding:"18px 16px",
+                border: cardBorder(item.color),
+                boxShadow: cardShadow(item.color),
+                position:"relative", overflow:"hidden",
+              }}>
+                <div style={{
+                  position:"absolute",top:0,left:0,right:0,height:2,
+                  background:`linear-gradient(90deg,${item.color},${item.color}44)`,
+                  borderRadius:"22px 22px 0 0",
+                }}/>
+                <div style={{fontSize:11,color:C.text.s,fontWeight:600,letterSpacing:0.8,textTransform:"uppercase",marginBottom:10,marginTop:4}}>
+                  {item.label}
+                </div>
+                <div style={{fontSize:21,fontWeight:800,color:item.color,marginBottom:4,letterSpacing:-0.5,lineHeight:1}}>
+                  {COP(item.valor)}
+                </div>
+                <div style={{fontSize:11,color:C.text.s}}>{item.sub}</div>
               </div>
-              <div style={{fontSize:22,fontWeight:700,color:C.red,marginBottom:4,letterSpacing:-0.3}}>{COP(animGasto)}</div>
-              <div style={{fontSize:11,color:C.text.s,fontWeight:500}}>{Math.round(pctUsado*100)}% del ingreso</div>
-            </div>
-            <div style={{...cardSurface(C.indigo),borderRadius:20,padding:"20px 18px",boxShadow:cardShadow(C.indigo)}}>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}>
-                <div style={{width:6,height:6,borderRadius:99,background:C.indigo,opacity:0.7}}/>
-                <div style={{fontSize:12,color:C.text.b,fontWeight:500}}>En metas</div>
-              </div>
-              <div style={{fontSize:22,fontWeight:700,color:C.indigoLight,marginBottom:4,letterSpacing:-0.3}}>{COP(animAportes)}</div>
-              <div style={{fontSize:11,color:C.text.s,fontWeight:500}}>{totalAportes>0?`${Math.round(tasaAhorr*100)}% guardado`:"Empieza cuando quieras"}</div>
-            </div>
+            ))}
           </div>
           {/* ── 2.3 Bienvenida usuario nuevo ── */}
           {tx.length===0&&(
@@ -4096,28 +4270,37 @@ export default function App(){
             onActivate={()=>setBudgetSetupOpen(true)}/>
           {/* ── 2.45 Accesos rápidos IA + Simulador ── */}
           <div style={{display:"flex",gap:8,marginBottom:16}}>
-            <button onClick={()=>setAsistenteOpen(true)} style={{
-              flex:1,display:"flex",alignItems:"center",gap:8,
-              background:C.surface,border:`1px solid ${C.border}`,
-              borderRadius:14,padding:"10px 12px",cursor:"pointer",
-            }}>
-              <span style={{fontSize:18,flexShrink:0}}>🤖</span>
-              <div style={{textAlign:"left"}}>
-                <div style={{fontSize:12,fontWeight:700,color:C.text.h,lineHeight:1.2}}>Asistente IA</div>
-                <div style={{fontSize:10,color:C.text.s}}>Pregúntame algo</div>
-              </div>
-            </button>
-            {disponibleGastar>0&&<button onClick={()=>isPro?setSimuladorOpen(true):setProGate({titulo:"Simulador de decisión",descripcion:"Analiza si puedes permitirte una compra sin afectar tus finanzas.",features:[{icon:"🎯",label:"Simulación de impacto",desc:"Ve cómo afecta tu balance"},{icon:"📊",label:"Análisis de cuotas",desc:"Proyección mes a mes"},{icon:"💡",label:"Recomendación inteligente",desc:"Basada en tus datos reales"}]})} style={{
-              flex:1,display:"flex",alignItems:"center",gap:8,
-              background:C.surface,border:`1px solid ${C.border}`,
-              borderRadius:14,padding:"10px 12px",cursor:"pointer",
-            }}>
-              <span style={{fontSize:18,flexShrink:0}}>🔮</span>
-              <div style={{textAlign:"left"}}>
-                <div style={{fontSize:12,fontWeight:700,color:C.text.h,lineHeight:1.2}}>Simulador{!isPro&&" ⚡"}</div>
-                <div style={{fontSize:10,color:C.text.s}}>¿Puedo comprarlo?</div>
-              </div>
-            </button>}
+            {[
+              {icon:"🤖", title:"Asistente IA", sub:"Pregúntame algo", onClick:()=>setAsistenteOpen(true), color:C.indigo, show:true},
+              {icon:"🔮", title:`Simulador${!isPro?" ⚡":""}`, sub:"¿Puedo comprarlo?",
+               onClick:()=>isPro?setSimuladorOpen(true):setProGate({titulo:"Simulador de decisión",descripcion:"Analiza si puedes permitirte una compra sin afectar tus finanzas.",features:[{icon:"🎯",label:"Simulación de impacto"},{icon:"📊",label:"Análisis de cuotas"},{icon:"💡",label:"Recomendación inteligente"}]}),
+               color:C.violet, show:disponibleGastar>0},
+            ].filter(b=>b.show).map(b=>(
+              <button key={b.title} onClick={b.onClick} style={{
+                flex:1, display:"flex", alignItems:"center", gap:10,
+                ...cardSurface(b.color),
+                border: cardBorder(b.color),
+                boxShadow: cardShadow(b.color),
+                borderRadius:18, padding:"12px 14px", cursor:"pointer",
+                position:"relative", overflow:"hidden",
+                transition:"transform 0.15s, box-shadow 0.15s",
+              }}
+              onMouseDown={e=>e.currentTarget.style.transform="scale(0.97)"}
+              onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
+              onTouchStart={e=>e.currentTarget.style.transform="scale(0.97)"}
+              onTouchEnd={e=>e.currentTarget.style.transform="scale(1)"}
+              >
+                <div style={{
+                  width:36,height:36,borderRadius:12,flexShrink:0,
+                  background:`${b.color}22`,border:`1px solid ${b.color}30`,
+                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,
+                }}>{b.icon}</div>
+                <div style={{textAlign:"left"}}>
+                  <div style={{fontSize:12,fontWeight:700,color:C.text.h,lineHeight:1.2}}>{b.title}</div>
+                  <div style={{fontSize:10,color:C.text.s,marginTop:2}}>{b.sub}</div>
+                </div>
+              </button>
+            ))}
           </div>
           {/* ── 2.6 Racha ── */}
           <RachaWidget/>
@@ -4757,8 +4940,8 @@ export default function App(){
             </div>
             <div style={{fontSize:13,color:C.text.b,lineHeight:1.7,marginBottom:20}}>
               {month===now.getMonth()&&selectedYear===now.getFullYear()
-                ? "Registra un movimiento y el análisis\nse actualiza automáticamente."
-                : "No hay movimientos registrados\npara este período."}
+                ? "Registra un movimiento y el análisis aparece solo."
+                : "Sin movimientos en este período."}
             </div>
             {month===now.getMonth()&&selectedYear===now.getFullYear()&&(
               <button onClick={()=>setModal("new")} style={{
@@ -5207,8 +5390,8 @@ export default function App(){
               </div>
               <div style={{fontSize:13,color:C.text.b,lineHeight:1.7,marginBottom:20}}>
                 {month===now.getMonth()&&selectedYear===now.getFullYear()
-                  ? "Aún no registraste nada este mes.\nEmpieza cuando quieras."
-                  : "No hay registros para este período.\nPuedes navegar a otro mes arriba."}
+                  ? "Aún no hay registros este mes."
+                  : "Sin registros. Cambia el mes arriba."}
               </div>
               {month===now.getMonth()&&selectedYear===now.getFullYear()&&(
                 <button onClick={()=>setModal("new")} style={{
@@ -5361,7 +5544,7 @@ export default function App(){
           </Lbl>
           {!esPasado(diaSelec)&&<button onClick={()=>{
               if(!isPro&&pagos.filter(p=>p.activo).length>=3){
-                setProGate({titulo:"Pagos programados ilimitados",descripcion:"Con el plan Free puedes tener hasta 3 pagos programados. Activa Pro para agregar más.",features:[{icon:"📅",label:"Pagos ilimitados"},{icon:"🔔",label:"Recordatorios"},{icon:"✅",label:"Historial completo"}]});
+                setProGate({titulo:"Pagos programados ilimitados",descripcion:"Plan Free: hasta 3 pagos. Pro: ilimitados.",features:[{icon:"📅",label:"Pagos ilimitados"},{icon:"🔔",label:"Recordatorios"},{icon:"✅",label:"Historial completo"}]});
                 return;
               }
               setPagoModalDia(diaSelec);setPagoModal("new");
@@ -5664,6 +5847,120 @@ export default function App(){
     );
   }
 
+  // ── Componente días de pago (necesita useState propio) ──────────────────────
+  function DiasPageConfig({quincenas, modoSalario, setQuincenas, user, db, C, COP}){
+    const [editando, setEditando] = useState(false);
+
+    const guardar = async(q) => {
+      const {showAlert} = await import("./GlobalAlert");
+      showAlert({
+        type:"warning",
+        title:"¿Cambiar fecha de pago?",
+        body:"Solo cámbialo si tu fecha de depósito cambió.",
+        actions:[
+          {label:"Cancelar", primary:false, onClick:()=>{}},
+          {label:"Sí, actualizar", primary:true, onClick:async()=>{
+            setQuincenas(q);
+            await setDoc(doc(db,"usuarios",user.uid),{quincenas:q},{merge:true});
+            setEditando(false);
+          }},
+        ]
+      });
+    };
+
+    return (
+      <div style={{marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+          <div style={{fontSize:11,color:C.text.s,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>
+            ¿Cuándo te pagan?
+          </div>
+          {!editando&&(
+            <button onClick={()=>setEditando(true)} style={{
+              background:"none",border:`1px solid ${C.indigo}44`,borderRadius:8,
+              padding:"4px 12px",color:C.indigo,cursor:"pointer",fontSize:11,fontWeight:700
+            }}>Editar</button>
+          )}
+        </div>
+
+        {!editando ? (
+          <div style={{
+            background:C.surface,borderRadius:10,padding:"12px 16px",
+            display:"flex",justifyContent:"space-between",alignItems:"center"
+          }}>
+            <span style={{fontSize:13,color:C.text.b}}>
+              {modoSalario==="quincenal" ? "Días de quincena" : "Día de depósito"}
+            </span>
+            <span style={{fontSize:15,fontWeight:800,color:C.text.h}}>
+              {modoSalario==="quincenal"
+                ? `día ${quincenas.dia1||1} y día ${quincenas.dia2||15}`
+                : `día ${quincenas.dia1||30} de cada mes`}
+            </span>
+          </div>
+        ) : (
+          <>
+            <div style={{
+              background:`${C.amber}12`,border:`1px solid ${C.amber}30`,
+              borderRadius:10,padding:"10px 14px",marginBottom:8,
+              fontSize:12,color:C.amber,lineHeight:1.5
+            }}>
+              ⚠️ Solo cámbialo si tu fecha de depósito cambió.
+            </div>
+
+            {modoSalario==="quincenal" ? (
+              <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:10,color:C.text.s,marginBottom:4}}>1er pago</div>
+                  <input type="number" min="1" max="31"
+                    defaultValue={quincenas.dia1||1} id="cfg-q-dia1"
+                    style={{width:"100%",background:C.surface,border:`2px solid ${C.indigo}44`,
+                      borderRadius:10,padding:"10px 12px",color:C.text.h,
+                      fontSize:18,fontWeight:800,outline:"none",textAlign:"center"}}/>
+                </div>
+                <div style={{fontSize:14,color:C.text.s,paddingTop:18}}>y</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:10,color:C.text.s,marginBottom:4}}>2do pago</div>
+                  <input type="number" min="1" max="31"
+                    defaultValue={quincenas.dia2||15} id="cfg-q-dia2"
+                    style={{width:"100%",background:C.surface,border:`2px solid ${C.indigo}44`,
+                      borderRadius:10,padding:"10px 12px",color:C.text.h,
+                      fontSize:18,fontWeight:800,outline:"none",textAlign:"center"}}/>
+                </div>
+              </div>
+            ) : (
+              <input type="number" min="1" max="31"
+                defaultValue={quincenas.dia1||30} id="cfg-m-dia1"
+                style={{width:"100%",background:C.surface,border:`2px solid ${C.indigo}44`,
+                  borderRadius:10,padding:"10px 12px",color:C.text.h,
+                  fontSize:18,fontWeight:800,outline:"none",textAlign:"center",marginBottom:8}}/>
+            )}
+
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setEditando(false)} style={{
+                flex:1,padding:"10px",borderRadius:10,
+                border:`1px solid ${C.border}`,background:"transparent",
+                color:C.text.s,cursor:"pointer",fontSize:13,fontWeight:700
+              }}>Cancelar</button>
+              <button onClick={()=>{
+                if(modoSalario==="quincenal"){
+                  const d1=Math.max(1,Math.min(31,parseInt(document.getElementById("cfg-q-dia1")?.value)||1));
+                  const d2=Math.max(1,Math.min(31,parseInt(document.getElementById("cfg-q-dia2")?.value)||15));
+                  guardar({...quincenas,dia1:d1,dia2:d2});
+                } else {
+                  const d=Math.max(1,Math.min(31,parseInt(document.getElementById("cfg-m-dia1")?.value)||30));
+                  guardar({...quincenas,dia1:d});
+                }
+              }} style={{
+                flex:1,padding:"10px",borderRadius:10,border:"none",
+                background:`linear-gradient(135deg,${C.indigo},${C.violet})`,
+                color:"#fff",cursor:"pointer",fontSize:13,fontWeight:800
+              }}>Guardar</button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
   const ConfigTab=()=>{
     const [tmp,setTmp]=useState(String(sal));
     return <div style={{padding:"16px 20px 0"}}>
@@ -5696,6 +5993,12 @@ export default function App(){
             style={{flex:1,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"11px 14px",color:C.text.h,fontSize:16,outline:"none"}}/>
           <button onClick={()=>handleSalarioChange(parseFloat(tmp)||sal)} style={{background:`linear-gradient(135deg,${C.emerald},#059669)`,border:"none",borderRadius:10,padding:"0 20px",color:"#000",fontWeight:800,cursor:"pointer",fontSize:18}}>✓</button>
         </div>
+        {/* Días de pago — componente separado para poder usar useState */}
+        <DiasPageConfig
+          quincenas={quincenas} modoSalario={modoSalario}
+          setQuincenas={setQuincenas} user={user} db={db}
+          C={C} COP={COP}
+        />
         <div style={{fontSize:12,color:C.text.b,background:C.surface,borderRadius:8,padding:"12px 14px",lineHeight:2}}>
           {modoSalario==="quincenal"
             ?<>Modo quincena — recibes <b style={{color:C.text.h}}>{COP(parseFloat(tmp)||sal)}</b> dos veces al mes ({COP((parseFloat(tmp)||sal)*2)}/mes).<br/></>
@@ -5721,6 +6024,30 @@ export default function App(){
         <div style={{fontSize:12,color:"#c7d2fe",fontWeight:800,marginBottom:8,letterSpacing:1.2,textTransform:"uppercase"}}>📐 Regla de oro</div>
         <div style={{fontSize:14,color:"rgba(255,255,255,0.95)",lineHeight:1.8,fontWeight:500}}><b style={{color:"#fff",fontWeight:900}}>Págate primero.</b> Al recibir el sueldo, transfiere el ahorro <i>antes</i> de gastar.</div>
       </Card>
+      {/* ── Estilo de la card principal ── */}
+      <Card style={{marginBottom:12}}>
+        <Lbl>Estilo de la tarjeta principal</Lbl>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:4}}>
+          {[
+            {id:"gradient", icon:"🌈", label:"Gradiente", desc:"Clásico con color"},
+            {id:"glass",    icon:"🔮", label:"Glass",     desc:"Translúcido"},
+            {id:"matte",    icon:"⬛", label:"Mate",      desc:"Premium sólido"},
+          ].map(s=>(
+            <button key={s.id} onClick={()=>cambiarHeroStyle(s.id)}
+              style={{
+                padding:"12px 8px",borderRadius:14,border:"none",cursor:"pointer",
+                background:heroStyle===s.id?`${C.indigo}20`:C.surface,
+                outline:`2px solid ${heroStyle===s.id?C.indigo:"transparent"}`,
+                transition:"all 0.15s",textAlign:"center",
+              }}>
+              <div style={{fontSize:20,marginBottom:4}}>{s.icon}</div>
+              <div style={{fontSize:11,fontWeight:700,color:C.text.h}}>{s.label}</div>
+              <div style={{fontSize:9,color:C.text.s,marginTop:2}}>{s.desc}</div>
+            </button>
+          ))}
+        </div>
+      </Card>
+
       <Card style={{marginBottom:12}}>
         <Lbl>Tema de color</Lbl>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -5745,26 +6072,7 @@ export default function App(){
           ))}
         </div>
       </Card>
-      <Card style={{marginBottom:12}}>
-        <Lbl>Estilo de cards</Lbl>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          {[
-            {id:"solid",    label:"Sólido",    desc:"Premium limpio"},
-            {id:"glass",    label:"Glass",     desc:"Translúcido"},
-            {id:"gradient", label:"Gradiente", desc:"Con color suave"},
-            {id:"classic",  label:"Clásico",   desc:"3D con orbs"},
-          ].map(s=>(
-            <button key={s.id} onClick={()=>cambiarCardStyle(s.id)}
-              style={{padding:"12px 10px",borderRadius:12,border:"none",cursor:"pointer",
-                background:cardStyle===s.id?`${C.indigo}20`:C.surface,
-                outline:cardStyle===s.id?`2px solid ${C.indigo}`:"2px solid transparent",
-                transition:"all 0.15s",textAlign:"center"}}>
-              <div style={{fontSize:12,fontWeight:700,color:C.text.h}}>{s.label}</div>
-              <div style={{fontSize:10,color:C.text.s,marginTop:2}}>{s.desc}</div>
-            </button>
-          ))}
-        </div>
-      </Card>
+
       {/* ── Zona de peligro ── */}
       <Card style={{marginBottom:12,borderColor:`${C.red}30`,background:`linear-gradient(135deg,${C.red}08,${C.red}04)`}}>
         <Lbl style={{color:C.red}}>⚠️ Zona de peligro</Lbl>
@@ -5901,12 +6209,17 @@ export default function App(){
     </div>
   ) : null;
 
-  return <div style={{minHeight:"100vh",background:C.bg,color:C.text.h,fontFamily:"'DM Sans','Segoe UI',sans-serif",maxWidth:430,margin:"0 auto",paddingBottom:88,fontSize:SC.fs(15)}}>
+  return <div style={{minHeight:"100vh",background:themeBg(),color:C.text.h,fontFamily:"'DM Sans','Segoe UI',sans-serif",maxWidth:430,margin:"0 auto",paddingBottom:88,fontSize:SC.fs(15),position:"relative"}}>
     <style>{CSS}</style>
     {/* Topbar */}
-    <div style={{padding:`${SC.pad(16)}px ${SC.pad(20)}px 14px`,background:`${C.bg}f0`,position:"sticky",top:0,zIndex:20,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+    <div style={{padding:`${SC.pad(16)}px ${SC.pad(20)}px 14px`,
+      background: C.isLight ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.25)",
+      position:"sticky",top:0,zIndex:20,
+      backdropFilter:"blur(40px)",WebkitBackdropFilter:"blur(40px)",
+      borderBottom:`1px solid ${C.isLight?"rgba(255,255,255,0.6)":"rgba(255,255,255,0.05)"}`,
+      display:"flex",justifyContent:"space-between",alignItems:"center"}}>
       <div>
-        <div style={{fontSize:10,color:C.text.s,letterSpacing:1.8,fontWeight:600,marginBottom:2,opacity:0.7}}>MIS FINANZAS PRO</div>
+        <div style={{fontSize:10,color:C.text.s,letterSpacing:1.8,fontWeight:600,marginBottom:2,opacity:0.7}}>{isPro?"MIS FINANZAS PRO":"MIS FINANZAS"}</div>
         <div style={{fontSize:SC.fs(21),fontWeight:700,letterSpacing:-0.5,color:C.text.h}}>{user.displayName?.split(" ")[0]} 👋</div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -5960,7 +6273,7 @@ export default function App(){
     </div>
     {/* Menú hamburguesa — bottom sheet */}
     {menuOpen&&<MenuSheet onClose={()=>setMenuOpen(false)} user={user} disponibleGastar={disponibleGastar} totalGasto={totalGasto} tema={tema} TEMAS={TEMAS} changeTab={changeTab} setMenuOpen={setMenuOpen} setExportModal={setExportModal} handleLogout={handleLogout} C={C} COP={COP} isPro={isPro} setProGate={setProGate}/>}
-    {tab==="home"&&<HomeTab/>}{tab==="metas"&&<MetasTab/>}{tab==="cal"&&<CalendarioTab/>}{tab==="mov"&&<MovTab/>}{tab==="anal"&&<AnalisisTab/>}{tab==="cfg"&&<ConfigTab/>}{tab==="anual"&&(isPro?<ResumenAnualTab/>:<ProGate titulo="Resumen anual" descripcion="Visualiza tus finanzas de los últimos 12 meses con tendencias y comparativas." features={[{icon:"📅",label:"Vista 12 meses"},{icon:"📈",label:"Tendencias y comparativas"},{icon:"🏆",label:"Mejor y peor mes"}]} onClose={()=>changeTab("home")} C={C}/>)}{tab==="logros"&&<LogrosTab badgesDesbloqueados={badgesDesbloqueados} badgesGuardados={badgesGuardados} totalPts={totalPts} tx={tx} goals={goals} presupuestos={presupuestos} prestamos={prestamos} rachaActual={rachaActualLogros} totalMesesConDatos={totalMesesConDatos} mesesResumen={mesesResumen} mesesPerfectos={mesesPerfectos} getAportado={getAportado} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} C={C} COP={COP}/>}{tab==="mas"&&<MasTab/>}
+    {tab==="home"&&<HomeTab/>}{tab==="metas"&&<MetasTab/>}{tab==="cal"&&<CalendarioTab/>}{tab==="mov"&&<MovTab/>}{tab==="anal"&&<AnalisisTab/>}{tab==="cfg"&&<ConfigTab/>}{tab==="anual"&&(isPro?<ResumenAnualTab/>:<ProGate titulo="Resumen anual" descripcion="12 meses de tus finanzas de un vistazo." features={[{icon:"📅",label:"Vista 12 meses"},{icon:"📈",label:"Tendencias y comparativas"},{icon:"🏆",label:"Mejor y peor mes"}]} onClose={()=>changeTab("home")} C={C}/>)}{tab==="logros"&&<LogrosTab badgesDesbloqueados={badgesDesbloqueados} badgesGuardados={badgesGuardados} totalPts={totalPts} tx={tx} goals={goals} presupuestos={presupuestos} prestamos={prestamos} rachaActual={rachaActualLogros} totalMesesConDatos={totalMesesConDatos} mesesResumen={mesesResumen} mesesPerfectos={mesesPerfectos} getAportado={getAportado} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} C={C} COP={COP}/>}{tab==="mas"&&<MasTab/>}
     {/* FABs — stack vertical a la derecha */}
     {!modal&&!goalModal&&!pagoModal&&tab!=="anual"&&tab!=="logros"&&tab!=="mas"&&<>
       {/* FAB Asistente IA — arriba del + */}
@@ -6069,6 +6382,8 @@ export default function App(){
       presupuestos={presupuestos}
       MAIN_CATS={MAIN_CATS}
       month={month}
+      quincenas={quincenas}
+      modoSalario={modoSalario}
       C={C} COP={COP}/>}
     {asistenteOpen&&<AsistenteIA
       onClose={()=>setAsistenteOpen(false)}
@@ -6230,28 +6545,58 @@ export default function App(){
         </div>
       </div>;
     })()}
-    {/* Nav */}
-    <nav style={{
+    {/* Nav — Pill flotante iOS 26 */}
+    <div style={{
       position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",
       width:"100%",maxWidth:430,
-      background:`${C.bg}ee`,
-      borderTop:`1px solid ${ink(0.06)}`,
-      backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
-      display:"flex",justifyContent:"space-around",padding:"12px 0 20px",zIndex:50,
+      padding:"8px 16px 20px",
+      zIndex:50,
+      pointerEvents:"none",
     }}>
-      {NAV.map(v=><button key={v.id} onClick={()=>changeTab(v.id)} style={{
-        background:"none",border:"none",cursor:"pointer",
-        display:"flex",flexDirection:"column",alignItems:"center",gap:3,
-        color:tab===v.id?v.activeColor:ink(0.32),
-        transition:"color 0.2s",
-        padding:"4px 12px",
+      <nav style={{
+        background: C.isLight
+          ? "rgba(255,255,255,0.82)"
+          : "rgba(18,18,28,0.82)",
+        backdropFilter:"blur(40px)", WebkitBackdropFilter:"blur(40px)",
+        border: C.isLight
+          ? "1px solid rgba(255,255,255,0.9)"
+          : "1px solid rgba(255,255,255,0.10)",
+        borderRadius:28,
+        boxShadow: C.isLight
+          ? "0 8px 32px rgba(0,0,0,0.12), 0 1px 0 rgba(255,255,255,0.8) inset"
+          : "0 8px 32px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.06) inset",
+        display:"flex", justifyContent:"space-around", alignItems:"center",
+        padding:"10px 8px",
+        pointerEvents:"auto",
       }}>
-        {v.id==="metas"
-          ?<StarIcon active={tab==="metas"}/>
-          :<span style={{fontSize:22,lineHeight:1}}>{v.icon}</span>}
-        <span style={{fontSize:10,fontWeight:tab===v.id?700:500,letterSpacing:0.3,transition:"color 0.2s"}}>{v.label}</span>
-      </button>)}
-    </nav>
+        {NAV.map(v=>{
+          const isActive = tab===v.id;
+          return (
+            <button key={v.id} onClick={()=>changeTab(v.id)} style={{
+              background: isActive
+                ? C.isLight ? `${v.activeColor}18` : `${v.activeColor}20`
+                : "none",
+              border:"none", cursor:"pointer",
+              display:"flex", flexDirection:"column", alignItems:"center", gap:2,
+              color: isActive ? v.activeColor : C.text.s,
+              transition:"all 0.2s cubic-bezier(0.34,1.56,0.64,1)",
+              padding:"7px 14px", borderRadius:18,
+              transform: isActive ? "scale(1.05)" : "scale(1)",
+            }}>
+              {v.id==="metas"
+                ? <StarIcon active={isActive}/>
+                : <span style={{fontSize:20,lineHeight:1,transition:"all 0.2s"}}>{v.icon}</span>}
+              <span style={{
+                fontSize:10,
+                fontWeight: isActive ? 700 : 500,
+                letterSpacing:0.2,
+                transition:"all 0.2s",
+              }}>{v.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </div>
     {/* Modal confirmación salir */}
     {exitConfirm&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,padding:24,animation:"fadeIn 0.15s ease"}}>
       <div style={{background:C.card,borderRadius:20,padding:"28px 24px",width:"100%",maxWidth:320,boxShadow:"0 24px 60px rgba(0,0,0,0.5)",animation:"fadeSlideUp 0.2s ease"}}>

@@ -111,9 +111,14 @@ export function InsightsEngine({
 
   const daysInCurr = new Date(currentYear, month + 1, 0).getDate();
   const daysInPrev = new Date(prevYear, prevMonth + 1, 0).getDate();
-  const safeDays = Math.max(today, 5);
-  const factor = safeDays / daysInPrev;
-  const prevTotal = prevTotalRaw * factor;
+  // Comparación correcta: proyectamos el mes anterior al mismo número de días
+  // que llevamos en el mes actual (mínimo 5 para evitar ruido los primeros días)
+  const diasComparar = Math.max(today, 5);
+  // Gasto diario promedio del mes anterior × días actuales transcurridos
+  const gastoDiarioPrev = daysInPrev > 0 ? prevTotalRaw / daysInPrev : 0;
+  const prevTotal = gastoDiarioPrev * diasComparar;
+  // factor para categorías (mismo criterio)
+  const factor = daysInPrev > 0 ? diasComparar / daysInPrev : 1;
 
   // Gastos por categoría (mes actual) + (mes anterior normalizado)
   const gastosSinDeudas = gastosTx.filter(t => !t.deudaId);
@@ -134,7 +139,7 @@ export function InsightsEngine({
   // ═══════════════════════════════════════════════════════════════════════════
 
   // 1. Top cat del mes
-  if (byCat.length > 0) {
+  if (byCat.length > 0 && byCat[0].total >= 5000) {
     const top = byCat[0];
     const pctDelIng = totalIng > 0 ? top.total / totalIng : 0;
     insights.push({
@@ -148,9 +153,10 @@ export function InsightsEngine({
   }
 
   // 2. vs mes anterior (sube)
-  if (prevTotal > 100 && totalGasto > 0 && today >= 8) {
+  if (prevTotalRaw > 0 && prevTotal > 5000 && totalGasto > 0 && today >= 5) {
     const diff = totalGasto - prevTotal;
-    const pct = Math.abs(diff / prevTotal) * 100;
+    // Cap a 200% para evitar porcentajes absurdos en primeros días del mes
+    const pct = Math.min(Math.abs(diff / prevTotal) * 100, 200);
     if (pct >= 8) {
       const subio = diff > 0;
       insights.push({
@@ -176,7 +182,8 @@ export function InsightsEngine({
     .map(c => {
       const prev = byCatPrev.find(p => p.id === c.id)?.total || 0;
       if (prev < 15000 || c.total === 0) return null;
-      const pct = ((c.total - prev) / prev) * 100;
+      // Cap a 300% para evitar alarmas absurdas por pocos datos
+      const pct = Math.min(((c.total - prev) / prev) * 100, 300);
       return { ...c, pct };
     })
     .filter(Boolean)
@@ -187,7 +194,7 @@ export function InsightsEngine({
     insights.push({
       id: "cat_subida", icon: c.icon, color: C.amber,
       title: `${c.label} creció ${Math.round(c.pct)}% vs el mes pasado`,
-      body: "Si quieres, puedes revisar qué movimientos lo llevaron ahí",
+      body: "Revisa qué lo llevó ahí",
       tipo: "alerta_suave",
       prioridad: PRIORIDAD.alerta_suave,
       bgType: "warning",
@@ -201,7 +208,7 @@ export function InsightsEngine({
     insights.push({
       id: "sugerencia_ahorro", icon: "💡", color: C.indigo,
       title: `Bajando ${segundo.label} un 20% te quedan ${COP(posibleAhorro)} extra`,
-      body: "Es la segunda categoría donde más gastaste",
+      body: "Tu segunda categoría con más gastos",
       tipo: "observacional",
       prioridad: PRIORIDAD.observacional,
       bgType: "tip",
@@ -213,8 +220,8 @@ export function InsightsEngine({
   if (totalIng > 0 && totalAportesMes === 0 && hayMetas) {
     insights.push({
       id: "sin_metas", icon: "⭐", color: C.violet,
-      title: "Tus metas te esperan este mes",
-      body: "Empieza con poco — cualquier monto acerca lo que quieres",
+      title: "Aún no has aportado a tus metas",
+      body: "Cualquier monto cuenta",
       tipo: "sugerencia",
       prioridad: PRIORIDAD.sugerencia,
       bgType: "tip",
@@ -260,7 +267,7 @@ export function InsightsEngine({
         insights.push({
           id: "meta_aceleracion", icon: "🚀", color: C.indigo,
           title: `Bajar ${catRecortable.label} un 25% te ahorra ${ahorroMeses} mes${ahorroMeses > 1 ? "es" : ""} hacia ${meta.name || "tu meta"}`,
-          body: `Recortar ${COP(recorte)} de ${catRecortable.label} acelera tu meta`,
+          body: `Recortando ${COP(recorte)} llegas antes`,
           tipo: "oportunidad",
           prioridad: PRIORIDAD.oportunidad,
           bgType: "tip",
@@ -291,7 +298,7 @@ export function InsightsEngine({
       insights.push({
         id: "presupuesto_cerca_limite", icon: c.icon, color: C.amber,
         title: `${c.label} va en ${Math.round(c.pct * 100)}% de tu plan`,
-        body: `Quedan ${diasRestantes} día${diasRestantes !== 1 ? "s" : ""} — ajustar un poco el ritmo ayuda a cerrar bien el mes`,
+        body: `Quedan ${diasRestantes} día${diasRestantes !== 1 ? "s" : ""} — ve despacio`,
         tipo: "alerta_suave",
         prioridad: PRIORIDAD.alerta_suave,
         bgType: "warning",
@@ -320,7 +327,7 @@ export function InsightsEngine({
       insights.push({
         id: "presupuesto_sobrado", icon: c.icon, color: C.emerald,
         title: `Te sobran ${COP(c.sobrante)} en ${c.label}`,
-        body: "Buen candidato para mover a tus metas o ahorro",
+        body: "Pásalo a tus metas",
         tipo: "oportunidad",
         prioridad: PRIORIDAD.oportunidad,
         bgType: "success",
@@ -365,7 +372,7 @@ export function InsightsEngine({
         insights.push({
           id: "pago_proximo_sin_saldo", icon: "🔔", color: C.amber,
           title: `${COP(totalPagos)} en pagos ${diasMin === 0 ? "hoy" : diasMin === 1 ? "mañana" : `en ${diasMin} días`}`,
-          body: `Tienes ${COP(saldo)} disponibles — organízate antes para que no te sorprenda`,
+          body: `Tienes ${COP(saldo)} — no te vaya a coger la tarde`,
           tipo: "alerta_critica",
           prioridad: PRIORIDAD.alerta_critica,
           bgType: "warning",
@@ -415,7 +422,7 @@ export function InsightsEngine({
         insights.push({
           id: "mejor_mes_categoria", icon: "🎉", color: C.emerald,
           title: `Tu mejor mes en ${c.label} en un tiempo`,
-          body: `${COP(Math.round(c.ahorro))} menos que tu promedio — ¡bien hecho!`,
+          body: `${COP(Math.round(c.ahorro))} menos que lo normal — ¡sigue así!`,
           tipo: "logro",
           prioridad: PRIORIDAD.logro,
           bgType: "success",
@@ -439,7 +446,7 @@ export function InsightsEngine({
         insights.push({
           id: "dia_gasto_fuerte", icon: "📌", color: C.amber,
           title: `El día ${diaTop} concentraste ${Math.round(pctDia * 100)}% del gasto del mes`,
-          body: `${COP(montoTop)} en un solo día — si fue planeado, todo bien. Si no, revisa`,
+          body: `${COP(montoTop)} en un día — ¿fue planeado?`,
           tipo: "alerta_suave",
           prioridad: PRIORIDAD.alerta_suave,
           bgType: "warning",
@@ -454,8 +461,8 @@ export function InsightsEngine({
   if (disponibleGastar <= 0 && totalAportesMes > 0 && totalIng > 0) {
     insights.push({
       id: "disponible_agotado", icon: "🚫", color: C.red,
-      title: "Tu disponible se agotó",
-      body: `Tienes ${COP(totalAportesMes)} en metas — bájale el monto a una meta para liberar dinero.`,
+      title: "Ya no tienes disponible",
+      body: `Bájale a una meta para liberar dinero`,
       tipo: "alerta_critica",
       prioridad: PRIORIDAD.alerta_critica,
       bgType: "danger",
@@ -489,7 +496,7 @@ export function InsightsEngine({
       id: "gasto_supera_ingreso", icon: "🚨", color: C.red,
       title: `Gastaste el ${Math.round(pctGastado * 100)}% de tu ingreso`,
       body: totalAportesMes > 0
-        ? `Los extras cubrieron el resto. Si es un patrón, revisa tus gastos.`
+        ? `Los ingresos extra cubrieron la diferencia. Revisa si esto se repite.`
         : `Gastaste más de lo que ganaste este mes.`,
       tipo: "alerta_critica",
       prioridad: PRIORIDAD.alerta_critica + 2,
@@ -516,7 +523,7 @@ export function InsightsEngine({
         insights.push({
           id: "dias_sin_registrar", icon: "📭", color: C.amber,
           title: `Llevas ${diasSinReg} días sin registrar`,
-          body: "Los gastos sin anotar se acumulan. ¿Qué pasó estos días?",
+          body: "Los gastos se acumulan sin que te des cuenta",
           tipo: "alerta_suave",
           prioridad: PRIORIDAD.alerta_suave,
           bgType: "warning",
@@ -534,7 +541,7 @@ export function InsightsEngine({
     insights.push({
       id: "fin_mes_poco_disponible", icon: "🏁", color: C.amber,
       title: `Quedan ${diasRestantesFin} días y tienes ${COP(disponibleGastar)}`,
-      body: "Poco margen para cerrar el mes. Mejor no improvisar.",
+      body: "No improvises — cada peso cuenta",
       tipo: "alerta_suave",
       prioridad: PRIORIDAD.alerta_critica + 0.5, // más prioritario que disponible_bajo genérico
       bgType: "warning",
@@ -548,7 +555,7 @@ export function InsightsEngine({
     insights.push({
       id: "racha_en_riesgo", icon: "🔥", color: C.amber,
       title: `Tu racha de ${rachaActual} meses en verde está en riesgo`,
-      body: `Llevas el ${Math.round(pctGastado * 100)}% gastado — cuidado con los últimos días.`,
+      body: `${Math.round(pctGastado * 100)}% gastado — cuida los últimos días`,
       tipo: "alerta_suave",
       prioridad: PRIORIDAD.alerta_suave + 2,
       bgType: "warning",
@@ -561,8 +568,8 @@ export function InsightsEngine({
   if (today >= 14 && today <= 18 && pctGastado < 0.3 && totalGasto > 0 && totalIng > 0) {
     insights.push({
       id: "mes_tranquilo", icon: "😌", color: C.emerald,
-      title: "Mes tranquilo por ahora",
-      body: `Solo ${Math.round(pctGastado * 100)}% gastado a mitad de mes. Buen ritmo.`,
+      title: "Vas bien este mes",
+      body: `${Math.round(pctGastado * 100)}% gastado a mitad de mes — buen ritmo`,
       tipo: "logro",
       prioridad: PRIORIDAD.logro,
       bgType: "success",
@@ -618,12 +625,15 @@ export function InsightsEngine({
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {top3.map(ins => (
           <div key={ins.id} style={{
-            borderRadius: 16, padding: "13px 15px",
+            borderRadius: 18, padding: "13px 15px",
             background: BG_MAP[ins.bgType],
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
             border: `1px solid ${BORDER_MAP[ins.bgType]}`,
             display: "flex", alignItems: "center", gap: 12,
             animation: "fadeIn 0.3s ease",
             position: "relative",
+            boxShadow: `0 4px 20px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.06)`,
           }}>
             <div style={{
               width: 40, height: 40, borderRadius: 12, flexShrink: 0,

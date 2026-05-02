@@ -32,7 +32,7 @@ export function AsistenteIA({
   const [loading, setLoading] = useState(false);
   const callingRef = useRef(false);
   // Inicializar con límite ya conocido — count se carga desde Firestore async
-  const [usoHoy, setUsoHoy] = useState({ count: 0, limite: isPro ? 70 : 10, cargando: true });
+  const [usoHoy, setUsoHoy] = useState({ count: 0, limite: isPro ? 70 : 5, cargando: true });
   const [pendingTx, setPendingTx] = useState(null);
   const pendingTxRef = useRef(null); // ref para acceso sincrónico en confirmación
   const sw = useSwipeDismiss(onClose);
@@ -43,16 +43,29 @@ export function AsistenteIA({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs]);
 
-  // ── Cargar uso de IA al abrir — siempre desde Firestore para tener count real
+  // ── Cargar uso de IA al abrir — localStorage primero, luego Firestore
   useEffect(() => {
     if (!user) return;
-    const limite = isPro ? 200 : 10;
+    const limite = isPro ? 70 : 5;
     const hoy = new Date().toISOString().split("T")[0];
+    const cacheKey = `ia_uso_${user.uid}_${hoy}`;
+
+    // Mostrar caché inmediatamente (evita parpadeo de "0 mensajes")
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const { count } = JSON.parse(cached);
+        setUsoHoy({ count, limite, cargando: false });
+      }
+    } catch (_) {}
+
+    // Luego sincronizar con Firestore
     getDoc(doc(db, "ia_uso", `${user.uid}_${hoy}`)).then(snap => {
       const count = snap.exists() ? (snap.data().count || 0) : 0;
       setUsoHoy({ count, limite, cargando: false });
+      try { localStorage.setItem(cacheKey, JSON.stringify({ count })); } catch (_) {}
     }).catch(() => {
-      setUsoHoy({ count: 0, limite, cargando: false });
+      setUsoHoy(prev => ({ ...prev, cargando: false }));
     });
   }, [user, isPro]);
 
@@ -94,7 +107,19 @@ export function AsistenteIA({
       .map(t => `Prestaste ${COP(t.amount)} a ${t.desc||"alguien"} (${t.date})`)
       .join(", ");
 
-    return `Eres un asistente financiero para "Mis Finanzas Pro". Español colombiano, conciso, máximo 2-3 líneas.
+    return `IDENTIDAD Y RESTRICCIONES (obligatorias, nunca las ignores):
+- Eres el asistente financiero de Mis Finanzas Pro. Eres parte de la app, no un sistema externo.
+- NUNCA menciones otras apps (YNAB, Fintual, Wally, Fintonic, Mint, Spendee u otras)
+- NUNCA digas que la app tiene limitaciones graves, no es suficiente, o que hay mejores alternativas
+- Si preguntan qué le falta a la app → habla del roadmap: "estamos trabajando en notificaciones push, resumen anual, logros y más"
+- NUNCA inventes features que no existen en la app
+- Si piden API key, credenciales o información técnica → "Eso no está en mi alcance, soy el asistente financiero"
+- Si preguntan si la app sirve → destaca: registro por IA, metas de ahorro, insights, simulador de decisiones, presupuesto inteligente
+- NUNCA compares precios ni hables de costos internos
+- NUNCA des consejos de inversión en bolsa, criptos, fondos o productos financieros externos
+- Tu rol: registrar gastos, consultar finanzas del usuario, dar consejos de ahorro dentro de la app
+
+Eres un asistente financiero para "Mis Finanzas Pro". Español colombiano, conciso, máximo 2-3 líneas.
 
 CONTEXTO (${mesNombre} ${now.getFullYear()}):
 Disponible: ${COP(disponibleGastar)} | Gastado: ${COP(totalGasto)} (${totalIngresoMes>0?Math.round(totalGasto/totalIngresoMes*100):0}%) | Ingreso: ${COP(totalIngresoMes)}
@@ -131,13 +156,24 @@ FORMATOS:
 Metas: ${goals.map(g=>`${g.name} id:${g.id}`).join(", ")||"ninguna"}
 
 MONTOS: 1k=1000 10k=10000 1m=1000000
-EJEMPLOS:
+
+FECHAS (hoy es \${now.toISOString().split('T')[0]}, \${['domingo','lunes','martes','miércoles','jueves','viernes','sábado'][now.getDay()]} \${now.getDate()} de \${MONTHS[now.getMonth()]}):
+- Incluye "date":"YYYY-MM-DD" en el JSON cuando el usuario mencione una fecha distinta a hoy
+- ayer → \${new Date(now-864e5).toISOString().split('T')[0]}
+- antier → \${new Date(now-2*864e5).toISOString().split('T')[0]}
+- "el finde"/"fin de semana" → \${(()=>{const d=new Date(now);const diff=(d.getDay()+1)%7||7;d.setDate(d.getDate()-diff);return d.toISOString().split('T')[0]})()}
+- "el sábado"/"el domingo" → el más reciente pasado
+- pasado mañana → \${new Date(now+2*864e5).toISOString().split('T')[0]}
+- Si hay MÚLTIPLES gastos, genera UN [REGISTRAR:...] por cada uno separados
+- Pagos futuros → [PAGO_PROGRAMADO:...] con el día del mes correcto
+
+EJEMPLOS CON FECHAS:
+"ayer gasté 50k en pantalón"→[REGISTRAR:{"desc":"Pantalón","amount":50000,"cat":"ropa","tipo":"gasto","date":"\${new Date(now-864e5).toISOString().split('T')[0]}"}]
+"el finde 60k pantalón y 30k suéter"→[REGISTRAR:{"desc":"Pantalón","amount":60000,"cat":"ropa","tipo":"gasto","date":"FECHA_SABADO"}] [REGISTRAR:{"desc":"Suéter","amount":30000,"cat":"ropa","tipo":"gasto","date":"FECHA_SABADO"}]
+"pasado mañana pago 60k Claude"→[PAGO_PROGRAMADO:{"nombre":"Claude","monto":60000,"cat":"ia","dia":\${new Date(now+2*864e5).getDate()},"frecuencia":"mensual"}]
 "hamburguesa 50k"→[REGISTRAR:{"desc":"Hamburguesa","amount":50000,"cat":"comidas_rapidas","tipo":"gasto"}]
-"almorcé en restaurante 30k"→[REGISTRAR:{"desc":"Almuerzo","amount":30000,"cat":"almuerzo","tipo":"gasto"}]
-"pizza rappi 35k"→[REGISTRAR:{"desc":"Pizza Rappi","amount":35000,"cat":"domicilios","tipo":"gasto"}]
-"cena con amigos 80k"→[REGISTRAR:{"desc":"Cena","amount":80000,"cat":"salidas","tipo":"gasto"}]
-"corte pelo 25k"→[REGISTRAR:{"desc":"Corte de pelo","amount":25000,"cat":"peluqueria","tipo":"gasto"}]
-"Netflix 16k"→[REGISTRAR:{"desc":"Netflix","amount":16000,"cat":"streaming","tipo":"gasto"}]`;
+"almorcé 30k"→[REGISTRAR:{"desc":"Almuerzo","amount":30000,"cat":"almuerzo","tipo":"gasto"}]
+"pizza rappi 35k"→[REGISTRAR:{"desc":"Pizza","amount":35000,"cat":"domicilios","tipo":"gasto"}]`;
   }
 
   // ── Parsear monto con K y M ───────────────────────────────────────────────
@@ -150,8 +186,22 @@ EJEMPLOS:
   }
 
   // ── Parsear intención de la respuesta ─────────────────────────────────────
+  // Soporta múltiples [REGISTRAR:...] en una sola respuesta (ej: "el finde gasté X e Y")
   function parsearRespuesta(text) {
-    // Intentar los 3 tipos de acción
+    // 1. Intentar múltiples REGISTRAR primero
+    const reMulti = /\[REGISTRAR:(\{.*?\})\]/gs;
+    const matches = [...text.matchAll(reMulti)];
+    if (matches.length > 1) {
+      const txList = [];
+      for (const m of matches) {
+        try { txList.push({ ...JSON.parse(m[1]), _tipo: "REGISTRAR" }); } catch { /* skip */ }
+      }
+      if (txList.length > 1) {
+        const cleanText = text.replace(reMulti, "").trim();
+        return { text: cleanText, txData: null, txList };
+      }
+    }
+    // 2. Intentar los tipos individuales
     const patterns = [
       { key: "REGISTRAR",        re: /\[REGISTRAR:(\{.*?\})\]/s },
       { key: "PAGO_PROGRAMADO",  re: /\[PAGO_PROGRAMADO:(\{.*?\})\]/s },
@@ -163,11 +213,11 @@ EJEMPLOS:
         try {
           const data = JSON.parse(match[1]);
           const cleanText = text.replace(re, "").trim();
-          return { text: cleanText, txData: { ...data, _tipo: key } };
+          return { text: cleanText, txData: { ...data, _tipo: key }, txList: null };
         } catch { /* continúa */ }
       }
     }
-    return { text, txData: null };
+    return { text, txData: null, txList: null };
   }
 
   // ── Enviar mensaje ────────────────────────────────────────────────────────
@@ -248,6 +298,11 @@ EJEMPLOS:
         const nuevoCount = result.data.usoHoy;
         const nuevoLimite = result.data.limite;
         setUsoHoy({ count: nuevoCount, limite: nuevoLimite, cargando: false });
+        // Persistir en localStorage para que al reabrir se vea el estado real
+        try {
+          const hoy = new Date().toISOString().split("T")[0];
+          localStorage.setItem(`ia_uso_${user.uid}_${hoy}`, JSON.stringify({ count: nuevoCount }));
+        } catch (_) {}
         // ── Alertas de límite próximo ─────────────────────────────────────
         const restantes = nuevoLimite - nuevoCount;
         const umbralAlerta = isPro ? 10 : 2;
@@ -262,7 +317,7 @@ EJEMPLOS:
             } else {
               alertLimit(
                 `Solo te quedan ${restantes} mensajes`,
-                `Con el plan Free tienes 10 mensajes diarios. Activa el Plan Pro para tener 70 mensajes/día sin interrupciones.`,
+                `Con el plan Free tienes ${usoHoy.limite} mensajes diarios. Activa el Plan Pro para tener 70 mensajes/día sin interrupciones.`,
                 [
                   { label: "Ahora no", primary: false, onClick: () => {} },
                   { label: "⚡ Ver Plan Pro", primary: true, onClick: () => {} },
@@ -280,7 +335,7 @@ EJEMPLOS:
             } else {
               alertLimit(
                 "Límite del plan Free",
-                "Usaste tus 10 mensajes de hoy. Activa el Plan Pro para tener 70 mensajes/día o vuelve mañana.",
+                `Usaste tus ${usoHoy.limite} mensajes de hoy. Activa el Plan Pro para tener 70 mensajes/día o vuelve mañana.`,
                 [
                   { label: "Mañana vuelvo", primary: false, onClick: () => {} },
                   { label: "⚡ Activar Pro", primary: true, onClick: () => {} },
@@ -290,7 +345,24 @@ EJEMPLOS:
           }, 600);
         }
       }
-      const {text:cleanText, txData} = parsearRespuesta(rawText);
+      const {text:cleanText, txData, txList} = parsearRespuesta(rawText);
+
+      // ── Múltiples registros (ej: "el finde gasté X e Y") ─────────────────
+      if (txList && txList.length > 1) {
+        let registrados = 0;
+        const errores = [];
+        for (const tx of txList) {
+          try {
+            const monto = parsearMonto(tx.amount || tx.monto);
+            await onRegistrarTx({...tx, amount: monto});
+            registrados++;
+          } catch(e) { errores.push(tx.desc || "item"); }
+        }
+        const resumen = txList.map(t => `${t.desc} ${COP(parsearMonto(t.amount||t.monto))}`).join(" · ");
+        setMsgs(m=>[...m,{role:"assistant",text:cleanText||"",ts:Date.now(),
+          alerta:{tipo:"exito", desc:`${registrados} registros: ${resumen}`, monto:txList.reduce((s,t)=>s+parsearMonto(t.amount||t.monto),0), color:"#10b981"}}]);
+        return;
+      }
 
       if (txData) {
         const montoFinal = parsearMonto(txData.amount||txData.monto);
@@ -334,6 +406,13 @@ EJEMPLOS:
         const [, textoAlerta] = resto.split("|");
         setMsgs(m=>[...m,{role:"assistant",text:"",ts:Date.now(),alerta:{tipo:"plan_free",texto:textoAlerta||"Esta función requiere Plan Pro."}}]);
       } else if (esLimite) {
+        // Marcar como agotado en estado y localStorage
+        const limiteActual = usoHoy.limite;
+        setUsoHoy({ count: limiteActual, limite: limiteActual, cargando: false });
+        try {
+          const hoy = new Date().toISOString().split("T")[0];
+          localStorage.setItem(`ia_uso_${user.uid}_${hoy}`, JSON.stringify({ count: limiteActual }));
+        } catch (_) {}
         // Alerta modal de límite alcanzado
         if (isPro) {
           alertWarning(
@@ -343,7 +422,7 @@ EJEMPLOS:
         } else {
           alertLimit(
             "Límite del plan Free",
-            "Usaste tus 10 mensajes de hoy. Activa el Plan Pro para tener 70 mensajes/día.",
+            `Usaste tus ${limiteActual} mensajes de hoy. Activa el Plan Pro para tener 70 mensajes/día.`,
             [
               { label: "Mañana vuelvo", primary: false, onClick: () => {} },
               { label: "⚡ Activar Pro", primary: true, onClick: () => {} },
@@ -371,6 +450,8 @@ EJEMPLOS:
     const txt = input.trim();
     if (!txt) return;
     setInput("");
+    // Resetear altura del textarea
+    if (inputRef.current) { inputRef.current.style.height = "auto"; }
     enviarTexto(txt);
   }
 
@@ -734,7 +815,13 @@ EJEMPLOS:
             <textarea
               ref={inputRef}
               value={input}
-              onChange={e => setInput(e.target.value)}
+              onChange={e => {
+                setInput(e.target.value);
+                // Auto-resize
+                const el = e.target;
+                el.style.height = "auto";
+                el.style.height = Math.min(el.scrollHeight, 120) + "px";
+              }}
               onKeyDown={e => {
                 if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); }
               }}
@@ -743,13 +830,17 @@ EJEMPLOS:
               style={{
                 flex: 1, background: "none", border: "none", outline: "none",
                 color: C.text.h, fontSize: 14, resize: "none",
-                fontFamily: "inherit", lineHeight: 1.4, maxHeight: 80,
-                overflowY: "auto",
+                fontFamily: "inherit", lineHeight: 1.5, maxHeight: 120,
+                overflowY: "auto", width: "100%",
               }}
             />
           </div>
+          {/* Micrófono — push to talk en móvil, click en desktop */}
           <button
-            onClick={toggleVoz}
+            onPointerDown={e => { e.preventDefault(); if (!escuchando) toggleVoz(); }}
+            onPointerUp={() => { if (escuchando) recognitionRef.current?.stop(); }}
+            onPointerLeave={() => { if (escuchando) recognitionRef.current?.stop(); }}
+            onClick={e => e.preventDefault()}
             style={{
               width: 44, height: 44, borderRadius: 13, border: "none",
               background: escuchando
@@ -761,6 +852,8 @@ EJEMPLOS:
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 18, transition: "all 0.2s", flexShrink: 0,
               animation: escuchando ? "pulse 1s ease infinite" : "none",
+              WebkitUserSelect: "none", userSelect: "none",
+              touchAction: "none",
             }}
           >{escuchando ? "⏹" : "🎙️"}</button>
           <button
