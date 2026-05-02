@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { alertInfo, alertError, alertWarning, alertLimit } from "./GlobalAlert";
 import { InsightsEngine } from "./InsightsEngine";
 import { LogrosTab, calcBadgesDesbloqueados, calcMesesPerfectos, BADGES_DEF } from "./LogrosEngine";
 import { FinancialScore } from "./FinancialScore";
@@ -215,7 +216,7 @@ function GradientOrbs({color}){
 
 const MAIN_CATS = [
   { id:"comida",     label:"Comida",    labelFull:"Comida",                  icon:"🍽️", color:"#facc15",
-    subs:[{id:"desayuno",label:"Desayuno",icon:"🍳"},{id:"almuerzo",label:"Almuerzo",icon:"🍱"},{id:"domicilios",label:"Domicilios",icon:"🛵"},{id:"mercado",label:"Mercado",icon:"🛒"},{id:"snacks",label:"Snacks",icon:"🧃"}]},
+    subs:[{id:"desayuno",label:"Desayuno",icon:"🍳"},{id:"almuerzo",label:"Restaurantes",icon:"🍽️"},{id:"comidas_rapidas",label:"Comida rápida",icon:"🍔"},{id:"domicilios",label:"Domicilios",icon:"🛵"},{id:"mercado",label:"Mercado",icon:"🛒"},{id:"snacks",label:"Snacks",icon:"🧃"}]},
   { id:"hogar",      label:"Hogar",     labelFull:"Hogar",                   icon:"🏠", color:"#60a5fa",
     subs:[{id:"arriendo",label:"Arriendo",icon:"🏠"},{id:"servicios",label:"Servicios",icon:"💡"},{id:"aseo",label:"Aseo",icon:"🧹"},{id:"reparaciones",label:"Reparaciones",icon:"🔧"},{id:"electro",label:"Electro",icon:"📺"}]},
   { id:"transporte", label:"Transp.",   labelFull:"Transporte",              icon:"🚗", color:"#34d399",
@@ -227,7 +228,7 @@ const MAIN_CATS = [
   { id:"ocio",       label:"Ocio",      labelFull:"Entretenimiento",         icon:"🎭", color:"#e879f9",
     subs:[{id:"salidas",label:"Salidas",icon:"🥂"},{id:"eventos",label:"Eventos",icon:"🎟️"},{id:"viajes",label:"Viajes",icon:"✈️"},{id:"hobbies",label:"Hobbies",icon:"🎨"},{id:"regalos",label:"Regalos",icon:"🎁"}]},
   { id:"estilo",     label:"Estilo",    labelFull:"Ropa y Estilo",           icon:"👔", color:"#a78bfa",
-    subs:[{id:"ropa",label:"Ropa",icon:"👔"},{id:"calzado",label:"Calzado",icon:"👟"},{id:"accesorios",label:"Accesorios",icon:"⌚"},{id:"peluqueria",label:"Peluquería",icon:"✂️"},{id:"cuidado",label:"Cuidado",icon:"🧴"}]},
+    subs:[{id:"ropa",label:"Ropa",icon:"👔"},{id:"calzado",label:"Calzado",icon:"👟"},{id:"accesorios",label:"Accesorios",icon:"⌚"},{id:"peluqueria",label:"Belleza",icon:"💅"},{id:"cuidado",label:"Cuidado",icon:"🧴"}]},
   { id:"digital",    label:"Digital",   labelFull:"Digital y Suscripciones", icon:"📱", color:"#38bdf8",
     subs:[{id:"streaming",label:"Streaming",icon:"📺"},{id:"apps",label:"Suscripciones",icon:"📲"},{id:"tecnologia",label:"Tecnología",icon:"💻"},{id:"ia",label:"IA",icon:"🤖"},{id:"juegos",label:"Juegos",icon:"🎮"}]},
   { id:"deudas",     label:"Deudas",    labelFull:"Deudas",                  icon:"💳", color:"#f43f5e",
@@ -274,6 +275,7 @@ function getCatInfo(id) {
   // Legacy / fallback
   const legacy={
     gym:{label:"Fitness",icon:"🏃",color:"#f97316"},
+    comidas_rapidas:{label:"Comida rápida",icon:"🍔",color:"#facc15"},
     suplementos:{label:"Suplementos",icon:"💪",color:"#fb923c"},
     servicios:{label:"Servicios",icon:"💡",color:"#38bdf8"},
     comida:{label:"Comida",icon:"🍽️",color:"#facc15"},
@@ -519,84 +521,113 @@ function useScreenSize(){
 
 function useSheetDismiss(onClose){
   const cardRef=useRef(null);
+  const overlayRef=useRef(null);
   const startY=useRef(null);
   const startT=useRef(null);
   const curY=useRef(0);
   const isDragging=useRef(false);
-  const fromHandle=useRef(false); // true si el drag viene del handle
+  const fromHandle=useRef(false);
 
   function setTransform(y){
-    if(cardRef.current){
-      cardRef.current.style.transform=`translateY(${y}px)`;
-      cardRef.current.style.transition=y===0?"transform 0.25s cubic-bezier(0.32,0.72,0,1)":"none";
-    }
+    const el=cardRef.current;
+    if(!el) return;
+    el.style.animationName="none";
+    el.style.transition="none";
+    el.style.transform=`translateY(${Math.max(0,y)}px)`;
   }
 
-  function onStart(clientY, isHandle=false){
+  function snapBack(){
+    const el=cardRef.current;
+    if(!el) return;
+    el.style.animationName="none";
+    el.style.transition="transform 0.3s cubic-bezier(0.32,0.72,0,1)";
+    el.style.transform="translateY(0)";
+  }
+
+  function closeWithAnimation(){
+    const el=cardRef.current;
+    const ov=overlayRef.current;
+    if(el){
+      // Continuar desde posición actual hacia abajo — sin resetear transform
+      const currentY=curY.current||0;
+      const target=window.innerHeight;
+      const remaining=target-currentY;
+      const duration=Math.max(180,Math.min(remaining*0.4,300));
+      el.style.animationName="none";
+      el.style.transition=`transform ${duration}ms cubic-bezier(0.4,0,1,1)`;
+      el.style.transform=`translateY(${target}px)`;
+    }
+    if(ov){
+      ov.style.transition="opacity 0.22s ease";
+      ov.style.opacity="0";
+    }
+    setTimeout(onClose,300);
+  }
+
+  function onStart(clientY,isHandle=false){
     startY.current=clientY;
     startT.current=Date.now();
     curY.current=0;
     isDragging.current=true;
     fromHandle.current=isHandle;
   }
+
   function onMove(clientY){
     if(!isDragging.current||startY.current===null) return;
     const d=clientY-startY.current;
-    if(d>0){curY.current=d;setTransform(d);}
+    if(d>0){ curY.current=d; setTransform(d); }
   }
+
   function onEnd(){
     if(!isDragging.current) return;
     isDragging.current=false;
-    const elapsed=Date.now()-startT.current;
     const dist=curY.current;
-    const velocity=dist/Math.max(elapsed,1)*1000;
-    // Desde el handle: umbral normal (150px o velocidad 500)
-    // Desde el contenido: umbral más exigente (220px o velocidad 700)
-    const distThreshold=fromHandle.current?150:220;
-    const velThreshold=fromHandle.current?500:700;
+    const elapsed=Math.max(Date.now()-startT.current,1);
+    const velocity=dist/elapsed*1000;
+    const distThreshold=fromHandle.current?120:200;
+    const velThreshold=fromHandle.current?400:600;
     if(dist>distThreshold||velocity>velThreshold){
-      setTransform(window.innerHeight);
-      setTimeout(onClose,220);
+      closeWithAnimation();
     } else {
-      setTransform(0);
+      snapBack();
     }
     startY.current=null;
-    curY.current=0;
     fromHandle.current=false;
+    isDragging.current=false;
   }
 
-  // handleProps — solo para la barrita, cierre fácil
   const handleProps={
+    style:{cursor:"grab",touchAction:"none",userSelect:"none"},
     onTouchStart:e=>{e.stopPropagation();onStart(e.touches[0].clientY,true);},
     onTouchMove:e=>{e.stopPropagation();onMove(e.touches[0].clientY);},
     onTouchEnd:e=>{e.stopPropagation();onEnd();},
-    style:{cursor:"grab",touchAction:"none"},
   };
 
-  // dragProps — distingue scroll suave de swipe intencional de cierre
   const dragProps={
     onTouchStart:e=>{
-      const el=e.currentTarget;
-      if(el.scrollTop===0) onStart(e.touches[0].clientY,false);
+      if(e.currentTarget.scrollTop===0) onStart(e.touches[0].clientY,false);
     },
     onTouchMove:e=>{
       if(startY.current===null) return;
       const d=e.touches[0].clientY-startY.current;
-      const elapsed=Date.now()-startT.current;
-      // Velocidad instantánea del movimiento
-      const speed=d/Math.max(elapsed,1)*1000;
-      // Solo activar drag si es un gesto RÁPIDO (velocidad >600px/s)
-      // Un scroll normal es lento (~200-300px/s), un swipe intencional es >600
-      if(d>15&&speed>600) onMove(e.touches[0].clientY);
-      else if(d<-5){ startY.current=null; setTransform(0); }
+      const elapsed=Math.max(Date.now()-startT.current,1);
+      const speed=d/elapsed*1000;
+      if(d>12&&speed>350) onMove(e.touches[0].clientY);
+      else if(d<-5){startY.current=null; snapBack();}
     },
     onTouchEnd:onEnd,
   };
 
-  const cardStyle={animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)"};
-  return {handleProps,dragProps,cardStyle,cardRef,dragY:0};
+  const overlayProps={
+    ref:overlayRef,
+    style:{animation:"overlayIn 0.22s ease forwards"},
+  };
+  const cardStyle={
+    animation:"sheetSpringIn 0.36s cubic-bezier(0.34,1.56,0.64,1)",
+    animationFillMode:"none",
+  };
+  return {handleProps,dragProps,cardStyle,cardRef,overlayRef,overlayProps,closeWithAnimation,dragY:0};
 }
-
 function SheetCloseBtn({onClose,top=14,right=14}){
   return <button onClick={onClose} aria-label="Cerrar"
     style={{position:"absolute",top,right,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,width:32,height:32,cursor:"pointer",color:C.text.b,fontSize:18,fontWeight:700,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",zIndex:2,transition:"all 0.15s"}}
@@ -647,7 +678,7 @@ function CatPersonalModal({main, catsCustom, handleCatCustomSave, onClose}){
   function save(){ handleCatCustomSave(main.id, extras); onClose(); }
 
   return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
-    style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:500,animation:"fadeIn 0.18s ease"}}>
+    ref={sheet.overlayRef} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:500,...sheet.overlayProps.style}}>
     <div onClick={e=>e.stopPropagation()}
       style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
         border:`1px solid ${C.border}`,padding:"20px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"85vh",overflowY:"auto",overscrollBehavior:"contain",position:"relative",...sheet.cardStyle}} ref={sheet.cardRef} {...sheet.dragProps}>
@@ -888,7 +919,7 @@ function GoalModal({initial,onClose,onSave,onDelete}){
     onClose();
   }
   return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
-    style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
+    ref={sheet.overlayRef} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"flex-end",zIndex:400,...sheet.overlayProps.style}}>
     <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto",overscrollBehavior:"contain",position:"relative",...sheet.cardStyle}} ref={sheet.cardRef} {...sheet.dragProps}>
       <SheetCloseBtn onClose={onClose}/>
       <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
@@ -1718,11 +1749,11 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
     onClose();
   }
   return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
-    style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:300,animation:"fadeIn 0.18s ease"}}>
+    ref={sheet.overlayRef} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:300,...sheet.overlayProps.style}}>
     <div ref={sheet.cardRef} style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",display:"flex",flexDirection:"column",position:"relative",...sheet.cardStyle}}>
       <SheetCloseBtn onClose={onClose}/>
       <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px",flexShrink:0}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
-      <div ref={scrollRef} style={{overflowY:"auto",overscrollBehavior:"contain",flex:1,padding:"0 20px"}} {...sheet.dragProps}>
+      <div ref={scrollRef} style={{overflowY:"auto",touchAction:"pan-y",overscrollBehavior:"contain",flex:1,padding:"0 20px"}} {...sheet.dragProps}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,paddingRight:40}}>
           <div style={{fontSize:17,fontWeight:800,color:C.text.h}}>
             {isEdit?(esIngreso?"Editar ingreso":"Editar movimiento"):(esIngreso?"Nuevo ingreso":"Nuevo movimiento")}
@@ -1972,12 +2003,20 @@ function TxRow({t,onEdit,catsCustom={}}){
       <div style={{fontSize:14,fontWeight:600,color:bloqueado?C.text.s:C.text.h,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:3}}>{t.desc}</div>
       <div style={{fontSize:12,color:C.text.s,fontWeight:400}}>
         {t.date?.slice(5).replace("-","/")} · {isIngreso(t.cat)?"Salario":isDevolucion(t.cat)?"Devolución":isIngresoExtra(t.cat)?"Extra":esMeta?"Meta":(()=>{
-          // Buscar categoría principal — primero en subs normales, luego en custom
+          // Buscar categoría principal — subs normales + custom
           const main=MAIN_CATS.find(m=>
             m.subs?.some(s=>s.id===t.cat) ||
             (catsCustom[m.id]||[]).some(s=>s.id===t.cat) ||
             (_customSubsLookup[m.id]||[]).some(s=>s.id===t.cat)
           );
+          if(!main && t.cat?.startsWith("custom_")){
+            for(const[mainId,subs] of Object.entries(_customSubsLookup)){
+              if(subs?.some(s=>s.id===t.cat)){
+                const m2=MAIN_CATS.find(m=>m.id===mainId);
+                return m2?`${m2.label} · ${cat.label}`:cat.label;
+              }
+            }
+          }
           return main?`${main.label} · ${cat.label}`:cat.label;
         })()}
       </div>
@@ -1994,9 +2033,9 @@ function TxRow({t,onEdit,catsCustom={}}){
 // ─── MODAL PRÉSTAMOS A TERCEROS ───────────────────────────────────────────────
 function ExportModalSheet({onClose,exportarCSV,exportarPDF,tx,now,isMonth,MONTHS}){
   const sheet=useSheetDismiss(onClose);
-  return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
-    style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
-    <div onClick={e=>e.stopPropagation()} {...sheet.dragProps}
+  return <div ref={sheet.overlayRef} onClick={e=>{if(e.target===e.currentTarget)onClose();}}
+    style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:400,...sheet.overlayProps.style}}>
+    <div ref={sheet.cardRef} onClick={e=>e.stopPropagation()} {...sheet.dragProps}
       style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
         border:`1px solid ${C.border}`,padding:"20px 20px 36px",position:"relative",...sheet.cardStyle}}>
       <SheetCloseBtn onClose={onClose}/>
@@ -2109,7 +2148,7 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
       onClose2();
     }
     return <div onClick={e=>{if(e.target===e.currentTarget)onClose2();}}
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:600,animation:"fadeIn 0.18s ease"}}>
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:600,animation:"overlayIn 0.22s ease forwards"}}>
       <div onClick={e=>e.stopPropagation()} ref={sheet2.cardRef}
         style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
           border:`1px solid rgba(244,63,94,0.3)`,padding:"20px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"90vh",overflowY:"auto",overscrollBehavior:"contain",position:"relative",...sheet2.cardStyle}}>
@@ -2167,7 +2206,7 @@ function PrestamosModal({prestamos,onClose,onSave,onDelete,onToggle,prestamoForm
   const RED="#f43f5e", AMBER="#f59e0b", EMERALD="#10b981";
 
   return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
-    style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:500,animation:"fadeIn 0.18s ease"}}>
+    style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:500,animation:"overlayIn 0.22s ease forwards"}}>
     <div onClick={e=>e.stopPropagation()}
       style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",
         border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",
@@ -2792,7 +2831,7 @@ export default function App(){
       ?tx.filter(t=>isMonth(t.date,now.getMonth(),now.getFullYear()))
       :[...tx].sort((a,b)=>a.date.localeCompare(b.date));
 
-    if(txExport.length===0){alert("No hay movimientos para exportar.");return;}
+    if(txExport.length===0){alertInfo("Sin movimientos","No hay movimientos en este período para exportar.");return;}
 
     const header=["Fecha","Descripción","Categoría","Subcategoría","Monto","Tipo"];
     const rows=txExport.map(t=>{
@@ -2829,10 +2868,10 @@ export default function App(){
       ?[...tx].filter(t=>isMonth(t.date,now.getMonth(),now.getFullYear()))
               .sort((a,b)=>a.date.localeCompare(b.date))
       :[...tx].sort((a,b)=>a.date.localeCompare(b.date));
-    if(txExport.length===0){alert("No hay movimientos para exportar.");return;}
+    if(txExport.length===0){alertInfo("Sin movimientos","No hay movimientos en este período para exportar.");return;}
 
     const win=window.open("","_blank");
-    if(!win){alert("Permite ventanas emergentes para exportar el PDF.");return;}
+    if(!win){alertWarning("Ventanas bloqueadas","Permite ventanas emergentes en tu navegador para exportar el PDF.");return;}
 
     // ── Cálculos financieros ─────────────────────────────────────────────
     // Separar por tipo para poder mostrar breakdown detallado
@@ -3569,6 +3608,11 @@ export default function App(){
     @keyframes ripple{0%{transform:translate(-50%,-50%) scale(0);opacity:0.4}100%{transform:translate(-50%,-50%) scale(20);opacity:0}}
     @keyframes fadeSlideUp{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
     @keyframes fadeSlideDown{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(6px)}}
+    @keyframes overlayIn{from{opacity:0;backdrop-filter:blur(0px)}to{opacity:1;backdrop-filter:blur(3px)}}
+    @keyframes overlayOut{from{opacity:1;backdrop-filter:blur(3px)}to{opacity:0;backdrop-filter:blur(0px)}}
+    @keyframes sheetSpringIn{0%{transform:translateY(100%);opacity:0}100%{transform:translateY(0);opacity:1}}
+    @keyframes sheetSpringOut{0%{transform:translateY(0);opacity:1}100%{transform:translateY(100%);opacity:0}}
+    @keyframes sheetIn{0%{transform:translateY(60px);opacity:0}100%{transform:translateY(0);opacity:1}}
     input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.6);}
     input::placeholder{color:${paleta.text.s}44;}
     ::-webkit-scrollbar{display:none;}
@@ -3949,7 +3993,8 @@ export default function App(){
           <div style={{fontSize:11,color:C.text.s,letterSpacing:1.8,fontWeight:600,textTransform:"uppercase"}}>Disponible · {MONTHS_S[month]}</div>
           {saldoAnterior>0&&<div style={{background:ink(0.06),borderRadius:99,padding:"3px 10px",fontSize:11,color:C.isLight?C.emerald:C.emeraldLight,fontWeight:600}}>+{COP(saldoAnterior)}</div>}
         </div>
-        <div style={{fontSize:SC.fs(56),fontWeight:700,letterSpacing:-1,lineHeight:1,color:pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.emerald,fontVariantNumeric:"tabular-nums",marginBottom:28,transition:"color 0.4s"}}>
+        <div style={{fontSize:(()=>{const l=COP(animSaldo).replace(/[^\d]/g,"").length;return SC.fs(l>=10?36:l>=8?44:52);})()
+          ,fontWeight:700,letterSpacing:-1,lineHeight:1,color:pctUsado>=0.9?C.red:pctUsado>=0.7?C.amber:C.emerald,fontVariantNumeric:"tabular-nums",marginBottom:28,transition:"color 0.4s",wordBreak:"break-word"}}>
           {COP(animSaldo)}
         </div>
         <div style={{background:ink(0.06),borderRadius:99,height:3,overflow:"hidden",marginBottom:12}}>
@@ -4181,7 +4226,7 @@ export default function App(){
       setDragStartY(null);
     }
     return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"overlayIn 0.22s ease forwards"}}>
       <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:dragY===0?"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)":"none",padding:"20px 20px 36px",transform:`translateY(${dragY}px)`,transition:dragStartY===null?"transform 0.2s ease":"none",position:"relative"}}>
         {/* Botón × esquina superior derecha */}
         <button onClick={onClose} aria-label="Cerrar"
@@ -4577,7 +4622,7 @@ export default function App(){
     }
     const ci=getCatInfo(cat);
     return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:300,animation:"fadeIn 0.18s ease"}}>
+      ref={sheet.overlayRef} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",zIndex:300,...sheet.overlayProps.style}}>
       <div {...sheet.dragProps} ref={sheet.cardRef} style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"92vh",overflowY:"auto",overscrollBehavior:"contain",scrollBehavior:"auto",position:"relative",...sheet.cardStyle}}>
         <SheetCloseBtn onClose={onClose}/>
         <div {...sheet.handleProps} style={{...sheet.handleProps.style,display:"flex",justifyContent:"center",padding:"12px 0 6px"}}><div style={{width:40,height:4,borderRadius:99,background:C.border}}/></div>
@@ -5415,7 +5460,7 @@ export default function App(){
         const montoFinal=confirmPago.esVariable?rawVar:confirmPago.monto;
         const puedeConfirmar=confirmPago.esVariable?rawVar>0:true;
         return <div onClick={()=>setConfirmPago(null)}
-          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"fadeIn 0.18s ease"}}>
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",zIndex:400,animation:"overlayIn 0.22s ease forwards"}}>
           <div onClick={e=>e.stopPropagation()}
             style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.card,borderRadius:"22px 22px 0 0",border:`1px solid ${C.border}`,padding:"20px 20px 36px",animation:"slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)",position:"relative"}}>
             <SheetCloseBtn onClose={()=>setConfirmPago(null)}/>

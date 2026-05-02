@@ -29,8 +29,9 @@ export function DeudasModal({ deudas, onClose, onSave, onPagar, onDelete, dispon
   const [deudaSelec, setDeudaSelec] = useState(null);
   const scrollRef = useRef(null);
 
-  // ── Swipe-to-dismiss con useRef (sin re-renders) ─────────────────────────
+  // ── Swipe-to-dismiss ─────────────────────────────────────────────────────
   const cardRef = useRef(null);
+  const overlayRef = useRef(null);
   const startY = useRef(null);
   const startT = useRef(null);
   const curY = useRef(0);
@@ -38,10 +39,32 @@ export function DeudasModal({ deudas, onClose, onSave, onPagar, onDelete, dispon
   const fromHandle = useRef(false);
 
   function setTransform(y) {
-    if (cardRef.current) {
-      cardRef.current.style.transform = `translateY(${y}px)`;
-      cardRef.current.style.transition = y === 0 ? "transform 0.25s cubic-bezier(0.32,0.72,0,1)" : "none";
+    const el = cardRef.current;
+    if (!el) return;
+    el.style.animationName = "none";
+    el.style.transition = "none";
+    el.style.transform = `translateY(${Math.max(0, y)}px)`;
+  }
+  function snapBack() {
+    const el = cardRef.current;
+    if (!el) return;
+    el.style.animationName = "none";
+    el.style.transition = "transform 0.3s cubic-bezier(0.32,0.72,0,1)";
+    el.style.transform = "translateY(0)";
+  }
+  function closeWithAnimation() {
+    const el = cardRef.current;
+    const ov = overlayRef.current;
+    if (el) {
+      const target = window.innerHeight;
+      const remaining = target - (curY.current || 0);
+      const duration = Math.max(180, Math.min(remaining * 0.4, 300));
+      el.style.animationName = "none";
+      el.style.transition = `transform ${duration}ms cubic-bezier(0.4,0,1,1)`;
+      el.style.transform = `translateY(${target}px)`;
     }
+    if (ov) { ov.style.transition = "opacity 0.22s ease"; ov.style.opacity = "0"; }
+    setTimeout(onClose, 300);
   }
   function swipeStart(clientY, isHandle = false) {
     startY.current = clientY; startT.current = Date.now();
@@ -55,37 +78,28 @@ export function DeudasModal({ deudas, onClose, onSave, onPagar, onDelete, dispon
   function swipeEnd() {
     if (!isDragging.current) return;
     isDragging.current = false;
-    const elapsed = Date.now() - startT.current;
     const dist = curY.current;
-    const velocity = dist / Math.max(elapsed, 1) * 1000;
-    const distThreshold = fromHandle.current ? 150 : 220;
-    const velThreshold = fromHandle.current ? 500 : 700;
-    if (dist > distThreshold || velocity > velThreshold) {
-      setTransform(window.innerHeight);
-      setTimeout(onClose, 220);
-    } else {
-      setTransform(0);
-    }
-    startY.current = null; curY.current = 0; fromHandle.current = false;
+    const velocity = dist / Math.max(Date.now() - startT.current, 1) * 1000;
+    if (dist > (fromHandle.current ? 120 : 200) || velocity > (fromHandle.current ? 400 : 600)) {
+      closeWithAnimation();
+    } else { snapBack(); }
+    startY.current = null; curY.current = 0;
+    fromHandle.current = false; isDragging.current = false;
   }
-
-  // Props para el handle (barrita) — cierre fácil
   const handleProps = {
     onTouchStart: e => { e.stopPropagation(); swipeStart(e.touches[0].clientY, true); },
     onTouchMove:  e => { e.stopPropagation(); swipeMove(e.touches[0].clientY); },
     onTouchEnd:   e => { e.stopPropagation(); swipeEnd(); },
     style: { cursor: "grab", touchAction: "none" },
   };
-  // Props para el contenido — swipe rápido intencional
   const dragProps = {
     onTouchStart: e => { if (scrollRef.current?.scrollTop === 0) swipeStart(e.touches[0].clientY, false); },
-    onTouchMove:  e => {
+    onTouchMove: e => {
       if (startY.current === null) return;
       const d = e.touches[0].clientY - startY.current;
-      const elapsed = Date.now() - startT.current;
-      const speed = d / Math.max(elapsed, 1) * 1000;
-      if (d > 15 && speed > 600) swipeMove(e.touches[0].clientY);
-      else if (d < -5) { startY.current = null; setTransform(0); }
+      const speed = d / Math.max(Date.now() - startT.current, 1) * 1000;
+      if (d > 12 && speed > 350) swipeMove(e.touches[0].clientY);
+      else if (d < -5) { startY.current = null; snapBack(); }
     },
     onTouchEnd: swipeEnd,
   };
@@ -649,10 +663,11 @@ export function DeudasModal({ deudas, onClose, onSave, onPagar, onDelete, dispon
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      ref={overlayRef}
       style={{
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)",
         display: "flex", alignItems: "flex-end", zIndex: 300,
-        animation: "fadeIn 0.18s ease",
+        animation: "overlayIn 0.22s ease forwards",
       }}
     >
       <div ref={cardRef} {...dragProps}

@@ -20,6 +20,7 @@
 //   C                  → theme object
 //   COP                → formatter fn
 
+import { useSwipeDismiss } from "./useSwipeDismiss";
 import { useState, useMemo } from "react";
 
 export function SimuladorDecision({
@@ -30,23 +31,8 @@ export function SimuladorDecision({
   month, C, COP,
 }) {
   const [monto, setMonto] = useState("");
-  const [dragY, setDragY] = useState(0);
-  const [dragStartY, setDragStartY] = useState(null);
-
+  const sw = useSwipeDismiss(onClose);
   const MONTHS_S = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
-
-  // Swipe to dismiss
-  function onTouchStart(e) { setDragStartY(e.touches[0].clientY); }
-  function onTouchMove(e) {
-    if (dragStartY === null) return;
-    const d = e.touches[0].clientY - dragStartY;
-    if (d > 0) setDragY(d);
-  }
-  function onTouchEnd() {
-    if (dragY > 80) onClose();
-    setDragY(0);
-    setDragStartY(null);
-  }
 
   const raw = Number(String(monto).replace(/\D/g, "")) || 0;
 
@@ -126,28 +112,25 @@ export function SimuladorDecision({
 
   return (
     <div
+      ref={sw.overlayRef}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       style={{
         position: "fixed", inset: 0,
         background: "rgba(0,0,0,0.82)",
         display: "flex", alignItems: "flex-end", zIndex: 400,
-        animation: "fadeIn 0.18s ease",
+        ...sw.overlayStyle,
       }}
     >
       <div
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
+        ref={sw.cardRef}
         style={{
           width: "100%", maxWidth: 430, margin: "0 auto",
           background: C.card, borderRadius: "22px 22px 0 0",
           border: `1px solid ${C.border}`,
           padding: "20px 20px 36px",
           maxHeight: "92vh", display: "flex", flexDirection: "column",
-          animation: dragY === 0 ? "slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)" : "none",
-          transform: `translateY(${dragY}px)`,
-          transition: dragStartY === null ? "transform 0.2s ease" : "none",
           position: "relative",
+          ...sw.cardStyle,
         }}
       >
         {/* × */}
@@ -165,13 +148,7 @@ export function SimuladorDecision({
         >×</button>
 
         {/* Handle */}
-        <div
-          style={{
-            display: "flex", justifyContent: "center",
-            marginBottom: 14, padding: "4px 0 8px",
-            cursor: "grab", touchAction: "none",
-          }}
-        >
+        <div {...sw.handleProps} style={{...sw.handleProps.style, marginBottom: 14, padding: "4px 0 8px"}}>
           <div style={{ width: 40, height: 4, borderRadius: 99, background: C.border }} />
         </div>
 

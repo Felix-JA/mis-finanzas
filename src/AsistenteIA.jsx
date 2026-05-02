@@ -5,11 +5,13 @@
 //   - Simular compra → análisis de impacto
 //   - Consejo general → respuesta contextualizada
 
+import { useSwipeDismiss } from "./useSwipeDismiss";
 import { useState, useRef, useEffect } from "react";
 
 import { functions, db } from "./firebase";
 import { httpsCallable } from "firebase/functions";
 import { doc, getDoc } from "firebase/firestore";
+import { alertInfo, alertWarning, alertLimit } from "./GlobalAlert";
 const callChatIA = httpsCallable(functions, "chatIA");
 
 export function AsistenteIA({
@@ -29,10 +31,11 @@ export function AsistenteIA({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const callingRef = useRef(false);
+  // Inicializar con límite ya conocido — count se carga desde Firestore async
+  const [usoHoy, setUsoHoy] = useState({ count: 0, limite: isPro ? 70 : 10, cargando: true });
   const [pendingTx, setPendingTx] = useState(null);
   const pendingTxRef = useRef(null); // ref para acceso sincrónico en confirmación
-  const [dragY, setDragY] = useState(0);
-  const [dragStartY, setDragStartY] = useState(null);
+  const sw = useSwipeDismiss(onClose);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -40,42 +43,21 @@ export function AsistenteIA({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs]);
 
-  // ── Cargar uso de IA al abrir ─────────────────────────────────────────────
+  // ── Cargar uso de IA al abrir — siempre desde Firestore para tener count real
   useEffect(() => {
     if (!user) return;
-    const hoy = new Date().toISOString().split("T")[0];
     const limite = isPro ? 200 : 10;
+    const hoy = new Date().toISOString().split("T")[0];
     getDoc(doc(db, "ia_uso", `${user.uid}_${hoy}`)).then(snap => {
       const count = snap.exists() ? (snap.data().count || 0) : 0;
-      setUsoHoy({ count, limite });
+      setUsoHoy({ count, limite, cargando: false });
     }).catch(() => {
-      setUsoHoy({ count: 0, limite });
+      setUsoHoy({ count: 0, limite, cargando: false });
     });
   }, [user, isPro]);
 
   // ── Swipe to dismiss ──────────────────────────────────────────────────────
-  const cardRef = useRef(null);
-  const startY = useRef(null);
-  const curY = useRef(0);
 
-  function swipeStart(clientY) { startY.current = clientY; curY.current = 0; }
-  function swipeMove(clientY) {
-    if (startY.current === null) return;
-    const d = clientY - startY.current;
-    if (d > 0) {
-      curY.current = d;
-      if (cardRef.current) cardRef.current.style.transform = `translateY(${d}px)`;
-    }
-  }
-  function swipeEnd() {
-    if (curY.current > 80) { onClose(); return; }
-    if (cardRef.current) {
-      cardRef.current.style.transition = "transform 0.25s ease";
-      cardRef.current.style.transform = "translateY(0)";
-      setTimeout(() => { if (cardRef.current) cardRef.current.style.transition = ""; }, 250);
-    }
-    startY.current = null; curY.current = 0;
-  }
 
   // ── Contexto financiero para la IA ────────────────────────────────────────
   function buildContext() {
@@ -112,55 +94,50 @@ export function AsistenteIA({
       .map(t => `Prestaste ${COP(t.amount)} a ${t.desc||"alguien"} (${t.date})`)
       .join(", ");
 
-    return `Eres un asistente financiero para "Mis Finanzas Pro". Español colombiano, conciso, máximo 2-3 líneas de texto.
+    return `Eres un asistente financiero para "Mis Finanzas Pro". Español colombiano, conciso, máximo 2-3 líneas.
 
-FINANZAS ACTUALES (${mesNombre} ${now.getFullYear()}):
-- Disponible: ${COP(disponibleGastar)} | Gastado: ${COP(totalGasto)} (${totalIngresoMes > 0 ? Math.round(totalGasto / totalIngresoMes * 100) : 0}%) | Ingreso: ${COP(totalIngresoMes)}
-- Por categoría: ${topCats || "Sin gastos"}
-- Metas: ${metasActivas || "ninguna"}
-- Deudas propias: ${deudasActivas || "ninguna"}
-- Préstamos a terceros: ${prestamosActivos || "ninguno (no le has prestado a nadie)"}
+CONTEXTO (${mesNombre} ${now.getFullYear()}):
+Disponible: ${COP(disponibleGastar)} | Gastado: ${COP(totalGasto)} (${totalIngresoMes>0?Math.round(totalGasto/totalIngresoMes*100):0}%) | Ingreso: ${COP(totalIngresoMes)}
+Categorías top: ${topCats||"Sin gastos"} | Metas: ${metasActivas||"ninguna"} | Deudas: ${deudasActivas||"ninguna"} | Préstamos dados: ${prestamosActivos||"ninguno"}
+Plan: ${esPro?"PRO":"FREE (max 1 préstamo, 3 pagos, 3 metas)"}
 
-PLAN DEL USUARIO: ${esPro ? "PRO (sin restricciones)" : "FREE - límites: max 1 préstamo a terceros, max 3 pagos programados, max 3 metas. Si el usuario pide algo bloqueado, informar amablemente y sugerir Plan Pro."}
+SUBCATEGORÍAS VÁLIDAS (usa el id exacto en cat:):
+comida: desayuno|almuerzo|comidas_rapidas|domicilios|mercado|snacks
+hogar: arriendo|servicios|aseo|reparaciones|electro
+transporte: bus|taxi|peaje|pasajes|mudanza
+vehiculo: gasolina|soat|mecanica|parqueadero|repuestos
+salud: medico|medicamentos|gym|psicologia|optica
+ocio: salidas|eventos|viajes|hobbies|regalos
+estilo: ropa|calzado|accesorios|peluqueria|cuidado
+digital: streaming|apps|tecnologia|ia|juegos
+deudas: tarjeta|cuotas|credito
 
-CATEGORÍAS (usa el id exacto en el JSON):
-Comida→desayuno,almuerzo,domicilios,mercado,snacks | Hogar→arriendo,servicios,aseo,reparaciones | Transporte→bus,taxi,peaje | Salud→medico,medicamentos,gym | Ocio→salidas,eventos,viajes,hobbies | Estilo→ropa,calzado,peluqueria,cuidado | Digital→streaming,apps,tecnologia,ia | Deudas→tarjeta,cuotas,credito | Vehículo→gasolina,soat,mecanica
+REGLAS (obligatorias):
+1. hamburguesa/pizza/comida rápida en local → comidas_rapidas
+2. almorzar en restaurante al mediodía → almuerzo
+3. cena/salida de noche/bar → salidas
+4. rappi/domicilio/delivery → domicilios (canal gana siempre)
+5. corte/uñas/spa/masaje → peluqueria
+6. plan celular/internet → servicios; app digital → apps
+7. Disponible: ${COP(disponibleGastar)} — NO registrar gastos/préstamos que superen esto
+8. SIEMPRE incluir el JSON al final del mensaje
 
-REGLA CRÍTICA — SIEMPRE al detectar una acción, incluye el JSON AL FINAL del mensaje. NUNCA preguntes la categoría, INFIERE la mejor opción:
-- "dulce/snack/golosina" → cat:"snacks"
-- "almuerzo/comida/restaurante" → cat:"almuerzo"  
-- "domicilio/rappi/uber eats" → cat:"domicilios"
-- "gym/ejercicio" → cat:"gym"
-- "netflix/spotify/suscripción" → cat:"streaming"
-- Si no estás seguro, usa la más cercana
+FORMATOS:
+[REGISTRAR:{"desc":"X","amount":N,"cat":"id","tipo":"gasto"}]
+[REGISTRAR:{"desc":"X","amount":N,"cat":"ingreso","tipo":"ingreso"}]
+[REGISTRAR:{"desc":"Préstamo a X","amount":N,"cat":"prestamo_tercero","tipo":"prestamo_tercero"}]
+[PAGO_PROGRAMADO:{"nombre":"X","monto":N,"cat":"id","dia":D,"frecuencia":"mensual"}]
+[APORTE_META:{"goalId":"ID","amount":N,"desc":"Aporte"}]
+Metas: ${goals.map(g=>`${g.name} id:${g.id}`).join(", ")||"ninguna"}
 
-FORMATOS JSON:
-[REGISTRAR:{"desc":"Dulce","amount":1500,"cat":"snacks","tipo":"gasto"}]
-[PAGO_PROGRAMADO:{"nombre":"Netflix","monto":16000,"cat":"streaming","dia":3,"frecuencia":"mensual"}]
-[REGISTRAR:{"desc":"Préstamo a Juan","amount":200000,"cat":"prestamo_tercero","tipo":"prestamo_tercero"}]
-[APORTE_META:{"goalId":"ID","amount":50000,"desc":"Aporte"}]
-
-PRÉSTAMOS A TERCEROS:
-- "le presté a X / di fiado / presté plata" → cat:prestamo_tercero.
-- VALIDAR disponible igual que un gasto: si monto > disponible (${COP(disponibleGastar)}) NO registrar, avisar que no tiene fondos suficientes para prestar ese monto.
-- Si tiene fondos: registrar y avisar que reduce el disponible. Aparece en módulo Préstamos para cobro.
-- Cuando le paguen se registra como prestamo_devuelto (no aplica ahora).
-
-DEUDAS PROPIAS:
-- Compromisos que TÚ debes (tarjeta, crédito, cuota). cat:cuotas/tarjeta/credito. Validar fondos.
-
-MONTOS: 1k=1000, 1.5k=1500, 10k=10000, 1m=1000000, 1.5m=1500000
-
-VALIDACIÓN: Si monto > disponible (${COP(disponibleGastar)}), NO registres (aplica a gastos Y préstamos a terceros). Solo ingresos se registran sin validar fondos.
-
+MONTOS: 1k=1000 10k=10000 1m=1000000
 EJEMPLOS:
-Usuario: "le presté 50k a Juan" (tiene fondos) → "Registrado 🤝 Recuerda cobrarle, te redujo el disponible. [REGISTRAR:{"desc":"Préstamo a Juan","amount":50000,"cat":"prestamo_tercero","tipo":"prestamo_tercero"}]"
-Usuario: "le presté 550k a Juan" (disponible 500k) → "No tienes fondos suficientes 🚫 Solo tienes ${COP(disponibleGastar)} disponibles. No puedes prestar lo que no tienes."
-Usuario: "cuánto me deben?" → Revisar préstamos activos del contexto y responder con datos reales.
-Usuario: "compré un snack 1.5k" → Respuesta: "Registré tu snack ✅ [REGISTRAR:{"desc":"Snack","amount":1500,"cat":"snacks","tipo":"gasto"}]"
-Usuario: "gasté 50k en almuerzo" → Respuesta: "Listo, almuerzo anotado 🍽️ [REGISTRAR:{"desc":"Almuerzo","amount":50000,"cat":"almuerzo","tipo":"gasto"}]"
-Usuario: "recibí 500k de salario" → Respuesta: "Ingreso registrado 💰 [REGISTRAR:{"desc":"Salario","amount":500000,"cat":"ingreso","tipo":"ingreso"}]"
-Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ninguna"}`;
+"hamburguesa 50k"→[REGISTRAR:{"desc":"Hamburguesa","amount":50000,"cat":"comidas_rapidas","tipo":"gasto"}]
+"almorcé en restaurante 30k"→[REGISTRAR:{"desc":"Almuerzo","amount":30000,"cat":"almuerzo","tipo":"gasto"}]
+"pizza rappi 35k"→[REGISTRAR:{"desc":"Pizza Rappi","amount":35000,"cat":"domicilios","tipo":"gasto"}]
+"cena con amigos 80k"→[REGISTRAR:{"desc":"Cena","amount":80000,"cat":"salidas","tipo":"gasto"}]
+"corte pelo 25k"→[REGISTRAR:{"desc":"Corte de pelo","amount":25000,"cat":"peluqueria","tipo":"gasto"}]
+"Netflix 16k"→[REGISTRAR:{"desc":"Netflix","amount":16000,"cat":"streaming","tipo":"gasto"}]`;
   }
 
   // ── Parsear monto con K y M ───────────────────────────────────────────────
@@ -267,7 +244,52 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
         ],
       });
       const rawText = result.data?.text || "No pude procesar tu consulta. Intenta de nuevo.";
-      if (result.data?.usoHoy != null) setUsoHoy({ count: result.data.usoHoy, limite: result.data.limite });
+      if (result.data?.usoHoy != null) {
+        const nuevoCount = result.data.usoHoy;
+        const nuevoLimite = result.data.limite;
+        setUsoHoy({ count: nuevoCount, limite: nuevoLimite, cargando: false });
+        // ── Alertas de límite próximo ─────────────────────────────────────
+        const restantes = nuevoLimite - nuevoCount;
+        const umbralAlerta = isPro ? 10 : 2;
+        if (restantes === umbralAlerta) {
+          // Pequeño delay para que el usuario vea la respuesta primero
+          setTimeout(() => {
+            if (isPro) {
+              alertWarning(
+                `Te quedan ${restantes} mensajes hoy`,
+                `Tu plan Pro incluye 70 mensajes diarios. Mañana se reinician automáticamente.`
+              );
+            } else {
+              alertLimit(
+                `Solo te quedan ${restantes} mensajes`,
+                `Con el plan Free tienes 10 mensajes diarios. Activa el Plan Pro para tener 70 mensajes/día sin interrupciones.`,
+                [
+                  { label: "Ahora no", primary: false, onClick: () => {} },
+                  { label: "⚡ Ver Plan Pro", primary: true, onClick: () => {} },
+                ]
+              );
+            }
+          }, 600);
+        } else if (restantes === 0) {
+          setTimeout(() => {
+            if (isPro) {
+              alertWarning(
+                "Límite diario alcanzado",
+                "Usaste tus 70 mensajes de hoy. El contador se reinicia mañana automáticamente."
+              );
+            } else {
+              alertLimit(
+                "Límite del plan Free",
+                "Usaste tus 10 mensajes de hoy. Activa el Plan Pro para tener 70 mensajes/día o vuelve mañana.",
+                [
+                  { label: "Mañana vuelvo", primary: false, onClick: () => {} },
+                  { label: "⚡ Activar Pro", primary: true, onClick: () => {} },
+                ]
+              );
+            }
+          }, 600);
+        }
+      }
       const {text:cleanText, txData} = parsearRespuesta(rawText);
 
       if (txData) {
@@ -311,11 +333,30 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
         const [, resto] = msg.split("PLAN_FREE:");
         const [, textoAlerta] = resto.split("|");
         setMsgs(m=>[...m,{role:"assistant",text:"",ts:Date.now(),alerta:{tipo:"plan_free",texto:textoAlerta||"Esta función requiere Plan Pro."}}]);
+      } else if (esLimite) {
+        // Alerta modal de límite alcanzado
+        if (isPro) {
+          alertWarning(
+            "Límite diario alcanzado",
+            "Usaste tus 70 mensajes de hoy. El contador se reinicia mañana automáticamente."
+          );
+        } else {
+          alertLimit(
+            "Límite del plan Free",
+            "Usaste tus 10 mensajes de hoy. Activa el Plan Pro para tener 70 mensajes/día.",
+            [
+              { label: "Mañana vuelvo", primary: false, onClick: () => {} },
+              { label: "⚡ Activar Pro", primary: true, onClick: () => {} },
+            ]
+          );
+        }
+        setMsgs(m=>[...m,{role:"assistant",
+          text: isPro ? "Alcanzaste tus 70 mensajes de hoy 😅 Vuelve mañana." : "Alcanzaste tu límite diario 😅 Vuelve mañana o activa el plan Pro.",
+          ts:Date.now()
+        }]);
       } else {
         setMsgs(m=>[...m,{role:"assistant",
-          text: esLimite
-            ? "Alcanzaste tu límite de mensajes diarios 😅 Vuelve mañana o activa el plan Pro."
-            : "Tuve un problema. Intenta de nuevo. 🔄",
+          text:"Tuve un problema. Intenta de nuevo. 🔄",
           ts:Date.now()
         }]);
       }
@@ -334,12 +375,11 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
   }
 
     const [escuchando, setEscuchando] = useState(false);
-  const [usoHoy, setUsoHoy] = useState(null); // {count, limite}
   const recognitionRef = useRef(null);
 
   function toggleVoz() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { alert("Tu navegador no soporta reconocimiento de voz. Usa Chrome."); return; }
+    if (!SR) { alertInfo("Voz no disponible", "Tu navegador no soporta reconocimiento de voz. Usa Chrome para activarlo."); return; }
 
     if (escuchando) {
       recognitionRef.current?.stop();
@@ -393,33 +433,32 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
 
   return (
     <div
+      ref={sw.overlayRef}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       style={{
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)",
         display: "flex", alignItems: "flex-end", zIndex: 500,
-        animation: "fadeIn 0.18s ease",
+        ...sw.overlayStyle,
       }}
     >
       <div
-        ref={cardRef}
-        onTouchStart={e=>swipeStart(e.touches[0].clientY)}
-        onTouchMove={e=>swipeMove(e.touches[0].clientY)}
-        onTouchEnd={swipeEnd}
+        ref={sw.cardRef}
         style={{
           width: "100%", maxWidth: 430, margin: "0 auto",
           background: C.card, borderRadius: "22px 22px 0 0",
           border: `1px solid ${C.border}`,
           height: "92vh", display: "flex", flexDirection: "column",
-          animation: "slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1)",
           position: "relative", overflow: "hidden",
+          ...sw.cardStyle,
         }}
       >
         {/* Header con swipe */}
         <div
+          {...sw.handleProps}
           style={{
             padding: "12px 20px 10px", borderBottom: `1px solid ${C.border}`,
             display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
-            cursor: "grab", touchAction: "none",
+            ...sw.handleProps.style,
           }}
         >
           <div style={{ display: "flex", justifyContent: "center", position: "absolute", top: 8, left: 0, right: 0 }}>
@@ -435,9 +474,24 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
             <div style={{ fontSize: 11, fontWeight: 600, display:"flex", alignItems:"center", gap:6, marginBottom: usoHoy!=null?4:0 }}>
               <span style={{color:C.emerald}}>● En línea · Claude</span>
             </div>
-            {usoHoy != null && (()=>{
+            {(()=>{
+              if (usoHoy.cargando) {
+                // Skeleton mientras carga — muestra el límite ya conocido pero count como "···"
+                return (
+                  <div>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
+                      <span style={{fontSize:10,fontWeight:700,color:C.indigo}}>Cargando mensajes···</span>
+                      <span style={{fontSize:10,fontWeight:800,color:C.text.s}}>/{usoHoy.limite} hoy</span>
+                    </div>
+                    <div style={{height:4,borderRadius:99,background:`${C.indigo}22`,overflow:"hidden"}}>
+                      <div style={{height:"100%",borderRadius:99,width:"0%",background:C.indigo}}/>
+                    </div>
+                  </div>
+                );
+              }
               const pct = usoHoy.count / usoHoy.limite;
               const agotado = usoHoy.count >= usoHoy.limite;
+              const restantes = usoHoy.limite - usoHoy.count;
               const color = agotado ? "#ef4444" : pct>=0.7 ? "#f59e0b" : C.indigo;
               return (
                 <div>
@@ -445,11 +499,9 @@ Metas disponibles: ${goals.map(g => `${g.name} id:${g.id}`).join(", ") || "ningu
                     <span style={{fontSize:10,fontWeight:700,color:color}}>
                       {agotado ? "⚠️ Límite alcanzado" : `${usoHoy.count} de ${usoHoy.limite} mensajes hoy`}
                     </span>
-                    {usoHoy.count > 0 && (
-                      <span style={{fontSize:10,fontWeight:800,color:color}}>
-                        {agotado ? "Vuelve mañana" : `${usoHoy.limite - usoHoy.count} restantes`}
-                      </span>
-                    )}
+                    <span style={{fontSize:10,fontWeight:800,color:color}}>
+                      {agotado ? "Vuelve mañana" : `${restantes} restante${restantes!==1?"s":""}`}
+                    </span>
                   </div>
                   <div style={{height:4,borderRadius:99,background:`${color}22`,overflow:"hidden"}}>
                     <div style={{height:"100%",borderRadius:99,width:`${Math.min(pct*100,100)}%`,background:color,transition:"width 0.4s ease"}}/>

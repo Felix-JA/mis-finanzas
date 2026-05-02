@@ -58,12 +58,13 @@ const PRIORIDAD = {
 
 // Familias: si dos insights comparten familia, solo pasa el de mayor prioridad
 const FAMILIAS = {
-  alerta_critica:       ["pago_proximo_sin_saldo", "deudas_desbocadas",
-                         "disponible_agotado", "disponible_bajo", "gasto_supera_ingreso",
-                         "dias_sin_registrar", "fin_mes_poco_disponible", "racha_en_riesgo",
-                         "mes_tranquilo"],
+  alerta_saldo:         ["disponible_agotado", "disponible_bajo",
+                         "fin_mes_poco_disponible", "mes_tranquilo"],
+  alerta_pagos:         ["pago_proximo_sin_saldo"],
+  alerta_gasto:         ["gasto_supera_ingreso", "racha_en_riesgo",
+                         "dias_sin_registrar"],
   comparacion_mes:      ["vs_anterior_sube", "vs_anterior_baja"],
-  top_gasto:            ["top_cat", "cat_subida"],
+  top_gasto:            ["top_cat", "cat_subida", "sugerencia_ahorro"],
   presupuesto:          ["presupuesto_cerca_limite", "presupuesto_sobrado"],
   metas:                ["meta_aceleracion", "sin_metas"],
   patron:               ["mejor_mes_categoria", "dia_gasto_fuerte"],
@@ -170,15 +171,16 @@ export function InsightsEngine({
   }
 
   // 3. Categoría que más subió vs mes anterior
-  const catSubidas = byCat
+  // Guard: mínimo día 8 + umbral previo ≥15k normalizado (evita alarmas absurdas)
+  const catSubidas = today >= 8 ? byCat
     .map(c => {
       const prev = byCatPrev.find(p => p.id === c.id)?.total || 0;
-      if (prev < 5000 || c.total === 0) return null;
+      if (prev < 15000 || c.total === 0) return null;
       const pct = ((c.total - prev) / prev) * 100;
       return { ...c, pct };
     })
     .filter(Boolean)
-    .sort((a, b) => b.pct - a.pct);
+    .sort((a, b) => b.pct - a.pct) : [];
 
   if (catSubidas.length > 0 && catSubidas[0].pct >= 25) {
     const c = catSubidas[0];
@@ -208,7 +210,7 @@ export function InsightsEngine({
 
   // 5. Sin aportes a metas (solo si hay metas activas)
   const hayMetas = goals.some(g => (g.monto || 0) > 0);
-  if (totalIng > 0 && totalAhorr === 0 && hayMetas) {
+  if (totalIng > 0 && totalAportesMes === 0 && hayMetas) {
     insights.push({
       id: "sin_metas", icon: "⭐", color: C.violet,
       title: "Tus metas te esperan este mes",
@@ -249,6 +251,7 @@ export function InsightsEngine({
         .filter(t => (isAporteMeta(t) || isSavingsLegacy(t.cat)) && t.goalId === meta.id)
         .reduce((s, t) => s + t.amount, 0);
       const aporteMensualEst = aporteActual || Math.max(faltante / 24, recorte); // mínimo 24 meses o lo que recortes
+      if (aporteActual <= 0) return; // sin aporte real no podemos estimar el impacto
       const mesesActuales = aporteMensualEst > 0 ? Math.ceil(faltante / aporteMensualEst) : 999;
       const mesesNuevos = (aporteMensualEst + recorte) > 0 ? Math.ceil(faltante / (aporteMensualEst + recorte)) : 999;
       const ahorroMeses = mesesActuales - mesesNuevos;

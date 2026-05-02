@@ -13,7 +13,8 @@
 //   suggestions         → {catId: monto} inicial
 //   MAIN_CATS, C, COP   → utilidades
 
-import { useState, useMemo } from 'react';
+import { useSwipeDismiss } from "./useSwipeDismiss";
+import { useState, useMemo, useRef } from 'react';
 
 export function BudgetSetupModal({
   open, onClose, onSave,
@@ -24,8 +25,7 @@ export function BudgetSetupModal({
   const [draft, setDraft] = useState(() => ({ ...suggestions }));
   const [saving, setSaving] = useState(false);
   // Swipe down to dismiss
-  const [dragY, setDragY] = useState(0);
-  const [dragStartY, setDragStartY] = useState(null);
+  const sw = useSwipeDismiss(onClose);
 
   const totalPresup = useMemo(
     () => Object.values(draft).reduce((s, v) => s + (Number(v) || 0), 0),
@@ -37,17 +37,14 @@ export function BudgetSetupModal({
 
   if (!open) return null;
 
-  function onTouchStart(e) { setDragStartY(e.touches[0].clientY); }
-  function onTouchMove(e) {
-    if (dragStartY === null) return;
-    const delta = e.touches[0].clientY - dragStartY;
-    if (delta > 0) setDragY(delta);
-  }
-  function onTouchEnd() {
-    if (dragY > 80) onClose();
-    setDragY(0);
-    setDragStartY(null);
-  }
+  // Swipe desde el handle (barra)
+  function handleTouchStart(e) { e.stopPropagation(); startYRef.current = e.touches[0].clientY; curYRef.current = 0; }
+  function handleTouchMove(e) { e.stopPropagation(); if (startYRef.current === null) return; const d = e.touches[0].clientY - startYRef.current; if (d > 0) { curYRef.current = d; applyTransform(d); } }
+  function handleTouchEnd(e) { e.stopPropagation(); if (curYRef.current > 80) { applyTransform(window.innerHeight); setTimeout(onClose, 220); } else { if (cardRef.current) { cardRef.current.style.transition = 'transform 0.25s ease'; cardRef.current.style.transform = 'translateY(0)'; setTimeout(() => { if (cardRef.current) cardRef.current.style.transition = ''; }, 250); } } startYRef.current = null; curYRef.current = 0; }
+  // Swipe desde el cuerpo scrolleable (solo cuando scroll=0)
+  function bodyTouchStart(e) { const el = cardRef.current; if (el && el.scrollTop === 0) { startYRef.current = e.touches[0].clientY; curYRef.current = 0; } }
+  function bodyTouchMove(e) { if (startYRef.current === null) return; const d = e.touches[0].clientY - startYRef.current; const elapsed = Date.now(); if (d > 15) { curYRef.current = d; applyTransform(d); } else if (d < -5) { startYRef.current = null; applyTransform(0); } }
+  function bodyTouchEnd() { if (curYRef.current > 120) { applyTransform(window.innerHeight); setTimeout(onClose, 220); } else { if (cardRef.current) { cardRef.current.style.transition = 'transform 0.25s ease'; cardRef.current.style.transform = 'translateY(0)'; setTimeout(() => { if (cardRef.current) cardRef.current.style.transition = ''; }, 250); } } startYRef.current = null; curYRef.current = 0; }
 
   const handleChange = (catId, value) => {
     const raw = String(value).replace(/\D/g, '');
@@ -78,23 +75,25 @@ export function BudgetSetupModal({
 
   return (
     <div
+      ref={sw.overlayRef}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.82)',
         display: 'flex', alignItems: 'flex-end', zIndex: 400,
-        animation: 'fadeIn 0.18s ease',
+        ...sw.overlayStyle,
       }}
     >
-      <div style={{
-        width: '100%', maxWidth: 430, margin: '0 auto', background: C.card,
-        borderRadius: '22px 22px 0 0', border: `1px solid ${C.border}`,
-        padding: '20px 20px 28px', maxHeight: '90vh', display: 'flex',
-        flexDirection: 'column',
-        animation: dragY === 0 ? 'slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)' : 'none',
-        transform: `translateY(${dragY}px)`,
-        transition: dragStartY === null ? 'transform 0.2s ease' : 'none',
-        position: 'relative',
-      }}>
+      <div
+        ref={sw.cardRef}
+        {...sw.dragProps}
+        style={{
+          width: '100%', maxWidth: 430, margin: '0 auto', background: C.card,
+          borderRadius: '22px 22px 0 0', border: `1px solid ${C.border}`,
+          padding: '20px 20px 28px', maxHeight: '90vh', display: 'flex',
+          flexDirection: 'column', overflowY: 'auto', overscrollBehavior: 'contain',
+          position: 'relative',
+          ...sw.cardStyle,
+        }}>
         {/* Botón × esquina superior derecha */}
         <button
           onClick={onClose}
@@ -110,10 +109,8 @@ export function BudgetSetupModal({
         >×</button>
         {/* Handle con swipe down */}
         <div
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
-          style={{ display: 'flex', justifyContent: 'center', marginBottom: 14, padding: '4px 0 8px', cursor: 'grab', touchAction: 'none' }}
+          {...sw.handleProps}
+          style={{...sw.handleProps.style, marginBottom: 14, padding: '4px 0 8px', flexShrink: 0}}
         >
           <div style={{ width: 40, height: 4, borderRadius: 99, background: C.border }}/>
         </div>
