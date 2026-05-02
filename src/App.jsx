@@ -2679,10 +2679,11 @@ export default function App(){
   const [budgetSetupOpen,setBudgetSetupOpen]=useState(false); // modal plan inteligente
   const [simuladorOpen,setSimuladorOpen]=useState(false);
   const [asistenteOpen,setAsistenteOpen]=useState(false);
-  const [fabOpen,setFabOpen]=useState(false); // speed dial abierto
-  const [fabVoz,setFabVoz]=useState(false);   // modo voz directo activo
-  const fabVozRef=useRef(null);               // ref para reconocimiento de voz
-  const holdTimer=useRef(null);               // timer para hold
+  const [fabOpen,setFabOpen]=useState(false);
+  const [fabVoz,setFabVoz]=useState(false);
+  const [fabVozText,setFabVozText]=useState("");
+  const fabVozRef=useRef(null);
+  const holdTimer=useRef(null);
   const [calMes,setCalMes]=useState(now.getMonth()); // mes visible en el calendario
   const [calAnio,setCalAnio]=useState(now.getFullYear()); // año visible en el calendario
   const [bannerDismissTick,setBannerDismissTick]=useState(0); // re-render al dismiss
@@ -6446,11 +6447,8 @@ export default function App(){
             rec.onresult=(ev)=>{
               const txt=Array.from(ev.results).map(r=>r[0].transcript).join("");
               setFabVoz(false);
+              setFabVozText(txt);
               setAsistenteOpen(true);
-              setTimeout(()=>{
-                const inp=document.querySelector("#asistente-input");
-                if(inp){inp.value=txt;inp.dispatchEvent(new Event("input",{bubbles:true}));}
-              },400);
             };
             rec.onend=()=>setFabVoz(false);
             rec.onerror=()=>setFabVoz(false);
@@ -6557,7 +6555,7 @@ export default function App(){
       modoSalario={modoSalario}
       C={C} COP={COP}/>}
     {asistenteOpen&&<AsistenteIA
-      onClose={()=>setAsistenteOpen(false)}
+      onClose={()=>{setAsistenteOpen(false);setFabVozText("");}}
       onRegistrarTx={async(txData)=>{
         if(!user)return;
         // ── Validación plan Free: préstamos a terceros ──────────────────
@@ -6623,6 +6621,7 @@ export default function App(){
       presupuestos={presupuestos} MAIN_CATS={MAIN_CATS}
       modoSalario={modoSalario} deudas={deudas} user={user}
       isPro={isPro}
+      initialText={fabVozText}
       C={C} COP={COP}/>}
     {deudasModal&&<DeudasModal
       deudas={deudas}

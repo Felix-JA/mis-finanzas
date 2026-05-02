@@ -20,6 +20,7 @@ export function AsistenteIA({
   month, now, MONTHS, C, COP,
   tx, goals, getAportado, presupuestos, MAIN_CATS,
   modoSalario, deudas, user, isPro,
+  initialText, // texto de voz pre-grabado desde el FAB
 }) {
   const [msgs, setMsgs] = useState([
     {
@@ -42,6 +43,13 @@ export function AsistenteIA({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs]);
+
+  // Si viene texto de voz desde el FAB, enviarlo automáticamente
+  useEffect(() => {
+    if (initialText?.trim()) {
+      setTimeout(() => enviarTexto(initialText.trim()), 600);
+    }
+  }, []);
 
   // ── Cargar uso de IA al abrir — localStorage primero, luego Firestore
   useEffect(() => {
