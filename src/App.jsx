@@ -1237,11 +1237,8 @@ function GoalCard({goal,aportado,aportadoEsteMes,txAll,onEdit}){
   const grad=goalGradient(pct);
   const frase=getFrase(pct,goal.name);
   const proy=!done?getProyeccion(goal,aportado,txAll):null;
-  return <div onClick={onEdit}
-    onMouseDown={e=>e.currentTarget.style.transform="scale(0.985)"}
-    onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
-    onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
-    style={{borderRadius:20,overflow:"hidden",border:"none",boxShadow:elev("card"),marginBottom:14,cursor:"pointer",transition:"transform 0.15s",background:C.card}}>
+  return <div className="tap" onClick={onEdit}
+    style={{...cardSurface(),overflow:"hidden",borderRadius:20,border:`1px solid ${C.border}`,boxShadow:elev("card"),marginBottom:14,cursor:"pointer",transition:"transform 0.15s"}}>
     <div style={{position:"relative",minHeight:130,overflow:"hidden"}}>
       {goal.imagen
         ?<img src={goal.imagen} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>
@@ -1283,7 +1280,7 @@ function GoalCard({goal,aportado,aportadoEsteMes,txAll,onEdit}){
         <div style={{fontSize:11,color:C.text.s}}>Faltan {COP(Math.max(goal.monto-aportado,0))}</div>
       </div>
       {proy&&proy.promedio>0&&<div style={{
-        background:ink(0.04),borderRadius:12,padding:"12px 14px",marginTop:4,
+        background:surface("glass"),borderRadius:12,padding:"12px 14px",marginTop:4,
       }}>
         <div style={{fontSize:13,fontWeight:600,color:col,marginBottom:3}}>{proy.msg}</div>
         <div style={{fontSize:11,color:C.text.s,marginBottom:10}}>{proy.tip}</div>
@@ -2652,13 +2649,26 @@ export default function App(){
   const [salarioHistory,setSalarioHistory]=useState({}); // {"YYYY-M": monto}
   const [tx,setTx]=useState([]),[goals,setGoals]=useState([]);
   const [month,setMonth]=useState(now.getMonth()),[tab,setTab]=useState("home");
+  const [monthChanging,setMonthChanging]=useState(false);
+  const monthChangeTimer=useRef(null);
+  function setMonthSafe(m){
+    clearTimeout(monthChangeTimer.current);
+    setMonthChanging(true);
+    setMonth(m);
+    // requestAnimationFrame garantiza que el render con el nuevo mes ya ocurrió
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        monthChangeTimer.current=setTimeout(()=>setMonthChanging(false),80);
+      });
+    });
+  }
   const SC=useScreenSize(); // SC.fs(n) escala fuente, SC.pad(n) escala padding
   const [selectedYear,setSelectedYear]=useState(now.getFullYear());
   const [filtroMainCat,setFiltroMainCat]=useState(null); // id de MAIN_CAT para filtrar en MovTab desde Análisis
   const [filtroMainCatOrigen,setFiltroMainCatOrigen]=useState(null); // de dónde vino: "analisis" | null
   const monthScrollRef=useRef(null);
   const [modal,setModal]=useState(null),[goalModal,setGoalModal]=useState(null);
-  const [txLoading,setTxL]=useState(false);
+  const [txLoading,setTxL]=useState(true);
   const [alertaGasto,setAlertaGasto]=useState(null);
   const [pagos,setPagos]=useState([]);
   const [presupuestos,setPresupuestos]=useState({}); // {catId: limite}
@@ -2669,6 +2679,10 @@ export default function App(){
   const [budgetSetupOpen,setBudgetSetupOpen]=useState(false); // modal plan inteligente
   const [simuladorOpen,setSimuladorOpen]=useState(false);
   const [asistenteOpen,setAsistenteOpen]=useState(false);
+  const [fabOpen,setFabOpen]=useState(false); // speed dial abierto
+  const [fabVoz,setFabVoz]=useState(false);   // modo voz directo activo
+  const fabVozRef=useRef(null);               // ref para reconocimiento de voz
+  const holdTimer=useRef(null);               // timer para hold
   const [calMes,setCalMes]=useState(now.getMonth()); // mes visible en el calendario
   const [calAnio,setCalAnio]=useState(now.getFullYear()); // año visible en el calendario
   const [bannerDismissTick,setBannerDismissTick]=useState(0); // re-render al dismiss
@@ -2819,6 +2833,48 @@ export default function App(){
       }
     });
     return unsub;},[user]);
+
+  // Micro-animaciones de tap — event listener global (más confiable que CSS :active en iOS)
+  useEffect(()=>{
+    const TAGS=["BUTTON","A"];
+    const TAP_CLASSES=["tap"];
+    function isTappable(el){
+      if(!el||el===document.body)return false;
+      if(TAGS.includes(el.tagName))return true;
+      if(TAP_CLASSES.some(c=>el.classList?.contains(c)))return true;
+      return false;
+    }
+    function findTappable(el){
+      let cur=el;
+      for(let i=0;i<6;i++){
+        if(!cur||cur===document.body)return null;
+        if(isTappable(cur))return cur;
+        cur=cur.parentElement;
+      }
+      return null;
+    }
+    let active=null;
+    function onStart(e){
+      const t=findTappable(e.target);
+      if(!t)return;
+      active=t;
+      t.style.transition="transform 0.1s cubic-bezier(0.34,1.56,0.64,1)";
+      t.style.transform=TAGS.includes(t.tagName)?"scale(0.96)":"scale(0.97)";
+    }
+    function onEnd(){
+      if(!active)return;
+      active.style.transform="scale(1)";
+      active=null;
+    }
+    document.addEventListener("touchstart",onStart,{passive:true});
+    document.addEventListener("touchend",onEnd,{passive:true});
+    document.addEventListener("touchcancel",onEnd,{passive:true});
+    return()=>{
+      document.removeEventListener("touchstart",onStart);
+      document.removeEventListener("touchend",onEnd);
+      document.removeEventListener("touchcancel",onEnd);
+    };
+  },[]);
 
   // Cargar badges guardados desde Firestore
   useEffect(()=>{if(!user){setBadgesGuardados({});setBadgesLoaded(false);return;}
@@ -3786,6 +3842,9 @@ export default function App(){
     input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.6);}
     input::placeholder{color:${paleta.text.s}44;}
     ::-webkit-scrollbar{display:none;}
+    button:active{transform:scale(0.96);transition:transform 0.12s cubic-bezier(0.34,1.56,0.64,1);}
+    button{transition:transform 0.15s cubic-bezier(0.34,1.56,0.64,1),opacity 0.15s;}
+    .tap:active{transform:scale(0.97);transition:transform 0.12s cubic-bezier(0.34,1.56,0.64,1);}
   `;
 
   if(authLoading)return <SplashScreen mensaje="Cargando..."/>;
@@ -3830,7 +3889,7 @@ export default function App(){
       );
       if(nuevoAnio===currentY) mesesDelAnio.add(currentM);
       const ultimo=mesesDelAnio.size?Math.max(...mesesDelAnio):0;
-      setMonth(ultimo);
+      setMonthSafe(ultimo);
     }
 
     const puedeIrAtras=selectedYear>minAnio;
@@ -3856,7 +3915,7 @@ export default function App(){
           const isNext=selectedYear===currentY&&i===currentM+1;
           const isActive=month===i;
           return <button key={i} data-active={isActive?"true":"false"}
-            onClick={()=>setMonth(i)}
+            onClick={()=>setMonthSafe(i)}
             style={{
               flexShrink:0,padding:"8px 18px",borderRadius:99,border:"none",cursor:"pointer",
               fontSize:12,fontWeight:isActive?700:500,
@@ -4030,7 +4089,7 @@ export default function App(){
     if(txLoading) return <ShimmerHome/>;
 
     // ── Vista compacta ──────────────────────────────────────────────────────
-    if(compacto) return <div style={{padding:`${SC.pad(16)}px ${SC.pad(20)}px 80px`}}>
+    if(compacto) return <div style={{padding:`${SC.pad(16)}px ${SC.pad(20)}px 100px`}}>
       <MonthSelector/>
       {/* Card única tipo Apple Wallet */}
       <div style={{
@@ -4096,7 +4155,7 @@ export default function App(){
       </>}
     </div>;
 
-    return <div style={{padding:`${SC.pad(16)}px ${SC.pad(20)}px 80px`}}>
+    return <div style={{padding:`${SC.pad(16)}px ${SC.pad(20)}px 100px`}}>
       <MonthSelector/>
       <ResumenSemanal/>
       {/* Banner quincena */}
@@ -4268,42 +4327,33 @@ export default function App(){
             mesesDatos={totalMesesConDatos||0}
             C={C} COP={COP}
             onActivate={()=>setBudgetSetupOpen(true)}/>
-          {/* ── 2.45 Accesos rápidos IA + Simulador ── */}
-          <div style={{display:"flex",gap:8,marginBottom:16}}>
-            {[
-              {icon:"🤖", title:"Asistente IA", sub:"Pregúntame algo", onClick:()=>setAsistenteOpen(true), color:C.indigo, show:true},
-              {icon:"🔮", title:`Simulador${!isPro?" ⚡":""}`, sub:"¿Puedo comprarlo?",
-               onClick:()=>isPro?setSimuladorOpen(true):setProGate({titulo:"Simulador de decisión",descripcion:"Analiza si puedes permitirte una compra sin afectar tus finanzas.",features:[{icon:"🎯",label:"Simulación de impacto"},{icon:"📊",label:"Análisis de cuotas"},{icon:"💡",label:"Recomendación inteligente"}]}),
-               color:C.violet, show:disponibleGastar>0},
-            ].filter(b=>b.show).map(b=>(
-              <button key={b.title} onClick={b.onClick} style={{
-                flex:1, display:"flex", alignItems:"center", gap:10,
-                ...cardSurface(b.color),
-                border: cardBorder(b.color),
-                boxShadow: cardShadow(b.color),
-                borderRadius:18, padding:"12px 14px", cursor:"pointer",
-                position:"relative", overflow:"hidden",
-                transition:"transform 0.15s, box-shadow 0.15s",
-              }}
-              onMouseDown={e=>e.currentTarget.style.transform="scale(0.97)"}
-              onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
-              onTouchStart={e=>e.currentTarget.style.transform="scale(0.97)"}
-              onTouchEnd={e=>e.currentTarget.style.transform="scale(1)"}
-              >
-                <div style={{
-                  width:36,height:36,borderRadius:12,flexShrink:0,
-                  background:`${b.color}22`,border:`1px solid ${b.color}30`,
-                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,
-                }}>{b.icon}</div>
-                <div style={{textAlign:"left"}}>
-                  <div style={{fontSize:12,fontWeight:700,color:C.text.h,lineHeight:1.2}}>{b.title}</div>
-                  <div style={{fontSize:10,color:C.text.s,marginTop:2}}>{b.sub}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-          {/* ── 2.6 Racha ── */}
-          <RachaWidget/>
+          {/* ── 2.45 Simulador ── */}
+          {disponibleGastar>0&&<button
+            onClick={()=>isPro?setSimuladorOpen(true):setProGate({titulo:"Simulador de decisión",descripcion:"Analiza si puedes permitirte una compra sin afectar tus finanzas.",features:[{icon:"🎯",label:"Simulación de impacto"},{icon:"📊",label:"Análisis de cuotas"},{icon:"💡",label:"Recomendación inteligente"}]})}
+            style={{
+              width:"100%",display:"flex",alignItems:"center",gap:12,
+              ...cardSurface(C.violet),
+              border:cardBorder(C.violet),
+              boxShadow:cardShadow(C.violet),
+              borderRadius:14,padding:"11px 14px",cursor:"pointer",
+              marginBottom:14,
+              borderLeft:`3px solid ${C.violet}`,
+              transition:"transform 0.15s",
+            }}
+            onMouseDown={e=>e.currentTarget.style.transform="scale(0.98)"}
+            onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
+            onTouchStart={e=>e.currentTarget.style.transform="scale(0.98)"}
+            onTouchEnd={e=>e.currentTarget.style.transform="scale(1)"}
+          >
+            <span style={{fontSize:16,flexShrink:0}}>🔮</span>
+            <div style={{flex:1,textAlign:"left"}}>
+              <span style={{fontSize:13,fontWeight:700,color:C.text.h}}>Simulador{!isPro?" ⚡":""}</span>
+              <span style={{fontSize:12,color:C.text.s,marginLeft:6}}>¿Me alcanza la plata?</span>
+            </div>
+            <span style={{fontSize:12,color:C.violet,fontWeight:700}}>→</span>
+          </button>}
+          {/* ── 2.6 Racha — solo si es impresionante (3+ meses) ── */}
+          {rachaActualLogros>=3&&<RachaWidget/>}
           {/* ── 3. Insights ── */}
           <InsightsEngine txAll={tx} monthTx={monthTx} gastosTx={gastosTx} totalGasto={totalGasto} totalIng={totalIngresoMes} totalAhorr={totalAportes} month={month} C={C} COP={COP} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} isSavingsLegacy={isSavingsLegacy} isMonth={isMonth} presupuestos={presupuestos} goals={goals} pagos={pagos} saldo={saldo} disponibleGastar={disponibleGastar} totalAportesMes={totalAportes} rachaActual={rachaActualLogros}/>
           {/* ── 3.5 Salud del plan (si hay desbalance) ── */}
@@ -4357,8 +4407,8 @@ export default function App(){
   };
   const MetasTab=()=>{
     const tot=goals.reduce((s,g)=>s+g.monto,0), ap=goals.reduce((s,g)=>s+getAportado(g.id),0);
-    return <div style={{padding:`${SC.pad(16)}px ${SC.pad(20)}px 80px`}}>
-      {goals.length>0&&<div style={{background:C.card,borderRadius:20,padding:"20px",marginBottom:16,boxShadow:elev("card")}}>
+    return <div style={{padding:`${SC.pad(16)}px ${SC.pad(20)}px 100px`}}>
+      {goals.length>0&&<div style={{...cardSurface(),padding:"20px",marginBottom:16,borderRadius:20,border:`1px solid ${C.border}`,boxShadow:elev("card")}}>
         <div style={{display:"flex",alignItems:"center",gap:16}}>
           <Ring pct={tot>0?ap/tot:0} size={52} stroke={4} color={C.indigo} label={`${Math.round(Math.min(tot>0?ap/tot:0,1)*100)}%`}/>
           <div>
@@ -4382,7 +4432,7 @@ export default function App(){
         Aún no tienes metas.<br/>¡Crea una y empieza a ahorrar<br/>para lo que siempre quisiste!<br/>
         <button onClick={()=>{if(!isPro&&goals.length>=3){setProGate({titulo:"Metas ilimitadas",descripcion:"Con el plan Free puedes tener hasta 3 metas activas.",features:[{icon:"🎯",label:"Metas ilimitadas",desc:"Crea tantas como quieras"},{icon:"📊",label:"Proyecciones de logro"}]});}else setGoalModal("new");}} style={{marginTop:18,padding:"12px 28px",borderRadius:12,border:"none",background:`linear-gradient(135deg,${C.indigo},#4338ca)`,color:"#fff",fontWeight:800,fontSize:14,cursor:"pointer"}}>+ Crear mi primera meta</button>
       </div>}
-      {goals.length>0&&<button onClick={()=>{if(!isPro&&goals.length>=3){setProGate({titulo:"Metas ilimitadas",descripcion:"Con el plan Free puedes tener hasta 3 metas activas.",features:[{icon:"🎯",label:"Metas ilimitadas",desc:"Crea tantas como quieras"},{icon:"📊",label:"Proyecciones de logro"}]});}else setGoalModal("new");}} style={{width:"100%",padding:16,borderRadius:16,border:"none",background:C.card,boxShadow:elev("card"),color:C.text.b,cursor:"pointer",fontSize:14,fontWeight:500,marginBottom:8}}>+ Nueva meta</button>}
+      {goals.length>0&&<button onClick={()=>{if(!isPro&&goals.length>=3){setProGate({titulo:"Metas ilimitadas",descripcion:"Con el plan Free puedes tener hasta 3 metas activas.",features:[{icon:"🎯",label:"Metas ilimitadas",desc:"Crea tantas como quieras"},{icon:"📊",label:"Proyecciones de logro"}]});}else setGoalModal("new");}} style={{width:"100%",padding:16,borderRadius:16,border:`1px solid ${ink(0.08)}`,background:surface("glass"),boxShadow:elev("card"),color:C.text.b,cursor:"pointer",fontSize:14,fontWeight:500,marginBottom:8}}>+ Nueva meta</button>}
     </div>;
   };
 
@@ -4599,7 +4649,7 @@ export default function App(){
     // Gráfica con scroll horizontal — cada mes ocupa 52px, cómodo para dedo
     const COL=52, H=130, BW=18, SVG_W=COL*12, SVG_H=H+32;
 
-    return <div style={{padding:`${SC.pad(16)}px ${SC.pad(20)}px 80px`}}>
+    return <div style={{padding:`${SC.pad(16)}px ${SC.pad(20)}px 100px`}}>
       {/* Header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
         <div>
@@ -4924,12 +4974,14 @@ export default function App(){
       </span>;
     }
 
-    return <div style={{padding:"16px 20px 0"}}>
+    return <div style={{padding:"16px 20px 100px",opacity:monthChanging?0:1,transition:"opacity 0.15s ease"}}>
       <MonthSelector/>
+      {txLoading ? null : <>
       {monthTx.length===0
         ? <div style={{
+            ...cardSurface(),
             borderRadius:20,padding:"32px 20px",marginBottom:20,
-            background:C.card,border:`1px solid ${C.border}`,
+            border:`1px solid ${C.border}`,
             textAlign:"center",
             boxShadow:elev("card"),
             animation:"fadeIn 0.3s ease",
@@ -5120,13 +5172,6 @@ export default function App(){
           });
         })()}
       </>}
-      {monthTx.length===0&&(
-        <div style={{textAlign:"center",padding:"40px 0",color:C.text.b,fontSize:14,lineHeight:2.2}}>
-          <span style={{fontSize:32}}>📊</span><br/>
-          Sin datos para analizar aún.<br/>
-          <span style={{fontSize:12,color:C.text.s}}>Registra tus movimientos para ver análisis.</span>
-        </div>
-      )}
       {/* ── Proyección de flujo de caja ── */}
       {sal>0&&(()=>{
         const currentM2=now.getMonth(), currentY2=now.getFullYear();
@@ -5240,6 +5285,7 @@ export default function App(){
           </div>
         </div>;
       })()}
+      </>}
     </div>;
   };
 
@@ -5293,7 +5339,7 @@ export default function App(){
       const btns=monthScrollRef.current.querySelectorAll("button");
       if(btns[month]) btns[month].scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"});
     },[]);
-    return <div style={{padding:"16px 20px 0"}}>
+    return <div style={{padding:"16px 20px 100px",opacity:monthChanging?0:1,transition:"opacity 0.15s ease"}}>
       <MonthSelector/>
       {/* Chip de filtro por categoría (viene desde Análisis) */}
       {mainCatFiltrada&&(
@@ -5342,7 +5388,7 @@ export default function App(){
       )}
       {/* ── Buscador ── */}
       {monthTx.length>0&&<div style={{marginBottom:16}}>
-        <div style={{display:"flex",alignItems:"center",background:C.card,borderRadius:14,border:`1px solid ${busqueda?C.indigo+"44":ink(0.06)}`,padding:"0 14px",gap:10,transition:"border-color 0.2s",marginBottom:10,boxShadow:elev("card")}}>
+        <div style={{display:"flex",alignItems:"center",background:surface("glass"),borderRadius:14,border:`1px solid ${busqueda?C.indigo+"44":ink(0.08)}`,padding:"0 14px",gap:10,transition:"border-color 0.2s",marginBottom:10,boxShadow:elev("card")}}>
           <span style={{fontSize:15,color:C.text.s,opacity:0.6}}>🔍</span>
           <input
             placeholder="Buscar..."
@@ -5378,11 +5424,12 @@ export default function App(){
               <div style={{fontSize:13,color:C.text.s,lineHeight:1.6}}>Intenta con otra palabra o categoría.</div>
             </div>
           : <div style={{
+              ...cardSurface(),
               borderRadius:20,padding:"32px 20px",
-              background:C.card,border:`1px solid ${C.border}`,
+              border:`1px solid ${C.border}`,
+              boxShadow:elev("card"),
               textAlign:"center",marginTop:8,
               animation:"fadeIn 0.3s ease",
-              boxShadow:elev("card"),
             }}>
               <div style={{fontSize:40,marginBottom:12}}>📭</div>
               <div style={{fontSize:16,fontWeight:800,color:C.text.h,marginBottom:8}}>
@@ -5402,7 +5449,40 @@ export default function App(){
               )}
             </div>
       )}
-      {sorted.map(t=><TxRow key={t.id} t={t} onEdit={()=>setModal(t)} catsCustom={catsCustom}/>)}
+      {(()=>{
+        // Agrupar por día
+        const grupos={};
+        sorted.forEach(t=>{
+          const dia=t.date?.slice(0,10)||"";
+          if(!grupos[dia]) grupos[dia]=[];
+          grupos[dia].push(t);
+        });
+        const diasOrdenados=Object.keys(grupos).sort((a,b)=>parseDateSafe(b)-parseDateSafe(a));
+        const hoyStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+        const ayerDate=new Date(now); ayerDate.setDate(now.getDate()-1);
+        const ayerStr=`${ayerDate.getFullYear()}-${String(ayerDate.getMonth()+1).padStart(2,"0")}-${String(ayerDate.getDate()).padStart(2,"0")}`;
+        return diasOrdenados.map(dia=>{
+          const txsDia=grupos[dia];
+          // Label del día
+          const d=parseDateSafe(dia);
+          const dNum=d.getDate();
+          const mesLabel=MONTHS[d.getMonth()];
+          const labelDia=dia===hoyStr?"Hoy":dia===ayerStr?"Ayer":`${dNum} de ${mesLabel}`;
+          return <div key={dia} style={{marginBottom:4}}>
+            {/* Header del día */}
+            <div style={{
+              padding:"10px 0 6px",
+              borderBottom:`1px solid ${ink(0.07)}`,
+              marginBottom:2,
+            }}>
+              <span style={{fontSize:12,fontWeight:700,color:C.text.s,letterSpacing:0.3}}>
+                {labelDia}
+              </span>
+            </div>
+            {txsDia.map(t=><TxRow key={t.id} t={t} onEdit={()=>setModal(t)} catsCustom={catsCustom}/>)}
+          </div>;
+        });
+      })()}
     </div>;
   };
 
@@ -5462,7 +5542,7 @@ export default function App(){
     const maxGasto=Math.max(...Array.from({length:ultimoDia},(_,i)=>gastoDia(i+1)),1);
     const DIAS_S2=["D","L","M","X","J","V","S"];
 
-    return <div style={{padding:"16px 20px 0"}}>
+    return <div style={{padding:"16px 20px 100px"}}>
       {/* Navegación mes/año */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
         <button onClick={()=>{let m=calMes-1,y=calAnio;if(m<0){m=11;y--;}setCalMes(m);setCalAnio(y);setDiaSelec(1);}}
@@ -5963,7 +6043,7 @@ export default function App(){
 
   const ConfigTab=()=>{
     const [tmp,setTmp]=useState(String(sal));
-    return <div style={{padding:"16px 20px 0"}}>
+    return <div style={{padding:"16px 20px 100px"}}>
       <Card style={{marginBottom:12,display:"flex",alignItems:"center",gap:14}}>
         <img src={user.photoURL} alt="" style={{width:48,height:48,borderRadius:"50%"}}/>
         <div style={{flex:1}}>
@@ -6124,7 +6204,8 @@ export default function App(){
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
         {ITEMS.map(item=>(
           <button key={item.label} onClick={item.onClick} style={{
-            background:C.card,border:`1px solid ${C.border}`,borderRadius:18,
+            ...cardSurface(),
+            border:`1px solid ${C.border}`,borderRadius:18,
             padding:"20px 16px",cursor:"pointer",textAlign:"left",
             display:"flex",flexDirection:"column",gap:10,
             boxShadow:elev("card"),position:"relative",
@@ -6216,11 +6297,11 @@ export default function App(){
       background: C.isLight ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.25)",
       position:"sticky",top:0,zIndex:20,
       backdropFilter:"blur(40px)",WebkitBackdropFilter:"blur(40px)",
-      borderBottom:`1px solid ${C.isLight?"rgba(255,255,255,0.6)":"rgba(255,255,255,0.05)"}`,
+      borderBottom:`1px solid ${C.indigo}22`,
       display:"flex",justifyContent:"space-between",alignItems:"center"}}>
       <div>
         <div style={{fontSize:10,color:C.text.s,letterSpacing:1.8,fontWeight:600,marginBottom:2,opacity:0.7}}>{isPro?"MIS FINANZAS PRO":"MIS FINANZAS"}</div>
-        <div style={{fontSize:SC.fs(21),fontWeight:700,letterSpacing:-0.5,color:C.text.h}}>{user.displayName?.split(" ")[0]} 👋</div>
+        <div style={{fontSize:SC.fs(23),fontWeight:900,letterSpacing:-0.5,color:C.text.h}}>{user.displayName?.split(" ")[0]} 👋</div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         {tab==="home"&&<button onClick={toggleCompacto} style={{
@@ -6274,40 +6355,130 @@ export default function App(){
     {/* Menú hamburguesa — bottom sheet */}
     {menuOpen&&<MenuSheet onClose={()=>setMenuOpen(false)} user={user} disponibleGastar={disponibleGastar} totalGasto={totalGasto} tema={tema} TEMAS={TEMAS} changeTab={changeTab} setMenuOpen={setMenuOpen} setExportModal={setExportModal} handleLogout={handleLogout} C={C} COP={COP} isPro={isPro} setProGate={setProGate}/>}
     {tab==="home"&&<HomeTab/>}{tab==="metas"&&<MetasTab/>}{tab==="cal"&&<CalendarioTab/>}{tab==="mov"&&<MovTab/>}{tab==="anal"&&<AnalisisTab/>}{tab==="cfg"&&<ConfigTab/>}{tab==="anual"&&(isPro?<ResumenAnualTab/>:<ProGate titulo="Resumen anual" descripcion="12 meses de tus finanzas de un vistazo." features={[{icon:"📅",label:"Vista 12 meses"},{icon:"📈",label:"Tendencias y comparativas"},{icon:"🏆",label:"Mejor y peor mes"}]} onClose={()=>changeTab("home")} C={C}/>)}{tab==="logros"&&<LogrosTab badgesDesbloqueados={badgesDesbloqueados} badgesGuardados={badgesGuardados} totalPts={totalPts} tx={tx} goals={goals} presupuestos={presupuestos} prestamos={prestamos} rachaActual={rachaActualLogros} totalMesesConDatos={totalMesesConDatos} mesesResumen={mesesResumen} mesesPerfectos={mesesPerfectos} getAportado={getAportado} MAIN_CATS={MAIN_CATS} isGasto={isGasto} isAporteMeta={isAporteMeta} C={C} COP={COP}/>}{tab==="mas"&&<MasTab/>}
-    {/* FABs — stack vertical a la derecha */}
+    {/* FAB unificado — tap: speed dial, hold: voz directa */}
     {!modal&&!goalModal&&!pagoModal&&tab!=="anual"&&tab!=="logros"&&tab!=="mas"&&<>
-      {/* FAB Asistente IA — arriba del + */}
-      <button onClick={()=>setAsistenteOpen(true)} style={{
-        position:"fixed",bottom:162,right:24,
-        width:48,height:48,borderRadius:"50%",
-        background:`linear-gradient(135deg,${C.violet},${C.indigo})`,
-        border:"none",fontSize:22,color:"#fff",cursor:"pointer",
-        boxShadow:`0 6px 20px rgba(139,92,246,0.5), 0 2px 6px rgba(0,0,0,0.3)`,
-        display:"flex",alignItems:"center",justifyContent:"center",
-        zIndex:100,transition:"all 0.3s ease",
-      }}>🤖</button>
-      {/* FAB Principal + */}
-      <button onClick={()=>{
-        if(tab==="metas"){if(!isPro&&goals.length>=3){setProGate({titulo:"Metas ilimitadas",descripcion:"Con el plan Free puedes tener hasta 3 metas activas.",features:[{icon:"🎯",label:"Metas ilimitadas",desc:"Crea tantas como quieras"},{icon:"📊",label:"Proyecciones de logro"}]});}else setGoalModal("new");}
-        else if(tab==="cal"){setPagoModalDia(null);setPagoModal("new");}
-        else setModal("new");
-      }} style={{
-        position:"fixed",bottom:92,right:20,
-        width:60,height:60,borderRadius:"50%",
-        background:tab==="metas"
-          ?`linear-gradient(135deg,#818cf8,#6366f1,#4338ca)`
-          :tab==="cal"
-          ?`linear-gradient(135deg,#38bdf8,#0284c7)`
-          :`linear-gradient(135deg,#34d399,#10b981,#059669)`,
-        border:"none",fontSize:30,color:"#fff",cursor:"pointer",
-        boxShadow:tab==="metas"
-          ?`0 8px 32px rgba(99,102,241,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)`
-          :tab==="cal"
-          ?`0 8px 32px rgba(56,189,248,0.5), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)`
-          :`0 8px 32px rgba(16,185,129,0.6), 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2)`,
-        display:"flex",alignItems:"center",justifyContent:"center",
-        zIndex:100,lineHeight:1,transition:"all 0.3s ease",
-      }}>＋</button>
+      {/* Overlay para cerrar speed dial */}
+      {fabOpen&&<div onClick={()=>setFabOpen(false)} style={{position:"fixed",inset:0,zIndex:98}}/>}
+      {/* Orb de voz activa */}
+      {fabVoz&&<div style={{
+        position:"fixed",inset:0,zIndex:200,
+        display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+        background:"rgba(0,0,0,0.7)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",
+      }} onClick={()=>{fabVozRef.current?.stop();setFabVoz(false);}}>
+        <div style={{
+          width:120,height:120,borderRadius:"50%",
+          background:`radial-gradient(circle,${C.violet}44 0%,${C.indigo}22 60%,transparent 80%)`,
+          display:"flex",alignItems:"center",justifyContent:"center",
+          animation:"pulse 1s ease infinite",
+          boxShadow:`0 0 60px ${C.indigo}66`,
+        }}>
+          <div style={{fontSize:48}}>🎤</div>
+        </div>
+        <div style={{color:"#fff",fontSize:16,fontWeight:700,marginTop:24}}>Escuchando...</div>
+        <div style={{color:"rgba(255,255,255,0.5)",fontSize:13,marginTop:8}}>Toca para cancelar</div>
+      </div>}
+      {/* Speed dial — botones que aparecen al hacer tap */}
+      {fabOpen&&!fabVoz&&<>
+        {/* Opción IA/Chat */}
+        <div style={{
+          position:"fixed",bottom:182,right:16,
+          display:"flex",alignItems:"center",gap:10,
+          animation:"fadeSlideUp 0.18s ease",
+          zIndex:99,
+        }}>
+          <div style={{
+            background:C.isLight?"rgba(99,102,241,0.9)":"rgba(99,102,241,0.25)",
+            backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+            borderRadius:99,padding:"7px 16px",
+            fontSize:12,fontWeight:700,color:"#fff",
+            border:"1px solid rgba(99,102,241,0.4)",
+            boxShadow:"0 4px 16px rgba(99,102,241,0.35)",
+          }}>Asistente IA</div>
+          <button onClick={()=>{setFabOpen(false);setAsistenteOpen(true);}} style={{
+            width:48,height:48,borderRadius:"50%",border:"none",cursor:"pointer",
+            background:`linear-gradient(135deg,${C.violet},${C.indigo})`,
+            fontSize:22,display:"flex",alignItems:"center",justifyContent:"center",
+            boxShadow:`0 4px 16px ${C.indigo}55`,flexShrink:0,
+          }}>🤖</button>
+        </div>
+        {/* Opción Manual */}
+        <div style={{
+          position:"fixed",bottom:244,right:16,
+          display:"flex",alignItems:"center",gap:10,
+          animation:"fadeSlideUp 0.22s ease",
+          zIndex:99,
+        }}>
+          <div style={{
+            background:C.isLight?"rgba(16,185,129,0.9)":"rgba(16,185,129,0.25)",
+            backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+            borderRadius:99,padding:"7px 16px",
+            fontSize:12,fontWeight:700,color:"#fff",
+            border:"1px solid rgba(16,185,129,0.4)",
+            boxShadow:"0 4px 16px rgba(16,185,129,0.35)",
+          }}>
+            {tab==="metas"?"Nueva meta":tab==="cal"?"Pago programado":"Registro manual"}
+          </div>
+          <button onClick={()=>{
+            setFabOpen(false);
+            if(tab==="metas"){if(!isPro&&goals.length>=3){setProGate({titulo:"Metas ilimitadas",descripcion:"Con el plan Free puedes tener hasta 3 metas activas.",features:[{icon:"🎯",label:"Metas ilimitadas"}]});}else setGoalModal("new");}
+            else if(tab==="cal"){setPagoModalDia(null);setPagoModal("new");}
+            else setModal("new");
+          }} style={{
+            width:48,height:48,borderRadius:"50%",border:"none",cursor:"pointer",
+            background:tab==="metas"?`linear-gradient(135deg,#818cf8,#4338ca)`:tab==="cal"?`linear-gradient(135deg,#38bdf8,#0284c7)`:`linear-gradient(135deg,#34d399,#059669)`,
+            fontSize:22,display:"flex",alignItems:"center",justifyContent:"center",
+            boxShadow:`0 4px 16px rgba(16,185,129,0.5)`,flexShrink:0,
+          }}>✍️</button>
+        </div>
+      </>}
+      {/* FAB Principal — verde, + centrado */}
+      <button
+        onPointerDown={e=>{
+          e.preventDefault();
+          holdTimer.current=setTimeout(()=>{
+            holdTimer.current=null;
+            setFabOpen(false);
+            const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+            if(!SR){alertInfo("Voz no disponible","Usa Chrome para activar el micrófono.");return;}
+            const rec=new SR();
+            rec.lang="es-CO";rec.continuous=false;rec.interimResults=false;
+            rec.onstart=()=>setFabVoz(true);
+            rec.onresult=(ev)=>{
+              const txt=Array.from(ev.results).map(r=>r[0].transcript).join("");
+              setFabVoz(false);
+              setAsistenteOpen(true);
+              setTimeout(()=>{
+                const inp=document.querySelector("#asistente-input");
+                if(inp){inp.value=txt;inp.dispatchEvent(new Event("input",{bubbles:true}));}
+              },400);
+            };
+            rec.onend=()=>setFabVoz(false);
+            rec.onerror=()=>setFabVoz(false);
+            fabVozRef.current=rec;
+            rec.start();
+          },500);
+        }}
+        onPointerUp={()=>{
+          if(holdTimer.current){clearTimeout(holdTimer.current);holdTimer.current=null;setFabOpen(o=>!o);}
+        }}
+        onPointerLeave={()=>{if(holdTimer.current){clearTimeout(holdTimer.current);holdTimer.current=null;}}}
+        style={{
+          position:"fixed",bottom:108,right:20,
+          width:60,height:60,borderRadius:"50%",
+          background:fabOpen
+            ?"linear-gradient(135deg,#ef4444,#dc2626)"
+            :`linear-gradient(135deg,#34d399,#10b981,#059669)`,
+          border:"none",
+          boxShadow:fabOpen
+            ?`0 8px 32px rgba(239,68,68,0.5), inset 0 1px 0 rgba(255,255,255,0.2)`
+            :`0 8px 32px rgba(16,185,129,0.6), 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2)`,
+          display:"flex",alignItems:"center",justifyContent:"center",
+          zIndex:101,cursor:"pointer",
+          transition:"all 0.25s cubic-bezier(0.34,1.56,0.64,1)",
+          transform:fabOpen?"rotate(45deg)":"rotate(0deg)",
+        }}>
+        <span style={{fontSize:28,lineHeight:1,color:"#fff",display:"block",marginTop:-1}}>+</span>
+      </button>
     </>}
     {modal&&<TxModal initial={modal==="new"||modal==="meta_aporte"?null:modal} initialCat={modal==="meta_aporte"?"meta_aporte":undefined} goals={goals} saldoDisponible={disponibleGastar} onClose={()=>setModal(null)} onSave={handleSave} onDelete={handleDelete} catsCustom={catsCustom} onEditCustom={m=>setCatPersonalModal(m)} onOpenPrestamo={()=>{setPrestamosModal(true);setPrestamoForm("new");}} txHistorial={tx} deudas={deudas}/>}
     {goalModal&&<GoalModal initial={goalModal==="new"?null:goalModal} onClose={()=>setGoalModal(null)} onSave={handleGoalSave} onDelete={handleGoalDelete}/>}

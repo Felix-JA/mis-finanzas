@@ -1,5 +1,5 @@
 // ─── SIMULADOR DE DECISIÓN v2 ─────────────────────────────────────────────────
-// Simulador inteligente que considera:
+// ¿Me alcanza la plata? que considera:
 //   - Gasto proyectado hasta fin de mes (no solo saldo actual)
 //   - Días restantes × gasto diario típico = "reserva necesaria"
 //   - Próximo pago (quincenas/mensual)
@@ -83,7 +83,7 @@ export function SimuladorDecision({
 
     if (disponibleDespues < 0) {
       nivelRiesgo = 3;
-      veredicto = { icono: "❌", titulo: "No alcanza", texto: `Te faltan ${COP(Math.abs(disponibleDespues))} — no tienes este dinero disponible.` };
+      veredicto = { icono: "❌", titulo: "No te alcanza", texto: `Te faltan ${COP(Math.abs(disponibleDespues))} — no tienes este dinero disponible.` };
       colorVeredicto = C.red;
     } else if (margenReal < 0) {
       // Alcanza el saldo pero no la reserva para vivir hasta cobrar
@@ -91,7 +91,7 @@ export function SimuladorDecision({
       nivelRiesgo = 2;
       veredicto = {
         icono: "⚠️",
-        titulo: "Riesgo real",
+        titulo: "Ojo, puede ser riesgoso",
         texto: `Tienes los ${COP(raw)} pero te quedarían solo ${COP(Math.max(disponibleDespues,0))} para ${diasAlPago} días más. Necesitas ~${COP(Math.round(reservaNecesaria))} para llegar al día ${proximoPago}.`,
       };
       colorVeredicto = C.amber;
@@ -99,7 +99,7 @@ export function SimuladorDecision({
       nivelRiesgo = 1;
       veredicto = {
         icono: "⚡",
-        titulo: "Muy ajustado",
+        titulo: "Alcanza, pero justo",
         texto: `Alcanza, pero solo te sobrarían ${COP(Math.round(margenReal))} de sobra para imprevistos hasta el día ${proximoPago}.`,
       };
       colorVeredicto = C.amber;
@@ -107,7 +107,7 @@ export function SimuladorDecision({
       nivelRiesgo = 0;
       veredicto = {
         icono: "✅",
-        titulo: "Puedes comprarlo",
+        titulo: "Sí te alcanza",
         texto: `Después de cubrir tus gastos del mes, te sobrarían ${COP(Math.round(margenReal))} para cuando llegue tu próximo pago el día ${proximoPago}.`,
       };
       colorVeredicto = C.emerald;
@@ -174,6 +174,7 @@ export function SimuladorDecision({
     >
       <div
         ref={sw.cardRef}
+        {...sw.dragProps}
         style={{
           width: "100%", maxWidth: 430, margin: "0 auto",
           background: C.card, borderRadius: "22px 22px 0 0",
@@ -181,6 +182,7 @@ export function SimuladorDecision({
           padding: "20px 20px 36px",
           maxHeight: "92vh", display: "flex", flexDirection: "column",
           position: "relative",
+          overflowY: "auto", overscrollBehavior: "contain",
           ...sw.cardStyle,
         }}
       >
@@ -202,10 +204,10 @@ export function SimuladorDecision({
         <div style={{ marginBottom: 16, paddingRight: 36 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
             <span style={{ fontSize: 22 }}>🔮</span>
-            <div style={{ fontSize: 18, fontWeight: 800, color: C.text.h }}>Simulador inteligente</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: C.text.h }}>¿Me alcanza la plata?</div>
           </div>
           <div style={{ fontSize: 12, color: C.text.b, lineHeight: 1.5 }}>
-            Vemos si te alcanza hasta que te paguen.
+            ¿Puedes hacer esa compra sin quedarte corto?
           </div>
         </div>
 
@@ -215,8 +217,8 @@ export function SimuladorDecision({
             display: "flex", gap: 8, marginBottom: 16,
           }}>
             {[
-              { label: "Disponible", val: COP(disponibleGastar), color: C.emerald },
-              { label: "Gasto/día", val: (() => {
+              { label: "Tienes ahora", val: COP(disponibleGastar), color: C.emerald },
+              { label: "Gastas/día", val: (() => {
                 const porDia = {};
                 gastosTx.forEach(t => { if (t.goalId) return; const d = parseInt((t.date||"").split("-")[2]||"1",10); porDia[d]=(porDia[d]||0)+t.amount; });
                 const vals = Object.values(porDia).sort((a,b)=>a-b);
@@ -224,7 +226,7 @@ export function SimuladorDecision({
                 const gd = vals.length>=3?vals[Math.min(idx,vals.length-1)]:0;
                 return gd > 0 ? COP(Math.round(gd)) : "—";
               })(), color: C.amber },
-              { label: "Días al pago", val: (() => {
+              { label: "Días pa' cobro", val: (() => {
                 if (!quincenas) return "—";
                 const today = new Date().getDate();
                 const { dia1=30, dia2=15 } = quincenas;
@@ -260,7 +262,7 @@ export function SimuladorDecision({
           <span style={{ padding: "0 16px", color: C.text.b, fontSize: 20, lineHeight: "60px" }}>$</span>
           <input
             inputMode="numeric"
-            placeholder="¿Cuánto cuesta?"
+            placeholder="¿Cuánto vale?"
             value={display}
             onChange={e => setMonto(e.target.value.replace(/\D/g, ""))}
             autoFocus
@@ -277,7 +279,7 @@ export function SimuladorDecision({
         {!resultado && (
           <div style={{ textAlign: "center", padding: "24px 0", color: C.text.s, fontSize: 14, lineHeight: 1.7 }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>💸</div>
-            Escribe el monto y verás si realmente<br/>puedes pagarlo este mes.
+            Escribe el valor y te digo si te alcanza.
           </div>
         )}
 

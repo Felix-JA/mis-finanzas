@@ -603,10 +603,10 @@ EJEMPLOS CON FECHAS:
         </div>
 
         {/* Mensajes */}
-        <div style={{
+        <div {...sw.dragProps} style={{
           flex: 1, overflowY: "auto", padding: "16px 16px 8px",
           display: "flex", flexDirection: "column", gap: 12,
-          WebkitOverflowScrolling: "touch",
+          WebkitOverflowScrolling: "touch", overscrollBehavior: "contain",
         }}>
           {msgs.map((m, i) => (
             <div key={i} style={{
