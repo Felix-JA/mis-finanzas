@@ -1,4 +1,6 @@
 import { SplashScreen } from "./SplashScreen";
+import * as FS from "./firestoreService";
+import { getSalarioDelMes as getSalarioDelMesUtil, calcSaldoAcumulado } from "./finanzasUtils";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { alertInfo, alertError, alertWarning, alertLimit } from "./GlobalAlert";
 import { InsightsEngine } from "./InsightsEngine";
@@ -2914,40 +2916,9 @@ export default function App(){
     setSalarioHistory(newHistory);
     await setDoc(doc(db,"usuarios",user.uid),{salario:nuevoValor,salarioHistory:newHistory},{merge:true});
   }
-  // Obtener el salario que correspondía a un mes/año específico
+  // Wrapper local — pasa el estado actual al util puro
   function getSalarioDelMes(y,m){
-    // Buscar la entrada de historial más reciente que sea <= al mes pedido
-    let best=salario||0;
-    Object.entries(salarioHistory).forEach(([key,val])=>{
-      const [ky,km]=key.split("-").map(Number);
-      if(ky<y||(ky===y&&km<=m)){
-        const bestKey=Object.keys(salarioHistory).filter(k=>{
-          const [by,bm]=k.split("-").map(Number);
-          return by<y||(by===y&&bm<=m);
-        }).sort((a,b)=>{
-          const [ay,am]=a.split("-").map(Number),[by,bm]=b.split("-").map(Number);
-          return (ay*12+am)-(by*12+bm);
-        }).pop();
-        if(!bestKey||(ky*12+km)>=(bestKey.split("-").map(Number).reduce((a,b,i)=>i===0?a*12:a+b,0)))
-          best=val;
-      }
-    });
-    // Si modo quincenal: calcular cuántas quincenas han llegado este mes
-    if(modoSalario==="quincenal"){
-      const currentM2=now.getMonth(), currentY2=now.getFullYear();
-      const isCurrentMonth=y===currentY2&&m===currentM2;
-      if(isCurrentMonth){
-        // Solo contar quincenas que ya llegaron (según día actual)
-        const today2=now.getDate();
-        const {dia1=1,dia2=15}=quincenas;
-        const q1Llegó=today2>=dia1;
-        const q2Llegó=today2>=dia2;
-        const qCount=(q1Llegó?1:0)+(q2Llegó?1:0);
-        return best*(qCount||1); // mínimo 1 quincena para no mostrar $0
-      }
-      return best*2; // meses pasados → salario completo
-    }
-    return best;
+    return getSalarioDelMesUtil(y,m,{salario,salarioHistory,modoSalario,quincenas});
   }
 
   async function handleLogin(){setLL(true);try{await signInWithPopup(auth,provider);}catch(e){console.error(e);}setLL(false);}
@@ -2967,40 +2938,44 @@ export default function App(){
   }
   const handleSave=useCallback(async t=>{
     if(!user)return;
-    const p={desc:t.desc,amount:t.amount,cat:t.cat,date:t.date,
-      ...(t.goalId?{goalId:t.goalId}:{}),
-      ...(t.deudaId?{deudaId:t.deudaId}:{})};
-    if(t.id){
-      await updateDoc(doc(db,"usuarios",user.uid,"transacciones",t.id),p);
-    } else {
-      await addDoc(collection(db,"usuarios",user.uid,"transacciones"),{...p,createdAt:serverTimestamp()});
-      // Si tiene deudaId → actualizar saldoRestante de la deuda
-      if(t.deudaId){
-        const dSnap=await getDoc(doc(db,"usuarios",user.uid,"deudas",t.deudaId));
-        if(dSnap.exists()){
-          const dData=dSnap.data();
-          const nuevoSaldo=Math.max((dData.saldoRestante||0)-t.amount,0);
-          const liquidada=nuevoSaldo<=0;
-          const pagos=[...(dData.pagos||[]),{fecha:t.date,monto:t.amount}];
-          await updateDoc(doc(db,"usuarios",user.uid,"deudas",t.deudaId),{saldoRestante:nuevoSaldo,liquidada,pagos});
-        }
-      }
-      // Alerta gasto significativo
-      if(isGasto(t.cat) && !isAporteMeta(t) && (salario||0)>0){
-        const pctDelIngreso=t.amount/(salario||1);
-        if(pctDelIngreso>=0.3){
-          setAlertaGasto({monto:t.amount, pct:pctDelIngreso, desc:t.desc||"este gasto"});
-          setTimeout(()=>setAlertaGasto(null), 10000);
-        }
+    const result=await FS.saveTx(user.uid,t);
+    if(result.created&&t.deudaId){
+      await FS.actualizarDeudaTrasNuevaTx(user.uid,t.deudaId,t.amount,result.id,t.date);
+    }
+    // Alerta gasto significativo — lógica de UI, se queda aquí
+    if(result.created&&isGasto(t.cat)&&!isAporteMeta(t)&&(salario||0)>0){
+      const pct=t.amount/(salario||1);
+      if(pct>=0.3){
+        setAlertaGasto({monto:t.amount,pct,desc:t.desc||"este gasto"});
+        setTimeout(()=>setAlertaGasto(null),10000);
       }
     }
   },[user,salario]);
   const handleDelete=useCallback(async id=>{
     if(!user)return;
-    // Si la tx tiene deudaId → restaurar el saldo de la deuda
-    const txSnap=await getDoc(doc(db,"usuarios",user.uid,"transacciones",id));
-    if(txSnap.exists()){
-      const txData=txSnap.data();
+    // 1. Buscar la tx en el estado local (ya la tenemos — no necesitamos getDoc)
+    const txData=tx.find(t=>t.id===id);
+    if(!txData)return;
+
+    // 2. OPTIMISTIC UPDATE — actualizar UI inmediatamente
+    setTx(prev=>prev.filter(t=>t.id!==id));
+
+    // 3. Si tiene deudaId → actualizar deuda en estado local también
+    if(txData.deudaId&&txData.amount){
+      const deudasActual=deudas.find(d=>d.id===txData.deudaId);
+      if(deudasActual){
+        const nuevoSaldo=Math.min((deudasActual.saldoRestante||0)+txData.amount, deudasActual.montoTotal||0);
+        const pagosActualizados=(deudasActual.pagos||[]).filter(p=>p.txId!==id);
+        setDeudas(prev=>prev.map(d=>d.id===txData.deudaId
+          ?{...d,saldoRestante:nuevoSaldo,liquidada:nuevoSaldo<=0,pagos:pagosActualizados}
+          :d
+        ));
+      }
+    }
+
+    // 4. Firestore en background — si falla, revertir
+    try{
+      // Actualizar deuda en Firestore si aplica
       if(txData.deudaId&&txData.amount){
         const dSnap=await getDoc(doc(db,"usuarios",user.uid,"deudas",txData.deudaId));
         if(dSnap.exists()){
@@ -3012,42 +2987,30 @@ export default function App(){
           });
         }
       }
+      await deleteDoc(doc(db,"usuarios",user.uid,"transacciones",id));
+    }catch(e){
+      // Revertir si falló — el onSnapshot de Firestore restaurará el estado real
+      console.error("Error al eliminar tx:",e);
     }
-    await deleteDoc(doc(db,"usuarios",user.uid,"transacciones",id));
-  },[user]);
+  },[user,tx,deudas]);
   const handleGoalSave=useCallback(async g=>{
     if(!user)return;
-    const pl={
-      name:g.name,monto:g.monto||0,emoji:g.emoji||"⭐",
-      esEmergencias:g.esEmergencias||false,
-      saldoInicial:g.saldoInicial||0,
-      ...(g.imagen?{imagen:g.imagen}:{imagen:null}),
-    };
-    if(g.id) await updateDoc(doc(db,"usuarios",user.uid,"metas",g.id),pl);
-    else if(!isPro&&goals.length>=3){setProGate({titulo:"Metas ilimitadas",descripcion:"Plan Free: hasta 3 metas. Pro: ilimitadas.",features:[{icon:"🎯",label:"Metas ilimitadas",desc:"Crea tantas como quieras"},{icon:"🖼️",label:"Imágenes personalizadas"},{icon:"📊",label:"Proyecciones de logro"}]});return;}
-    else await addDoc(collection(db,"usuarios",user.uid,"metas"),{...pl,createdAt:serverTimestamp()});
-  },[user]);
+    if(!g.id&&!isPro&&goals.length>=3){
+      setProGate({titulo:"Metas ilimitadas",descripcion:"Plan Free: hasta 3 metas. Pro: ilimitadas.",features:[{icon:"🎯",label:"Metas ilimitadas",desc:"Crea tantas como quieras"},{icon:"🖼️",label:"Imágenes personalizadas"},{icon:"📊",label:"Proyecciones de logro"}]});
+      return;
+    }
+    await FS.saveMeta(user.uid,g);
+  },[user,isPro,goals.length]);
 
   // Crear meta de Emergencias por defecto al hacer onboarding
   const crearMetaEmergencias=useCallback(async()=>{
-    if(!user)return;
-    const existe=goals.some(g=>g.esEmergencias);
-    if(existe)return;
-    await addDoc(collection(db,"usuarios",user.uid,"metas"),{
-      name:"Fondo Emergencias",emoji:"🛡️",monto:0,esEmergencias:true,
-      createdAt:serverTimestamp(),
-    });
+    if(!user||goals.some(g=>g.esEmergencias))return;
+    await FS.crearMetaEmergencias(user.uid);
   },[user,goals]);
   const handleGoalDelete=useCallback(async id=>{
     if(!user)return;
-    // 1. Eliminar la meta
-    await deleteDoc(doc(db,"usuarios",user.uid,"metas",id));
-    // 2. Eliminar TODOS los movimientos de aporte vinculados a esa meta
-    //    Así el saldo se recupera automáticamente
-    const aportesDeEstaMeta=tx.filter(t=>(isAporteMeta(t)||isSavingsLegacy(t.cat))&&t.goalId===id);
-    await Promise.all(
-      aportesDeEstaMeta.map(t=>deleteDoc(doc(db,"usuarios",user.uid,"transacciones",t.id)))
-    );
+    const aporteIds=tx.filter(t=>(isAporteMeta(t)||isSavingsLegacy(t.cat))&&t.goalId===id).map(t=>t.id);
+    await FS.deleteMeta(user.uid,id,aporteIds);
   },[user,tx]);
 
   // ── Exportar movimientos a CSV ───────────────────────────────────────────
@@ -3445,21 +3408,13 @@ export default function App(){
   }
   const handlePresupuestoSave=useCallback(async(catId,limite)=>{
     if(!user)return;
-    if(!limite||limite<=0){
-      // Eliminar presupuesto si se borra el límite
-      await deleteDoc(doc(db,"usuarios",user.uid,"presupuestos",catId));
-    } else {
-      await setDoc(doc(db,"usuarios",user.uid,"presupuestos",catId),{limite});
-    }
+    await FS.savePresupuesto(user.uid,catId,limite);
   },[user]);
  
   // Guardar varios presupuestos de golpe (plan inteligente)
   const handleBudgetBulkSave=useCallback(async(presupuestosObj)=>{
     if(!user)return;
-    const tareas=Object.entries(presupuestosObj).map(([catId,limite])=>
-      setDoc(doc(db,"usuarios",user.uid,"presupuestos",catId),{limite})
-    );
-    await Promise.all(tareas);
+    await FS.saveBudgetBulk(user.uid,presupuestosObj);
   },[user]);
 
   // Guardar subcategorías personalizadas — campo catsCustom en usuarios/{uid}
@@ -3467,165 +3422,64 @@ export default function App(){
     if(!user)return;
     const updated={...catsCustom,[mainId]:subs};
     setCatsCustom(updated);
-    await setDoc(doc(db,"usuarios",user.uid),{catsCustom:updated},{merge:true});
+    await FS.saveCatsCustom(user.uid,updated);
   },[user,catsCustom]);
 
   // CRUD préstamos a terceros
   const handlePrestamoSave=useCallback(async p=>{
     if(!user)return;
-    const pl={nombre:p.nombre,monto:p.monto,fechaPrestamo:p.fechaPrestamo,descripcion:p.descripcion||"",devuelto:p.devuelto||false};
-    if(p.id){
-      // Edición — solo actualiza datos del préstamo, no toca la tx original
-      await updateDoc(doc(db,"usuarios",user.uid,"prestamos",p.id),pl);
-    } else {
-      // Nuevo préstamo — crear tx de gasto automáticamente en "A terceros"
-      // Asegurar formato YYYY-MM-DD
-      const fechaFmt = p.fechaPrestamo && /^\d{4}-\d{2}-\d{2}$/.test(p.fechaPrestamo)
-        ? p.fechaPrestamo : todayStr();
-      const txRef=await addDoc(collection(db,"usuarios",user.uid,"transacciones"),{
-        desc:`Préstamo a ${p.nombre}${p.descripcion?` · ${p.descripcion}`:""}`,
-        amount:p.monto,
-        cat:"prestamo_tercero",
-        date:fechaFmt,
-        createdAt:serverTimestamp(),
-      });
-      // Guardar con referencia a la tx para poder eliminarla si se borra el préstamo
-      await addDoc(collection(db,"usuarios",user.uid,"prestamos"),{...pl,txId:txRef.id,createdAt:serverTimestamp()});
-    }
+    await FS.savePrestamo(user.uid,p);
   },[user]);
   const handlePrestamoDelete=useCallback(async(id,txId)=>{
     if(!user)return;
-    // Obtener datos del préstamo para saber si hay tx de devolución
-    const snap=await getDoc(doc(db,"usuarios",user.uid,"prestamos",id));
-    const txDevId=snap.data()?.txDevolucionId;
-    // Eliminar el préstamo
-    await deleteDoc(doc(db,"usuarios",user.uid,"prestamos",id));
-    // Eliminar tx de gasto original
-    if(txId){
-      try{ await deleteDoc(doc(db,"usuarios",user.uid,"transacciones",txId)); }catch(e){}
-    }
-    // Eliminar tx de devolución si existe
-    if(txDevId){
-      try{ await deleteDoc(doc(db,"usuarios",user.uid,"transacciones",txDevId)); }catch(e){}
-    }
+    await FS.deletePrestamo(user.uid,id,txId);
   },[user]);
   const handlePrestamoToggle=useCallback(async(id,devuelto,montoDevuelto,nombre)=>{
     if(!user)return;
-    if(devuelto&&montoDevuelto>0){
-      // Crear tx de devolución y guardar su id en el préstamo
-      const txDev=await addDoc(collection(db,"usuarios",user.uid,"transacciones"),{
-        desc:`Devolución de ${nombre}`,
-        amount:montoDevuelto,
-        cat:"prestamo_devuelto",
-        date:todayStr(),
-        createdAt:serverTimestamp(),
-      });
-      await updateDoc(doc(db,"usuarios",user.uid,"prestamos",id),{
-        devuelto:true,
-        fechaDevolucion:todayStr(),
-        txDevolucionId:txDev.id,
-        montoDevuelto,
-      });
-    } else {
-      // Deshacer devolución — buscar y eliminar la tx de devolución si existe
-      const snap=await getDoc(doc(db,"usuarios",user.uid,"prestamos",id));
-      const txDevId=snap.data()?.txDevolucionId;
-      if(txDevId){
-        try{ await deleteDoc(doc(db,"usuarios",user.uid,"transacciones",txDevId)); }catch(e){}
-      }
-      await updateDoc(doc(db,"usuarios",user.uid,"prestamos",id),{
-        devuelto:false,
-        fechaDevolucion:null,
-        txDevolucionId:null,
-        montoDevuelto:null,
-      });
-    }
+    await FS.togglePrestamo(user.uid,id,devuelto,montoDevuelto,nombre);
   },[user]);
 
   // CRUD deudas
   const handleDeudaSave=useCallback(async(d)=>{
     if(!user)return;
-    const pl={nombre:d.nombre,emoji:d.emoji,montoTotal:d.montoTotal,
-      saldoRestante:d.saldoRestante,cuotaMensual:d.cuotaMensual,
-      dia:d.dia,liquidada:false};
-    if(d.id){
-      await updateDoc(doc(db,"usuarios",user.uid,"deudas",d.id),pl);
-    } else {
-      await addDoc(collection(db,"usuarios",user.uid,"deudas"),{...pl,pagos:[],createdAt:serverTimestamp()});
-    }
+    await FS.saveDeuda(user.uid,d);
   },[user]);
 
   const handleDeudaPagar=useCallback(async(deudaId,monto)=>{
     if(!user)return;
-    // 1. Registrar gasto en transacciones
-    const txRef=await addDoc(collection(db,"usuarios",user.uid,"transacciones"),{
-      desc:`Cuota deuda`,amount:monto,cat:"cuotas",
-      date:todayStr(),createdAt:serverTimestamp(),
-    });
-    // 2. Actualizar saldoRestante de la deuda
-    const snap=await getDoc(doc(db,"usuarios",user.uid,"deudas",deudaId));
-    if(!snap.exists())return;
-    const data=snap.data();
-    const nuevoSaldo=Math.max((data.saldoRestante||0)-monto,0);
-    const liquidada=nuevoSaldo<=0;
-    const pagos=[...(data.pagos||[]),{fecha:todayStr(),monto,txId:txRef.id}];
-    await updateDoc(doc(db,"usuarios",user.uid,"deudas",deudaId),{
-      saldoRestante:nuevoSaldo,liquidada,pagos,
-    });
+    await FS.pagarDeuda(user.uid,deudaId,monto);
   },[user]);
 
   const handleDeudaDelete=useCallback(async(deudaId)=>{
     if(!user)return;
-    await deleteDoc(doc(db,"usuarios",user.uid,"deudas",deudaId));
+    await FS.deleteDeuda(user.uid,deudaId);
   },[user]);
 
   const handlePatrimonioSave=useCallback(async(p)=>{
     if(!user)return;
-    await setDoc(doc(db,"usuarios",user.uid),{patrimonio:p},{merge:true});
+    await FS.savePatrimonio(user.uid,p);
   },[user]);
 
   // CRUD pagos programados
   const handlePagoSave=useCallback(async p=>{
     if(!user)return;
-    const pl={
-      nombre:p.nombre,monto:p.monto,cat:p.cat,dia:p.dia,
-      frecuencia:p.frecuencia||"mensual",activo:true,
-      esVariable:p.esVariable||false,
-      // Para pagos únicos: mes/año en que aplica
-      ...(p.frecuencia==="unico"
-        ?{mesUnico:p.mesUnico??now.getMonth(), anioUnico:p.anioUnico??now.getFullYear()}
-        :{}),
-      // Para pagos mensuales: mes/año de inicio (no aparece en meses anteriores)
-      ...((!p.id&&(p.frecuencia==="mensual"||!p.frecuencia))
-        ?{mesInicio:p.mesInicio??calMes, anioInicio:p.anioInicio??calAnio}
-        :{}),
-    };
-    if(p.id) await updateDoc(doc(db,"usuarios",user.uid,"pagos_programados",p.id),pl);
-    else await addDoc(collection(db,"usuarios",user.uid,"pagos_programados"),{...pl,createdAt:serverTimestamp()});
+    await FS.savePago(user.uid,p,calMes,calAnio);
   },[user,calMes,calAnio]);
   const handlePagoDelete=useCallback(async id=>{
     if(!user)return;
-    await deleteDoc(doc(db,"usuarios",user.uid,"pagos_programados",id));
+    await FS.deletePago(user.uid,id);
   },[user]);
   const handlePagoConfirmar=useCallback(async p=>{
     if(!user)return;
-    const fecha=todayStr();
-    await addDoc(collection(db,"usuarios",user.uid,"transacciones"),{
-      desc:p.nombre,amount:p.monto,cat:p.cat,date:fecha,
-      createdAt:serverTimestamp(),pagoId:p.id,
-    });
+    await FS.confirmarPago(user.uid,p);
   },[user]);
   const handlePagoNoPague=useCallback(async p=>{
-    // No pagué — eliminar el pago programado
     if(!user)return;
-    await deleteDoc(doc(db,"usuarios",user.uid,"pagos_programados",p.id));
+    await FS.deletePago(user.uid,p.id);
   },[user]);
   const handlePagoPostponer=useCallback(async p=>{
-    // Recordar mañana — mover el día al día siguiente
     if(!user)return;
-    const maniana=new Date(); maniana.setDate(maniana.getDate()+1);
-    const nuevoDia=maniana.getDate();
-    await updateDoc(doc(db,"usuarios",user.uid,"pagos_programados",p.id),{dia:nuevoDia});
+    await FS.posponerPago(user.uid,p.id);
   },[user]);
 
   // Pagos pendientes HOY (día del mes coincide con dia programado)
@@ -3657,76 +3511,13 @@ export default function App(){
   const ingresosExtra=ingresosTx.reduce((s,t)=>s+t.amount,0);
   const totalIngresoMes=salDelMes+ingresosExtra; // solo salario + ingresos reales de trabajo
 
-  // Saldo acumulativo por mes — salario base + ingresos extra registrados
-  function getSaldoAcumulado() {
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth(); // mes REAL de hoy
-
-    // Solo acumular hasta el mes actual real como máximo.
-    // Si el mes seleccionado es el inmediatamente siguiente al actual, mostramos
-    // el sobrante del mes actual como proyección. Más allá de eso: $0.
-    const esMesFuturoInmediato = month === currentMonth + 1 && now.getFullYear() === currentYear;
-    const esMesFuturoLejano = month > currentMonth + 1;
-    if (esMesFuturoLejano) return 0;
-
-    // El límite hasta donde acumulamos:
-    // - mes actual o pasado → acumula hasta ese mes (excluyéndolo)
-    // - mes siguiente inmediato → acumula hasta currentMonth (inclusive, o sea hasta fin de mes actual)
-    const limiteMes = esMesFuturoInmediato ? currentMonth + 1 : month;
-    const limiteYear = currentYear;
-
-    // 1. Solo tx de meses anteriores al límite
-    const txPasadas = tx.filter(t => {
-      const d = parseDateSafe(t.date);
-      if (d.getFullYear() < limiteYear) return true;
-      if (d.getFullYear() === limiteYear && d.getMonth() < limiteMes) return true;
-      return false;
-    });
-
-    if (txPasadas.length === 0) return 0;
-
-    // 2. Encontrar el mes más antiguo con transacciones
-    let minYear = currentYear, minMes = limiteMes;
-    txPasadas.forEach(t => {
-      const d = parseDateSafe(t.date);
-      if (d.getFullYear() < minYear || (d.getFullYear() === minYear && d.getMonth() < minMes)) {
-        minYear = d.getFullYear();
-        minMes = d.getMonth();
-      }
-    });
-
-    // 3. Agrupar transacciones por año-mes
-    const porMes = {};
-    txPasadas.forEach(t => {
-      const d = parseDateSafe(t.date);
-      const key = `${d.getFullYear()}-${d.getMonth()}`;
-      if (!porMes[key]) porMes[key] = { ingresos: 0, gastos: 0, ahorros: 0, devoluciones: 0, extras: 0, prestamos: 0 };
-      if (isIngreso(t.cat)) porMes[key].ingresos += t.amount;
-      else if (isDevolucion(t.cat)) porMes[key].devoluciones += t.amount;
-      else if (isIngresoExtra(t.cat)) porMes[key].extras += t.amount;
-      else if (isPrestamoTercero(t.cat)) porMes[key].prestamos += t.amount;
-      else if (isAporteMeta(t)||isSavingsLegacy(t.cat)) porMes[key].ahorros += t.amount;
-      else porMes[key].gastos += t.amount;
-    });
-
-    // 4. Recorrer mes a mes en cadena — salario del mes correcto + extras + sobrante
-    let saldoAcumulado = 0;
-    let y = minYear, m = minMes;
-    while (y < limiteYear || (y === limiteYear && m < limiteMes)) {
-      const key = `${y}-${m}`;
-      const datos = porMes[key] || { ingresos: 0, gastos: 0, ahorros: 0, devoluciones: 0, extras: 0, prestamos: 0 };
-      const salMes = getSalarioDelMes(y, m);
-      const ingMes = salMes + datos.ingresos;
-      const disponibleMes = ingMes + saldoAcumulado - datos.gastos - datos.ahorros - (datos.prestamos||0) + datos.devoluciones + datos.extras;
-      saldoAcumulado = Math.max(disponibleMes, 0);
-      m++;
-      if (m > 11) { m = 0; y++; }
-    }
-    return saldoAcumulado;
-  }
-
-  const saldoAnterior=getSaldoAcumulado();
-  // saldo real: incluye metas (para acumulado histórico correcto)
+  // Saldo acumulativo — delegado al util puro
+  const saldoAnterior=useMemo(()=>calcSaldoAcumulado({
+    tx,month,selectedYear,
+    salario,salarioHistory,modoSalario,quincenas,
+    isIngreso,isDevolucion,isIngresoExtra,isPrestamoTercero,
+    isAporteMeta,isSavingsLegacy,parseDateSafe,
+  }),[tx,month,selectedYear,salario,salarioHistory,modoSalario,quincenas]);
   const saldo=totalIngresoMes+saldoAnterior-totalGasto-totalAportes-totalPrestamos+totalDevoluciones+totalExtras;
   // disponible para gastar: ingresos + extras - gastos - metas - préstamos (metas son intocables)
   const disponibleGastar=Math.max(totalIngresoMes+saldoAnterior+totalExtras+totalDevoluciones-totalGasto-totalAportes-totalPrestamos,0);
@@ -3741,7 +3532,8 @@ export default function App(){
   const animGasto=useCountUp(totalGasto,800);
   const animAportes=useCountUp(totalAportes,850);
   // Compartidos entre HomeTab y AnalisisTab — subidos al scope de App()
-  const byMain=MAIN_CATS.map(m=>({...m,total:gastosTx.filter(t=>m.subs.some(s=>s.id===t.cat)||(catsCustom[m.id]||[]).some(s=>s.id===t.cat)).reduce((s,t)=>s+t.amount,0)})).filter(c=>c.total>0||(presupuestos[c.id]||0)>0).sort((a,b)=>(b.total-a.total)||((presupuestos[b.id]||0)-(presupuestos[a.id]||0)));
+  const byMain=useMemo(()=>MAIN_CATS.map(m=>({...m,total:gastosTx.filter(t=>m.subs.some(s=>s.id===t.cat)||(catsCustom[m.id]||[]).some(s=>s.id===t.cat)).reduce((s,t)=>s+t.amount,0)})).filter(c=>c.total>0||(presupuestos[c.id]||0)>0).sort((a,b)=>(b.total-a.total)||((presupuestos[b.id]||0)-(presupuestos[a.id]||0)))
+  ,[gastosTx,presupuestos,catsCustom]);
   const totalMesesConDatos=new Set(tx.map(t=>{const d=parseDateSafe(t.date);return `${d.getFullYear()}-${d.getMonth()}`;})).size;
 
   // ── Cálculo de logros ──────────────────────────────────────────────────────
@@ -3782,6 +3574,23 @@ export default function App(){
     return racha;
   },[mesesResumen]);
 
+  // Mapa goalId→total aportado — calculado una vez por cambio en tx o goals
+  const aportadoMap=useMemo(()=>{
+    const map={};
+    goals.forEach(g=>{
+      const saldoInicial=g.saldoInicial||0;
+      const aportesApp=tx.filter(t=>(isAporteMeta(t)||isSavingsLegacy(t.cat))&&t.goalId===g.id)
+               .reduce((s,t)=>s+t.amount,0);
+      map[g.id]=saldoInicial+aportesApp;
+    });
+    return map;
+  },[tx,goals]);
+  function getAportado(gid){ return aportadoMap[gid]||0; }
+  function getAportadoMes(gid,m,y){
+    return tx.filter(t=>(isAporteMeta(t)||isSavingsLegacy(t.cat))&&t.goalId===gid&&isMonth(t.date,m,y))
+             .reduce((s,t)=>s+t.amount,0);
+  }
+
   const badgesDesbloqueados=useMemo(()=>calcBadgesDesbloqueados({
     tx,goals,presupuestos,prestamos,
     rachaActual:rachaActualLogros,
@@ -3807,18 +3616,7 @@ export default function App(){
     setDoc(doc(db,"usuarios",user.uid),{badges:updated},{merge:true});
     setTimeout(()=>setBadgesNuevos([]),6000);
   },[badgesDesbloqueados,user]);
-  function getAportado(gid){
-    // Acumulado histórico = saldo inicial (ahorros previos) + aportes registrados en la app
-    const meta=goals.find(g=>g.id===gid);
-    const saldoInicial=meta?.saldoInicial||0;
-    const aportesApp=tx.filter(t=>(isAporteMeta(t)||isSavingsLegacy(t.cat))&&t.goalId===gid)
-             .reduce((s,t)=>s+t.amount,0);
-    return saldoInicial+aportesApp;
-  }
-  function getAportadoMes(gid,m,y){
-    return tx.filter(t=>(isAporteMeta(t)||isSavingsLegacy(t.cat))&&t.goalId===gid&&isMonth(t.date,m,y))
-             .reduce((s,t)=>s+t.amount,0);
-  }
+
 
   const CSS=`
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800;900&display=swap');
