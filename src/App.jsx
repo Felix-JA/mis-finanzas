@@ -4,7 +4,7 @@ import { getSalarioDelMes as getSalarioDelMesUtil, calcSaldoAcumulado } from "./
 import { useFirestoreData } from "./useFirestoreData";
 import { exportarCSV as exportCSVUtil, exportarPDF as exportPDFUtil } from "./exportUtils";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { alertInfo, alertError, alertWarning, alertLimit } from "./GlobalAlert";
+import { alertInfo, alertWarning, alertLimit } from "./GlobalAlert";
 import { InsightsEngine } from "./InsightsEngine";
 import { LogrosTab, calcBadgesDesbloqueados, calcMesesPerfectos, BADGES_DEF } from "./LogrosEngine";
 import { FinancialScore } from "./FinancialScore";
@@ -90,8 +90,8 @@ const TEMAS = {
     label:"🌫️ Bruma", desc:"Gris azulado elegante",
   },
 };
-const DARK = TEMAS.navy; // alias para compatibilidad
 // C es mutable — se actualiza al cambiar tema
+const DARK = TEMAS.navy;
 const C = {...DARK};
 
 // ─── HELPER DE TINTA ADAPTATIVA ───────────────────────────────────────────────
@@ -1858,7 +1858,6 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
   const esEdicion=!!initial?.id;
   const montoDiff=esEdicion?(raw-initial.amount):raw;
   const sinDisponible=!esIngreso&&!esIngresoExtra&&!esEdicion&&!isEdit&&saldoDisponible<raw;
-  const sinSaldo=false;
 
   const subCats = ALL_SUBS.map(s=>s.id);
   const isCustomSub = cat?.startsWith("custom_");
@@ -2092,13 +2091,13 @@ function TxModal({initial,initialCat,onClose,onSave,onDelete,goals,saldoDisponib
         <div style={{display:"flex",gap:8,marginBottom:28}}>
           {isEdit&&!conf&&<button onClick={()=>setConf(true)} style={{padding:"16px 18px",borderRadius:14,border:`1px solid ${C.red}44`,background:"transparent",color:C.red,cursor:"pointer",fontSize:22,flexShrink:0}}>🗑</button>}
           {isEdit&&conf&&<button onClick={()=>{onDelete(initial.id);onClose();}} style={{padding:"16px 18px",borderRadius:14,border:"none",background:C.red,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:800,flexShrink:0,animation:"shake 0.3s ease"}}>¿Borrar?</button>}
-          <button onClick={(hayError||sinSaldo||sinDisponible||sinMetas)?undefined:save}
+          <button onClick={(hayError||sinDisponible||sinMetas)?undefined:save}
             style={{flex:1,padding:16,borderRadius:14,border:"none",
-              cursor:(hayError||sinSaldo||sinDisponible||sinMetas)?"not-allowed":"pointer",
+              cursor:(hayError||sinDisponible||sinMetas)?"not-allowed":"pointer",
               fontSize:raw>=1000000?13:raw>=100000?14:16,fontWeight:800,transition:"all 0.2s",
               background:(hayError||sinMetas)?C.surface:sinDisponible?(saldoDisponible<=0?`${C.red}20`:`${C.amber}20`):isEdit&&!changed?`${C.sky}18`:`linear-gradient(135deg,${acc},${acc}cc)`,
               color:(hayError||sinMetas)?C.text.s:sinDisponible?(saldoDisponible<=0?C.red:C.amber):isEdit&&!changed?C.sky:"#fff",
-              opacity:(hayError||sinSaldo||sinDisponible||sinMetas)?0.65:1}}>
+              opacity:(hayError||sinDisponible||sinMetas)?0.65:1}}>
             {getMensajeError() ?? (sinDisponible?(saldoDisponible<=0?"Sin disponible":"No alcanza — tienes "+COP(saldoDisponible)):isEdit&&!changed?"Sin cambios":isEdit?"✓ Guardar":esIngreso?`Registrar salario ${COP(raw)} →`:esIngresoExtra?`Registrar extra ${COP(raw)} →`:`Registrar ${COP(raw)} →`)}
           </button>
         </div>
@@ -3126,7 +3125,6 @@ export default function App(){
   const disponibleGastar=Math.max(totalIngresoMes+saldoAnterior+totalExtras+totalDevoluciones-totalGasto-totalAportes-totalPrestamos,0);
   const tasaAhorr=totalIngresoMes>0?totalAportes/totalIngresoMes:0;
   // "de $X" muestra el salario puro — referencia fija del mes
-  const totalDisponibleBase=totalIngresoMes+saldoAnterior;
   // % gastado = gastos / salario — cuánto del sueldo se fue en gastos
   const pctUsado=totalIngresoMes>0?totalGasto/totalIngresoMes:totalGasto>0?1:0;
   const totalEnMetas=tx.filter(t=>isAporteMeta(t)||isSavingsLegacy(t.cat)).reduce((s,t)=>s+t.amount,0);
